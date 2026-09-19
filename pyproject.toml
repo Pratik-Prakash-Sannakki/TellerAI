@@ -1,0 +1,16 @@
+[project]
+name = "interface-ai-cua"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "deepagents>=0.7.15",
+    "langchain-anthropic>=1.7.2",
+    "playwright>=1.63.0",
+    "python-dotenv>=1.2.3",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "jupytext>=1.19.5",
+]
