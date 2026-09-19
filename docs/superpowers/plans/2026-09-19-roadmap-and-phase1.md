@@ -56,6 +56,18 @@ Each phase ends in something you can run and look at. **Only Phase 1 is planned 
 
 ---
 
+## Amendment 1 — agent-driven login (D32). Overrides any conflicting task text below.
+
+- **No `login()` helper.** The agent logs in itself with a `type_secret` tool.
+- **Config (notebook 1):** add `SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}` and `resolve_secret(name) -> str` (raises on unknown name). Write its assert checks first.
+- **Task 2:** keep register-by-hand (ParaBank leaves the browser logged in afterwards). Keep `first_account_id` and `read_balance_ground_truth`, labelled *ParaBank-only grader, not product code*. Drop `login()` and the verify-login cell.
+- **Task 4 verify:** also clear cookies, open `index.htm`, observe, save `observe_login.png`. Expect `textbox` username/password and a `Log In` button in the list.
+- **Task 5 (notebook 2):** add tool `type_secret(ref: int, name: str)`. Refuse if name unknown, host not allowed, or target is not an input. Never put the value in any return text.
+- **Task 6 (notebook 2):** prompt says "log in with `type_secret` names `username` and `password`". First goal starts logged out: "Log in, open the first account listed, report its id and balance."
+- **Task 7 (notebook 3):** add a check that `type_secret` refuses on an off-list host.
+
+---
+
 ## Part B — Phase 1 detailed plan
 
 ### How verification works in Phase 1 (read this first)

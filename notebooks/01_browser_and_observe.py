@@ -1,11 +1,11 @@
 # %% [markdown]
-# # Notebook 1: browser, login, and numbered screenshot
+# # Notebook 1: browser, secrets config, and numbered screenshot
 # Run cells top to bottom in ONE kernel. Restarting the kernel closes the browser.
 # No LLM in this notebook. It only proves we can drive ParaBank and "see" the page.
 
 # %% [markdown]
 # ## Section 1: config
-# Loads `.env` and sets the base URL and the one allowed host.
+# Loads `.env`, sets the base URL, the one allowed host, and the secret names. `resolve_secret` maps a secret name to its `.env` value.
 # Expected output: `model: anthropic:claude-sonnet-5 | base: https://parabank.parasoft.com/parabank`
 
 # %%
@@ -21,8 +21,52 @@ load_dotenv(override=True)
 MODEL = os.getenv("MODEL", "anthropic:claude-sonnet-5")
 BASE = "https://parabank.parasoft.com/parabank"
 ALLOWED_HOSTS = {"parabank.parasoft.com"}
+SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}
+
+
+def resolve_secret(name: str) -> str:
+    """Look up a secret by name. Raises on unknown name or empty value."""
+    if name not in SECRETS:
+        raise KeyError(f"unknown secret name: {name!r}")
+    value = os.environ.get(SECRETS[name], "")
+    if not value:
+        raise RuntimeError(f"env var {SECRETS[name]} is empty or not set")
+    return value
+
 
 print("model:", MODEL, "| base:", BASE)
+
+# %% [markdown]
+# ## Section 1b: check `resolve_secret`
+# Pure check, no browser. Uses a fake value and restores `os.environ` afterwards. Never prints a value.
+# Expected output: `resolve_secret checks passed`.
+# (Written test-first: without the config cell above these fail with `NameError`.)
+
+# %%
+_var = SECRETS["password"]
+_saved = os.environ.get(_var)
+try:
+    try:
+        resolve_secret("nope")
+        raise AssertionError("unknown name should raise KeyError")
+    except KeyError:
+        pass
+
+    os.environ[_var] = "fake-value-for-check"
+    assert resolve_secret("password") == "fake-value-for-check"
+
+    os.environ[_var] = ""
+    try:
+        resolve_secret("password")
+        raise AssertionError("empty env var should raise RuntimeError")
+    except RuntimeError:
+        pass
+finally:
+    if _saved is None:
+        os.environ.pop(_var, None)
+    else:
+        os.environ[_var] = _saved
+print("resolve_secret checks passed")
 
 # %% [markdown]
 # ## Section 2: open the browser
@@ -53,7 +97,7 @@ print("opened:", page.url)
 # | Username | `cua_demo_` + 4 random digits (usernames are shared site-wide) |
 # | Password | a throwaway, **not one you use anywhere else** |
 #
-# Submit the form. ParaBank logs you in and shows a welcome page.
+# Submit the form. ParaBank leaves the browser logged in afterwards.
 # Then open `.env` and fill in:
 #
 # ```
@@ -61,23 +105,17 @@ print("opened:", page.url)
 # PARABANK_PASSWORD=<the throwaway password>
 # ```
 #
-# Save `.env`, then continue with the next cell.
+# The agent will use these later through `type_secret`. It only sees the names `username` and `password`, never the values.
+# Save `.env`, then run the next cell. It reloads `.env` with `load_dotenv(override=True)`, so the new values are picked up without restarting the kernel.
 
 # %% [markdown]
-# ## Section 2b: login and balance helpers
-# Defines `login`, `first_account_id`, and `read_balance_ground_truth`. Credentials are typed here by our code, never by an agent.
+# ## Section 2b: ground-truth helpers
+# ParaBank-only grader used to check the agent. Not product code.
+# Defines `first_account_id` and `read_balance_ground_truth`, and reloads `.env`.
 # Expected output: nothing (just defines functions).
 
 # %%
 load_dotenv(override=True)
-
-
-async def login(page) -> None:
-    await page.goto(f"{BASE}/index.htm")
-    await page.fill('input[name="username"]', os.environ["PARABANK_USERNAME"])
-    await page.fill('input[name="password"]', os.environ["PARABANK_PASSWORD"])
-    await page.click('input[value="Log In"]')
-    await page.wait_for_url("**/overview.htm")
 
 
 async def first_account_id(page) -> str:
@@ -93,19 +131,6 @@ async def read_balance_ground_truth(page, account_id: str) -> str:
     assert match, f"could not find a balance in page text: {text[:300]!r}"
     return match.group(1)
 
-
-# %% [markdown]
-# ## Verify: login
-# Logs in with your `.env` credentials and finds your first account id.
-# Expected output: `logged in; first account id: <5 digits>`, and the window shows Accounts Overview.
-# If the assertion fails, the login selectors may differ. Inspect the form in DevTools and adjust the two selectors in `login`.
-
-# %%
-await login(page)
-body = await page.inner_text("body")
-assert "Accounts Overview" in body, "login did not reach the overview page"
-ACCOUNT_ID = await first_account_id(page)
-print("logged in; first account id:", ACCOUNT_ID)
 
 # %% [markdown]
 # ## Section 3: domain guard
@@ -268,7 +293,7 @@ print("format_elements check passed")
 
 # %% [markdown]
 # ## Verify: observe on the overview page
-# Takes a numbered screenshot of the Accounts Overview page, saves it to `notebooks/scratch/observe.png`, and prints the element list.
+# Takes a numbered screenshot of the Accounts Overview page (the browser is still logged in from registration), saves it to `notebooks/scratch/observe.png`, and prints the element list.
 # Expected output: lines like `[n] link "Open New Account"`, `[n] link "Transfer Funds"`, and a link named with your account id.
 # Open `notebooks/scratch/observe.png`: red numbered boxes should sit on those links. The red boxes must NOT stay on the live browser page.
 
@@ -278,4 +303,17 @@ await page.goto(f"{BASE}/overview.htm")
 obs = await surface.observe()
 os.makedirs("notebooks/scratch", exist_ok=True)
 open("notebooks/scratch/observe.png", "wb").write(obs.png)
+print(obs.as_text()[:1200])
+
+# %% [markdown]
+# ## Verify: observe the login page (logged out)
+# Clears cookies, opens the login page, observes it, saves `notebooks/scratch/observe_login.png`, and prints the list.
+# Expected output: a `textbox` for username, a `textbox` for password, and a `button "Log In"` in the list.
+# The browser is now logged out on purpose. Notebook 2's agent will log in itself.
+
+# %%
+await context.clear_cookies()
+await page.goto(f"{BASE}/index.htm")
+obs = await surface.observe()
+open("notebooks/scratch/observe_login.png", "wb").write(obs.png)
 print(obs.as_text()[:1200])

@@ -45,10 +45,10 @@ This file is the raw material for `REPORT.md` (7 required headings) and `README.
 | 3.1 Agent loop | D1, D2, D3, D4, D5, D6, D19 |
 | 3.2 Artifact | D7, D8, D9, D12, D21, D23, D29 |
 | 3.3 Replay & errors | D9, D10, D12, D26, D27, D28 |
-| 3.4 Safety | D11, D15, D16, D17, D18, D20 |
+| 3.4 Safety | D11, D15, D16, D17, D18, D20, D32 |
 | 3.5 Evidence | D24, D30 |
 | 3.6 Escalation | D14, D19, D20, D28 |
-| 3.7 Heterogeneity / multi-tenant | D2, D8, D21, D22 |
+| 3.7 Heterogeneity / multi-tenant | D2, D8, D21, D22, D32 |
 | Section 6 / code quality | D25, D31 |
 
 ---
@@ -321,7 +321,9 @@ Fields: `status`, `outputs`, `outcome`, `failure {step, expected, observed, evid
 
 ## C. Safety and data handling
 
-### D11 / D17 — Login and credentials
+### D11 / D17 — Login and credentials (partly SUPERSEDED by D32)
+
+> **Update:** the "separate login helper with hardcoded selectors" idea is replaced by agent-driven login with a `type_secret` tool (D32). What still holds: the model never sees credential values, nothing secret is saved, and `.env` holds the values.
 
 **Question:** How does the system log in without exposing credentials?
 
@@ -341,6 +343,30 @@ Fields: `status`, `outputs`, `outcome`, `failure {step, expected, observed, evid
 - `.env` holds `ANTHROPIC_API_KEY`, test-user credentials, optional `MODEL`; it is git-ignored, and `.env.example` documents it.
 
 **Brief ref:** 3.4 (never persist secrets), Section 9 (keep secrets out of the repo).
+
+---
+
+### D32 — Agent-driven login with `type_secret` (revises D11/D17)
+
+**Question:** A hardcoded login helper only works on ParaBank. How do we log in on *any* app without the model seeing passwords?
+
+**Options:**
+- (a) Keep a per-app login helper with hardcoded selectors (D11/D17 as first written).
+- (b) The agent logs in like any other flow, using a `type_secret(ref, name)` tool. Our code types the real value from `.env`; the model only ever sees the secret's *name*.
+- (c) A human types the login (rejected earlier: breaks unattended replay).
+
+**Chosen:** (b).
+
+**Reasoning:**
+- 3.1 says the input is "a goal + a target (app/URL/entry point)"; 3.7 says abstractions must not "paint you into a corner". A ParaBank-only helper does both wrong; the agent's generic tools already work on any site, so login should too.
+- The agent finds the fields itself from the screenshot and list, so it works on any login page.
+- The artifact stores `{{secret:password}}` (a name), never a value. Login becomes its own recorded, replayable capability (per app, overridable per tenant, D21), also reused on session expiry.
+- All ParaBank-specific values live in config (`BASE`, `ALLOWED_HOSTS`, `SECRETS` name → env var), not in agent code.
+- **Guards:** `type_secret` refuses (1) unknown secret names, (2) any host not on the allowlist, (3) non-input targets; its output never contains the value. A username may appear in screenshots; D18 covering handles it.
+- **Cost:** the model sees the login page and chooses fields, so login adds a few steps to discovery and can go wrong. Accepted; the verify-by-replay step (D23) catches a bad login recording.
+- Ground-truth helpers that read ParaBank pages for grading stay ParaBank-only and are labelled as test scaffolding, not product code.
+
+**Brief ref:** 3.1, 3.4, 3.7.
 
 ---
 
