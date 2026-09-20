@@ -768,6 +768,51 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 **Brief ref:** 3.4, Section 9 ("keep secrets out of the repo").
 
+## L. Phase 2 decisions (artifact schema)
+
+### D37 — Strict, layered artifact schema
+
+**Question:** What shape is the artifact so both a human reviewer and a calling agent can rely on it?
+
+**Options:** (a) Free-form YAML with a light check. (b) Strict Pydantic models: unknown keys rejected, every cross-reference checked.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- 3.2 makes the schema "a focal point of the evaluation". A typo (`descripton`) or a reference to a missing input must fail loudly at load time, not at 3 a.m. during replay.
+- The `Capability` check collects every problem at once, so a reviewer fixes a file in one pass.
+- Locators are ranked, and a page-wide index is forbidden (a structure locator needs a container). That encodes the Phase 1 lesson that global indexes break when anything is added.
+- Text fields accept only `{{input}}` and `{{secret:name}}`. Secrets are names, never values, and are allowed only as typed values (D32).
+- The checkpoint needs both a URL signal and a content signal (D9).
+
+**Brief ref:** 3.2, 3.3.
+
+### D38 — Risk is in the artifact; the limit is in config
+
+**Chosen:** a click step is `safe` or `risky`. A risky step names which input holds the money (`amount_input`). The capability's `risk_level` must agree with its steps. The dollar limit (D20) stays in config, not in the artifact.
+
+**Reasoning:** the artifact says *what is risky*; policy says *how much is allowed*. That way one artifact works under different limits per tenant, and a reviewer sees the point of no return in the file.
+
+**Applies to any money step, bill payment included.** Replay of a recorded payment needs no human to navigate or fill values (the caller supplies typed inputs), and no human for amounts up to the limit. Above the limit it stops before the final click and returns `NEEDS_APPROVAL`. Recording a flow makes it repeatable; it does not make a payment safe, which is why the irreversible step is judged by policy each time. Upgrade path, described in the report and not built: also require a previously used payee before auto-approving.
+
+**Brief ref:** 3.4, 3.6.
+
+### D39 — Result contract and tool contract
+
+**Chosen:** `ReplayResult` has four statuses (`SUCCESS`, `BUSINESS_OUTCOME`, `NEEDS_APPROVAL`, `FAILED`), each requiring exactly its own fields. `check_result` checks a result against the capability: outputs must match the declared outputs, and a business outcome must be one the capability declares. `tool_contract()` derives what a calling agent sees: description, input schema, outputs, business outcomes, may-need-approval.
+
+**Reasoning:** the brief asks that a calling agent understand what a capability needs and returns, and that business outcomes are never mixed up with failures (D10, D27). Making the shape checkable stops replay from returning ambiguous results.
+
+**Brief ref:** 3.2, 3.3.
+
+### D40 — Multi-tenant fields stored, not applied
+
+**Chosen:** `app.id`, `base`, and `overrides` exist in the schema and are shape-checked. Applying an override is not built.
+
+**Reasoning:** 3.7 asks that the core abstractions not paint us into a corner. The fields cost almost nothing now and avoid a schema change later; building the override machinery is explicitly not rewarded.
+
+**Brief ref:** 3.7.
+
 ## H. Assumptions and defaults (to confirm)
 
 - ParaBank needs a registered **test user**; registration asks for an SSN. We use fake data, and registration is a one-time setup outside the artifacts.

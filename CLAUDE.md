@@ -33,3 +33,6 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
 1. `01_browser_and_observe.py` — browser, secrets config, numbered screenshot. No LLM.
 2. `02_agent_happy_path.py` — tools (incl. `type_secret`) + deep agent, logs in and reads a balance.
 3. `03_stress_and_pause.py` — stuck goal, tool misuse, pause/approve/reject, findings.
+
+## Phase 2 notebook
+- `02_artifact_schema.py` — artifact schema (Pydantic + YAML), tool contract, replay result contract. Pure Python.
