@@ -813,6 +813,103 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 **Brief ref:** 3.7.
 
+## M. Phase 3 decisions (the recorder)
+
+### D41 — Capture logs events; compile is pure Python
+
+**Question:** Where does the recorder get its facts, and how do we test it without a browser?
+
+**Options:** (a) Rebuild locators after the run from a saved page snapshot. (b) Every tool logs an **event** at call time (tool, ok/failed, page before and after, a descriptor of the element). A pure function turns events into a `Capability`.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- This is the D5 argument made real: our own tools know the element at the moment it is touched, and the temporary `data-cua-ref` number is never stored.
+- The event is plain data, so the risky logic (clean-up, login split, parameters, risk, leftovers) is unit-tested with hand-made events. A stub-page run also proved that real tool calls produce events the compiler accepts.
+- Events hold typed values (needed to find literals) and secret **names**. They never hold secret values, session ids or extracted values. Raw events go to `notebooks/scratch/` (git-ignored), never to `artifacts/`.
+
+**Brief ref:** 3.2, 3.4, code quality.
+
+### D42 — How a descriptor becomes a ranked target
+
+**Question:** Which locators do we build, and when do we refuse to?
+
+**Options:** (a) Always role+name. (b) Role+name only when the name is a real accessible name; label and text next; structure last, only inside a container.
+
+**Chosen:** (b), with two extra rules.
+
+**Reasoning:**
+- The scanner reports **where a name came from** (`aria`, `label`, `value`, `text`, or just the `name=`/`id=` attribute). An attribute name (`fromAccountId`) is not an accessible name, so no role locator is built from it. This keeps the high-stability slot honest.
+- **No positional fallback for data-dependent elements.** If the name or text contains an input (the link named `{{account_id}}`), a "1st link in the table" fallback would silently click the wrong account. So no structure locator is written for it.
+- Meanings Phase 4 must honour: `label` = a `<label>`, `aria-label`, or the text of the cell just before the control in the same row. `structure nth` = the nth element of that tag inside the container, counting all of that tag. A container is the nearest form (for controls) or table, with a name only if it has `aria-label`, a caption or a legend.
+
+**Brief ref:** 3.2 (robustness reasoning), 3.3.
+
+### D43 — What "worked and mattered" means (D23 made concrete)
+
+**Chosen:** drop non-actions, failed/denied/blocked/declined calls, and an identical repeat on the same page. Drop a **dead end**: a click that changed the page and a later click that returned to it, with nothing typed, chosen or read in between. Drop **link clicks after the last meaningful step** (typing, choosing, extracting, an approved click, or any submit button). Keep a navigate for the start page, and where the URL changed without a click. **Refuse** a run that used a human handoff (a hand-typed step cannot be recorded).
+
+**Reasoning:** each rule is a few lines and testable. A submit button counts as meaningful even without approval, so a safe `Find Transactions` at the end is not trimmed. Refusing handoffs is safer than saving a recipe with a silent gap; the fix is to declare the value in the goal (D29).
+
+**Cost:** two identical clicks in a row on one page are treated as a repeat. A real double "Next page" would need a review. Recorded as known limit.
+
+**Brief ref:** 3.2, Section 5.
+
+### D44 — Parameterisation and the leftover check
+
+**Chosen:** inputs are declared with the goal as `name -> {value, type, description, pattern}`. A whole typed or chosen value that equals a declared value (compared as text, or as a number so `$20.00` equals `20`) becomes `{{name}}`. Literals inside paths and locator strings are replaced with word-boundary matching (`5` is not found in `$50`, `id` is not found in `account_id`). Before saving, any declared literal still present anywhere except the `inputs` docs **refuses the save**, naming the input and the place, never the value. A typed value that matches no input is kept and **reported as a constant**.
+
+**Reasoning:** the boundary match fixes the Phase 1 `5`-in-`$50` bug. Refusing (not warning) on leftovers is the D29 promise. Constants are only reported because a fixed value (a payee, a memo) can be legitimate, but a reviewer must see it.
+
+**Brief ref:** 3.2 (typed inputs), 3.4.
+
+### D45 — Login split and start page
+
+**Chosen:** the kept events up to and including the first click after the last `type_secret` become `login_<app>`, with `{{secret:...}}` values and the secrets declared. The task capability contains no secret step and starts with a `navigate` to the page it began on. The login capability's checkpoint is the page after the click. The task gets a `relogin` recoverable rule when a login capability exists; the login-page text is config (`SESSION_EXPIRED_TEXT`).
+
+**Reasoning:** D32 says login is its own capability, reused on session expiry. A first `navigate` makes replay independent of where the browser happens to be.
+
+**Brief ref:** 3.3, 3.4.
+
+### D46 — Extraction reads by label, and the value is never recorded
+
+**Chosen:** `extract_value(label, save_as, value_type, description)` calls `read_labeled_value(page, label)` (the cell after the label, the input a label points at, or the next sibling). The declared type is checked at capture. The event stores the label, name and type, **not the value**. Phase 4 replay reuses `read_labeled_value`.
+
+**Reasoning:** balances are not clickable (Phase 1 finding). One shared reader means recording and replay cannot disagree about what "the value next to Balance:" means. Keeping the value out of the event keeps sensitive data out of every saved file (D16).
+
+**Known limit:** this only reads *labeled* values. `transfer_funds` therefore has no output (the confirmation is a heading, not a labeled value). A `text` extract is a possible later addition.
+
+**Brief ref:** 3.2 (typed outputs), 3.3.
+
+### D47 — Business outcome from a probe run, and `open_path`
+
+**Chosen:** `finish` takes `outcome` (UPPER_SNAKE) and `proof_text`. The tool checks the proof text really is on the page. The recorder cuts the bad input value out of the proof text and saves a `business` rule with `when.text_present`. A probe run is never compiled as a capability. To reach a page for a bad id, the agent gets `open_path(path)`: same site only, deny words as in `click`, and every query value must be given in the goal.
+
+**Reasoning:** D10 says discovery finds these by one deliberate bad-input probe. The agent had no way to reach a page for an id that no link points to. The proof check stops the model inventing text. Engine defaults for recoverable and hard failures stay out of scope.
+
+**Cost:** `open_path` is a new way to move that clicks do not have. It is a GET only, allowlisted, and value-grounded. If the site shows a vague error (for example "internal error"), the rule would be too broad; the notebook prints the rule so a reviewer sees it.
+
+**Brief ref:** 3.3, 3.4.
+
+### D48 — Value grounding now uses declared inputs; `web_search` removed here
+
+**Chosen:** a typed value, chosen option or path value is allowed if it equals a declared input value, or is a whole word or number in the goal (word-boundary, not substring). Otherwise the handoff to a human happens as before, and the compile refuses that run. `web_search` is left out of the recorder's agent.
+
+**Reasoning:** this is the D34 upgrade it promised. `web_search` sends text to a third party outside the allowlist (Phase 1 finding); discovery of a capability does not need it.
+
+**Brief ref:** 3.4.
+
+### D49 — Risk, checkpoint, save guards
+
+**Chosen:**
+- A click a human approved becomes `risk: risky`. `amount_input` is the declared `currency`/`number` input if there is exactly one (or one named `*amount*`). `risk_level` follows (D38).
+- The checkpoint is the **last kept step's** page: `url_contains` = last path segment, `text_present` = first visible `h1`, else `.title`, else `h2`, else the page title. If there is no heading the compile refuses (D9 needs both).
+- Save only after `Capability.model_validate`; refuse if a real secret value appears in the YAML (the value is never printed); never overwrite a `verified` capability; drafts start with a comment line.
+
+**Reasoning:** the approval already exists in the click tool (D33), so it is the most reliable "risky" signal. Using the last kept step (not the finish page) means wandering after the goal does not change the checkpoint.
+
+**Brief ref:** 3.2, 3.4.
+
 ## H. Assumptions and defaults (to confirm)
 
 - ParaBank needs a registered **test user**; registration asks for an SSN. We use fake data, and registration is a one-time setup outside the artifacts.

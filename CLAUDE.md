@@ -36,3 +36,6 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
 
 ## Phase 2 notebook
 - `02_artifact_schema.py` — artifact schema (Pydantic + YAML), tool contract, replay result contract. Pure Python.
+
+## Phase 3 notebook
+- `03_recorder.py` — the recorder. Part A captures events from an agent run (browser). Part B compiles events into draft capabilities in `artifacts/` (pure Python, tested offline). Cells titled `OFFLINE` need no browser; `BROWSER` cells do.
