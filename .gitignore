@@ -1,6 +1,21 @@
+# --- secrets: never commit ---
 .env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+storage_state*.json
+cookies*.json
+auth*.json
+
+# --- python / notebooks ---
 .venv/
 __pycache__/
+*.pyc
 .ipynb_checkpoints/
 notebooks/scratch/
-*.pyc
+*.backup*.ipynb
+
+# --- local ---
+.DS_Store

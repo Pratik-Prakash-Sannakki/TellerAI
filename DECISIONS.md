@@ -118,6 +118,8 @@ This file is the raw material for `REPORT.md` (7 required headings) and `README.
 
 ### D4 — Agent framework for discovery
 
+> **Update (Phase 1):** GO confirmed. Deep agents work with our own Playwright tools. Their pause rule (`interrupt_on`) is no longer used for safety; see D33 and section K.
+
 **Question:** What runs the observe → decide → act loop?
 
 **Options:**
@@ -426,6 +428,8 @@ Fields: `status`, `outputs`, `outcome`, `failure {step, expected, observed, evid
 
 ### D20 — Risky vs. safe actions, and the transfer threshold
 
+> **Update (Phase 1):** The name-based rule let a bill payment through unapproved. Now deny by default: every button except a safe list needs a human, enforced inside the click tool. See D33.
+
 **Question:** What counts as risky, and how do we handle it?
 
 **Options:** (a) Threshold rule: transfers up to $500 auto-run, above needs a human; per-run total also capped at $500. (b) Always require a human for any transfer.
@@ -447,6 +451,8 @@ Fields: `status`, `outputs`, `outcome`, `failure {step, expected, observed, evid
 ## D. Human-in-the-loop
 
 ### D14 — Handoff mechanism
+
+> **Update (Phase 1):** `page.pause()` opens the Playwright Inspector (a developer tool). Replaced by our own red bar with a "Done, hand back to agent" button in the page. Same model: pause, human acts in the same live session, hand back. See section K.
 
 **Question:** How does a human take control of the live browser, and how is control handed back?
 
@@ -716,6 +722,51 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 **Brief ref:** Section 4 (LLM provider/model).
 
 ---
+
+## K. Phase 1 changes (after building and testing the notebook)
+
+### D33 — Approval is enforced inside the `click` tool (deny by default)
+
+**Question:** How do we guarantee a human approves any action that changes data?
+
+**Options:** (a) Framework pause rule (`interrupt_on` with a `when` predicate) reading an element flag. (b) Approval check inside our own `click` tool, for every button except a safe list.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- (a) failed twice in testing: a bill payment went through with no approval. The rule depended on an element flag, on the framework's predicate, and on notebook cell order, and any one of them could fail quietly.
+- (b) has one choke point. `click` is the only tool that can submit anything, so nothing can bypass it, whatever the model does.
+- Deny by default (every button except `log in`, `find transactions`) covers new buttons automatically. A name list can never be complete.
+- The approval bar shows the real button and the values entered, so the human knows what they approve. A rejected button is remembered and never clicked again in that run.
+- This is the "enforced in code before Playwright acts" rule from D15, applied to risky actions.
+
+**Brief ref:** 3.4, 3.6.
+
+### D34 — Values must come from the user, or a human enters them
+
+**Question:** How do we stop the agent from inventing form values (payee, address, amount)?
+
+**Chosen:** a typed or chosen value must appear in the user's goal. Otherwise the tool hands the live browser to a human, who enters it and clicks Done. Fields named ssn, password or social always go to a human.
+
+**Reasoning:** with the goal "pay a bill" the agent made up a payee and an amount. A prompt rule did not stop it; a code check does. It is a crude substring match; Phase 3 replaces it with declared typed inputs (D29).
+
+**Brief ref:** 3.4, 3.6.
+
+### D35 — Tools run one at a time, and clicks wait for the page
+
+**Chosen:** a lock around every tool, and a short wait plus load state after each click.
+
+**Reasoning:** the model sent two tool calls at once; they raced on one page and login looped. Without a wait the agent saw a stale page after Log In.
+
+**Brief ref:** 3.1, 3.3 (wait strategy).
+
+### D36 — Secret hygiene
+
+**Chosen:** credentials live only in `.env` (git-ignored). `.env.example` stays empty. `.gitignore` also blocks `.env.*`, keys, cookies and auth files. `nbstripout` removes notebook outputs at commit time, so balances and screenshots are not committed.
+
+**Incident:** test-user credentials were written into `.env.example` and committed locally. Nothing had been pushed. History was rewritten and verified: no secret value exists in any commit.
+
+**Brief ref:** 3.4, Section 9 ("keep secrets out of the repo").
 
 ## H. Assumptions and defaults (to confirm)
 
