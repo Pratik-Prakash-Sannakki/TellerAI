@@ -449,3 +449,42 @@ for cap in (bal, xfer):
     assert from_yaml(to_yaml(cap)) == cap
 print("yaml round trip: ok")
 print("capability: all checks passed")
+
+# %% Section 3: tool contract for a calling agent
+_JSON_TYPE = {"string": "string", "integer": "integer", "number": "number", "currency": "string", "boolean": "boolean"}
+
+
+def tool_contract(cap: Capability) -> dict:
+    """What a calling agent sees: what this capability does, what it needs, what it returns."""
+    props, required = {}, []
+    for i in cap.inputs:
+        p = {"type": _JSON_TYPE[i.type], "description": i.description}
+        if i.pattern:
+            p["pattern"] = i.pattern
+        props[i.name] = p
+        if i.required:
+            required.append(i.name)
+    return {
+        "name": cap.name,
+        "description": f"{cap.description} Use when: {cap.when_to_use}",
+        "input_schema": {"type": "object", "properties": props, "required": required, "additionalProperties": False},
+        "returns": {
+            "outputs": {o.name: {"type": _JSON_TYPE[o.type], "description": o.description} for o in cap.outputs},
+            "business_outcomes": sorted({r.outcome for r in cap.outcome_rules if r.kind == "business"}),
+            "may_need_approval": cap.risk_level == "risky",
+        },
+    }
+
+
+# %% Section 3b: checks for the tool contract
+# what a calling agent sees
+import json
+
+import json
+contract = tool_contract(xfer)
+assert contract["input_schema"]["required"] == ["from_account", "to_account", "amount"]
+assert contract["returns"]["may_need_approval"] is True
+assert tool_contract(bal)["returns"]["business_outcomes"] == ["ACCOUNT_NOT_FOUND"]
+print(json.dumps(tool_contract(bal), indent=2))
+
+print("io: all checks passed")
