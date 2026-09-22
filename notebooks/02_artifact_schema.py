@@ -508,3 +508,79 @@ assert contract["description"] == xfer.description and "when_to_use" not in cont
 print(json.dumps(tool_contract(bal), indent=2))
 
 print("io: all checks passed")
+
+# %% Section 4: replay result contract
+class Failure(Strict):
+    step_index: int = Field(ge=0)
+    step_action: str
+    expected: str
+    observed: str
+    evidence: str | None = None           # path to the screenshot / page snapshot
+
+
+class ReplayResult(Strict):
+    """What replay returns to the caller (D27). Unchanged by the schema simplification."""
+    run_id: str
+    capability: Name
+    capability_version: int = Field(ge=1)
+    status: Literal["SUCCESS", "BUSINESS_OUTCOME", "NEEDS_APPROVAL", "FAILED"]
+    outputs: dict[str, str] = {}
+    outcome: str | None = None            # BUSINESS_OUTCOME: e.g. ACCOUNT_NOT_FOUND
+    pending_step: int | None = None       # NEEDS_APPROVAL: the step waiting for a human
+    reason: str | None = None             # NEEDS_APPROVAL: why
+    failure: Failure | None = None        # FAILED: step, expected, observed
+
+    @model_validator(mode="after")
+    def _shape(self):
+        s = self.status
+        if s == "SUCCESS" and (self.outcome or self.failure or self.reason):
+            raise ValueError("SUCCESS carries only outputs")
+        if s == "BUSINESS_OUTCOME" and (not self.outcome or self.failure):
+            raise ValueError("BUSINESS_OUTCOME needs an outcome and no failure")
+        if s == "NEEDS_APPROVAL" and (self.pending_step is None or not self.reason or self.failure):
+            raise ValueError("NEEDS_APPROVAL needs pending_step and reason, and no failure")
+        if s == "FAILED" and (not self.failure or self.outcome):
+            raise ValueError("FAILED needs a failure and no outcome")
+        return self
+
+
+def check_result(cap: Capability, result: ReplayResult) -> None:
+    """Check a result against the capability that produced it. Raises ValueError on a mismatch."""
+    if result.capability != cap.name or result.capability_version != cap.version:
+        raise ValueError("result is for a different capability or version")
+    declared = {o.name for o in cap.outputs}
+    if result.status == "SUCCESS" and set(result.outputs) != declared:
+        raise ValueError(f"SUCCESS outputs {sorted(result.outputs)} != declared outputs {sorted(declared)}")
+    if result.status == "BUSINESS_OUTCOME":
+        allowed = {r.outcome for r in cap.outcome_rules if r.kind == "business"}
+        if result.outcome not in allowed:
+            raise ValueError(f"outcome {result.outcome!r} is not declared. Declared: {sorted(allowed)}")
+
+
+# %% Section 4b: checks for the result contract
+# the replay result contract
+def ok(**kw):
+    base = dict(run_id="r1", capability="get_account_balance", capability_version=1)
+    return ReplayResult(**base, **kw)
+
+check_result(bal, ok(status="SUCCESS", outputs={"balance": "$1,200.00"}))
+check_result(bal, ok(status="BUSINESS_OUTCOME", outcome="ACCOUNT_NOT_FOUND"))
+ok(status="NEEDS_APPROVAL", pending_step=4, reason="amount above the auto-approve limit")
+ok(status="FAILED", failure=Failure(step_index=1, step_action="extract", expected="a value next to 'Balance:'", observed="no such label on the page", evidence="evidence/r1/step1.png"))
+
+def result_rejects(name, fn, expect):
+    try:
+        fn()
+    except (ValidationError, ValueError) as err:
+        assert expect in str(err), f"{name}: expected {expect!r} in {err}"
+        print(f"rejected ok: {name}")
+        return
+    raise AssertionError(f"{name}: was NOT rejected")
+
+result_rejects("FAILED without failure", lambda: ok(status="FAILED"), "FAILED needs a failure")
+result_rejects("BUSINESS_OUTCOME without outcome", lambda: ok(status="BUSINESS_OUTCOME"), "needs an outcome")
+result_rejects("NEEDS_APPROVAL without reason", lambda: ok(status="NEEDS_APPROVAL", pending_step=1), "needs pending_step and reason")
+result_rejects("SUCCESS with an outcome", lambda: ok(status="SUCCESS", outcome="X"), "SUCCESS carries only outputs")
+result_rejects("undeclared outcome", lambda: check_result(bal, ok(status="BUSINESS_OUTCOME", outcome="MADE_UP")), "is not declared")
+result_rejects("missing output", lambda: check_result(bal, ok(status="SUCCESS", outputs={})), "!= declared outputs")
+print("\nALL CHECKS PASSED")
