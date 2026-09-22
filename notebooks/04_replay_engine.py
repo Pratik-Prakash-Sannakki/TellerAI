@@ -266,3 +266,379 @@ for bad_inputs, why in [({"n": "abc"}, "pattern"), ({}, "missing"), ({"n": "1", 
         pass
 
 print("resolve_target + templates + input validation: all checks passed")
+
+# %% Section 4: run_capability -- the engine loop
+def parse_amount(raw: str) -> float:
+    """An amount we cannot parse is treated as infinite -- it always needs approval, it is
+    never silently auto-approved."""
+    try:
+        return float(raw.replace("$", "").replace(",", "").strip())
+    except ValueError:
+        return float("inf")
+
+
+def condition_matches(cond: "Condition", url: str, text: str) -> bool:
+    if cond.url_contains and cond.url_contains not in url:
+        return False
+    if cond.text_present and cond.text_present not in text:
+        return False
+    return True
+
+
+def _fail(step_index: int, step_action: str, expected: str, observed: str) -> "Failure":
+    return Failure(step_index=step_index, step_action=step_action, expected=expected, observed=observed)
+
+
+def _check_outcomes(cap, step_index, url, text, escalate, base, logger):
+    """First matching rule wins, in declared order (D10's documented order rule)."""
+    for rule in cap.outcome_rules:
+        if not condition_matches(rule.when, url, text):
+            continue
+        if rule.kind == "business":
+            logger(f"step {step_index}: business outcome {rule.outcome}")
+            return ReplayResult(**base(status="BUSINESS_OUTCOME", outcome=rule.outcome))
+        if rule.kind == "hard":
+            failure = _fail(step_index, "outcome_rule", "no hard-failure text on the page", text[:200])
+            if escalate is not None:
+                escalate(rule.message, {"capability": cap.name, "step_index": step_index})
+            return ReplayResult(**base(status="FAILED", failure=failure))
+        # recoverable: logged, then replay continues to the next step. Known limit: actually
+        # performing the action (dismiss a popup, wait, re-run a login capability) needs a live
+        # surface and, for relogin, capability composition -- both are Phase 9 work. Neither
+        # example artifact's outcome rules exercise this path mid-run.
+        logger(f"step {step_index}: recoverable condition matched (action={rule.action}): {rule.message}")
+        return None
+    return None
+
+
+def run_capability(
+    cap: "Capability",
+    surface: ReplaySurface,
+    inputs: dict[str, str],
+    secrets: SecretResolver,
+    *,
+    run_id: str = "run",
+    auto_approve_limit: float = 500.0,
+    escalate: Callable[[str, dict], Any] | None = None,
+    max_retries: int = 2,
+    logger: Callable[[str], None] = lambda m: None,
+) -> "ReplayResult":
+    """Run every step of `cap` against `surface`, no LLM in the loop (D6, 3.3). `escalate`, when
+    given, is called for NEEDS_APPROVAL and for an unrecoverable hard failure -- Phase 9 wires it
+    to agent.ipynb's real human_takeover/decision-bar mechanism; here it is only a seam,
+    exercised in tests by a fake."""
+    values = validate_inputs(cap, inputs)
+    outputs: dict[str, str] = {}
+
+    def base(**kw):
+        return dict(run_id=run_id, capability=cap.name, capability_version=cap.version, **kw)
+
+    for i, step in enumerate(cap.steps):
+        action = step.action
+        retryable = not (action == "click" and step.risk == "risky")   # D26: never retry a risky click
+        attempts = 0
+        while True:
+            try:
+                if action == "navigate":
+                    surface.navigate(render(step.path, values, secrets))
+                elif action == "click":
+                    if step.risk == "risky":
+                        amount = parse_amount(values.get(step.amount_input, "")) if step.amount_input else float("inf")
+                        if amount >= auto_approve_limit:
+                            reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
+                            if escalate is not None:
+                                escalate(reason, {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit})
+                            return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                    ref = resolve_target(surface, step.target, logger=logger)
+                    surface.click(ref)
+                elif action == "type":
+                    ref = resolve_target(surface, step.target, logger=logger)
+                    surface.type_text(ref, render(step.value, values, secrets))
+                elif action == "select":
+                    ref = resolve_target(surface, step.target, logger=logger)
+                    surface.select_option(ref, render(step.option, values, secrets))
+                elif action == "extract":
+                    ref = resolve_target(surface, step.target, logger=logger)
+                    raw_value = surface.read_value(ref)
+                    out_param = next(o for o in cap.outputs if o.name == step.save_as)
+                    if not matches_value_type(raw_value, out_param.type):
+                        failure = _fail(i, action, f"a value matching type {out_param.type!r}", repr(raw_value))
+                        if escalate is not None:
+                            escalate("extracted value failed its declared type", {"capability": cap.name, "step_index": i})
+                        return ReplayResult(**base(status="FAILED", failure=failure))
+                    outputs[step.save_as] = raw_value
+                else:
+                    raise AssertionError(f"unknown action {action!r}")
+                break   # step succeeded, no transient failure
+            except ResolutionError as exc:
+                failure = _fail(i, action, str(exc), "neither primary nor fallback resolved")
+                if escalate is not None:
+                    escalate("could not resolve the target element", {"capability": cap.name, "step_index": i})
+                return ReplayResult(**base(status="FAILED", failure=failure))
+            except TransientFailure as exc:
+                attempts += 1
+                logger(f"step {i} ({action}): transient failure ({exc}), attempt {attempts}")
+                if not retryable or attempts > max_retries:
+                    failure = _fail(i, action, "the step to succeed", f"transient failure after {attempts} attempt(s): {exc}")
+                    if escalate is not None:
+                        escalate("step failed after retries", {"capability": cap.name, "step_index": i})
+                    return ReplayResult(**base(status="FAILED", failure=failure))
+                continue   # retry the same step
+
+        url, text = surface.current_url(), surface.page_text()
+        if step.expect is not None and not condition_matches(step.expect, url, text):
+            failure = _fail(i, action, f"url_contains={step.expect.url_contains!r} text_present={step.expect.text_present!r}",
+                             f"url={url!r} text={text[:200]!r}")
+            if escalate is not None:
+                escalate("a step's own expect condition did not hold", {"capability": cap.name, "step_index": i})
+            return ReplayResult(**base(status="FAILED", failure=failure))
+
+        outcome_result = _check_outcomes(cap, i, url, text, escalate, base, logger)
+        if outcome_result is not None:
+            return outcome_result
+
+    url, text = surface.current_url(), surface.page_text()
+    if not condition_matches(cap.checkpoint, url, text):
+        failure = _fail(len(cap.steps) - 1, "checkpoint",
+                         f"url_contains={cap.checkpoint.url_contains!r} text_present={cap.checkpoint.text_present!r}",
+                         f"url={url!r} text={text[:200]!r}")
+        if escalate is not None:
+            escalate("checkpoint did not match after all steps ran", {"capability": cap.name})
+        return ReplayResult(**base(status="FAILED", failure=failure))
+
+    declared = {o.name for o in cap.outputs}
+    if set(outputs) != declared:
+        failure = _fail(len(cap.steps) - 1, "extract", f"outputs {sorted(declared)}", f"got {sorted(outputs)}")
+        return ReplayResult(**base(status="FAILED", failure=failure))
+
+    return ReplayResult(**base(status="SUCCESS", outputs=outputs))
+
+
+# %% Section 4b: checks for run_capability -- the 8 required scenarios, plus 3 extra
+def _locator_key(loc) -> tuple:
+    if loc.strategy == "role":
+        return ("role", loc.role, loc.name)
+    if loc.strategy == "label":
+        return ("label", loc.label)
+    if loc.strategy == "text":
+        return ("text", loc.text)
+    if loc.strategy == "structure":
+        return ("structure", loc.tag, loc.nth, loc.within.role)
+    if loc.strategy == "labeled_value":
+        return ("labeled_value", loc.label)
+    raise ValueError(f"unknown strategy {loc.strategy}")
+
+
+class FakeSurface:
+    """A dict-based fake DOM: pages by url, a locator registry per url, and per-ref state. No
+    browser, no network -- everything is set up by the test itself."""
+
+    def __init__(self):
+        self.url = "/start"
+        self.pages: dict[str, str] = {}
+        self.registry: dict[str, dict[tuple, int]] = {}
+        self.values: dict[int, str] = {}
+        self.click_effects: dict[int, Callable[["FakeSurface"], None]] = {}
+        self.clicked: list[int] = []
+        self.typed: dict[int, str] = {}
+        self.selected: dict[int, str] = {}
+        self.navigated: list[str] = []
+        self.transient: dict[tuple, int] = {}
+
+    def set_page(self, url: str, text: str) -> None:
+        self.pages[url] = text
+
+    def register(self, url: str, locator, ref: int) -> None:
+        self.registry.setdefault(url, {})[_locator_key(locator)] = ref
+
+    def set_value(self, ref: int, value: str) -> None:
+        self.values[ref] = value
+
+    def fail_next(self, action: str, key, times: int) -> None:
+        self.transient[(action, key)] = times
+
+    def _maybe_fail(self, action: str, key) -> None:
+        left = self.transient.get((action, key), 0)
+        if left > 0:
+            self.transient[(action, key)] = left - 1
+            raise TransientFailure(f"{action} not ready yet ({key!r})")
+
+    def navigate(self, path: str) -> None:
+        self._maybe_fail("navigate", path)
+        self.navigated.append(path)
+        self.url = path
+
+    def resolve(self, locator):
+        return self.registry.get(self.url, {}).get(_locator_key(locator))
+
+    def click(self, ref: int) -> None:
+        self._maybe_fail("click", ref)
+        self.clicked.append(ref)
+        effect = self.click_effects.get(ref)
+        if effect:
+            effect(self)
+
+    def type_text(self, ref: int, value: str) -> None:
+        self._maybe_fail("type", ref)
+        self.typed[ref] = value
+
+    def select_option(self, ref: int, value: str) -> None:
+        self._maybe_fail("select", ref)
+        self.selected[ref] = value
+
+    def read_value(self, ref: int) -> str:
+        return self.values.get(ref, "")
+
+    def current_url(self) -> str:
+        return self.url
+
+    def page_text(self) -> str:
+        return self.pages.get(self.url, "")
+
+
+def no_secrets(name: str) -> str:
+    raise AssertionError(f"no secret should be needed in this test, asked for {name!r}")
+
+
+TEST_CAP = Capability.model_validate({
+    "schema_version": 1, "name": "test_flow", "version": 1, "status": "draft",
+    "description": "A tiny capability used only to test the replay engine.",
+    "base_url": "https://fake.example", "risk_level": "safe",
+    "inputs": [{"name": "item_id", "type": "string", "description": "id", "pattern": "^[0-9]+$"}],
+    "outputs": [{"name": "value", "type": "integer", "description": "extracted value"}],
+    "secrets": [],
+    "steps": [
+        {"action": "navigate", "path": "/item.htm?id={{item_id}}"},
+        {"action": "click", "target": {
+            "primary": {"strategy": "role", "role": "button", "name": "Show", "note": "n"},
+            "fallback": {"strategy": "text", "text": "Show", "note": "n"},
+        }},
+        {"action": "extract", "target": {
+            "primary": {"strategy": "labeled_value", "label": "Value:", "note": "n"}},
+            "save_as": "value"},
+    ],
+    "checkpoint": {"url_contains": "item.htm", "text_present": "Value:"},
+    "outcome_rules": [
+        {"when": {"text_present": "Not Found"}, "kind": "business", "outcome": "ITEM_NOT_FOUND", "message": "no such item"},
+        {"when": {"text_present": "Internal Error"}, "kind": "hard", "message": "internal error"},
+    ],
+})
+
+RISKY_CAP = Capability.model_validate({
+    "schema_version": 1, "name": "test_pay", "version": 1, "status": "draft",
+    "description": "A tiny risky capability used only to test the replay engine.",
+    "base_url": "https://fake.example", "risk_level": "risky",
+    "inputs": [{"name": "amount", "type": "currency", "description": "amount", "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"}],
+    "outputs": [], "secrets": [],
+    "steps": [
+        {"action": "navigate", "path": "/pay.htm"},
+        {"action": "click", "risk": "risky", "amount_input": "amount", "target": {
+            "primary": {"strategy": "role", "role": "button", "name": "Pay", "note": "n"}}},
+    ],
+    "checkpoint": {"url_contains": "pay.htm", "text_present": "Paid"},
+    "outcome_rules": [],
+})
+
+
+def new_happy_surface() -> FakeSurface:
+    s = FakeSurface()
+    url = "/item.htm?id=42"
+    s.set_page(url, "Item page. Value: 99")
+    s.register(url, TEST_CAP.steps[1].target.primary, 1)
+    s.register(url, TEST_CAP.steps[1].target.fallback, 1)   # both resolve normally; test 3 removes the primary
+    s.register(url, TEST_CAP.steps[2].target.primary, 2)
+    s.set_value(2, "99")
+    return s
+
+
+# (1) happy path -> SUCCESS with correct outputs
+result = run_capability(TEST_CAP, new_happy_surface(), {"item_id": "42"}, no_secrets)
+assert result.status == "SUCCESS" and result.outputs == {"value": "99"}, result
+print("test 1 (happy path): ok")
+
+# (2) a business-outcome page state -> BUSINESS_OUTCOME with the declared outcome name
+surface = FakeSurface()
+url = "/item.htm?id=99"
+surface.set_page(url, "Not Found: no such item")
+surface.register(url, TEST_CAP.steps[1].target.primary, 1)
+result = run_capability(TEST_CAP, surface, {"item_id": "99"}, no_secrets)
+assert result.status == "BUSINESS_OUTCOME" and result.outcome == "ITEM_NOT_FOUND", result
+print("test 2 (business outcome): ok")
+
+# (3) primary locator fails, fallback succeeds -> still SUCCESS, and this is observable/logged
+surface = new_happy_surface()
+url = "/item.htm?id=42"
+del surface.registry[url][_locator_key(TEST_CAP.steps[1].target.primary)]   # primary can't resolve
+log = []
+result = run_capability(TEST_CAP, surface, {"item_id": "42"}, no_secrets, logger=log.append)
+assert result.status == "SUCCESS", result
+assert any("fallback" in line for line in log), log
+print("test 3 (fallback observed):", [l for l in log if "fallback" in l][0])
+
+# (4) both locators fail -> FAILED with step/expected/observed detail
+surface = FakeSurface()
+url = "/item.htm?id=1"
+surface.set_page(url, "Item page. Value: 1")   # click's target is never registered at all
+result = run_capability(TEST_CAP, surface, {"item_id": "1"}, no_secrets)
+assert result.status == "FAILED", result
+assert result.failure.step_index == 1 and result.failure.step_action == "click"
+assert "primary" in result.failure.expected and "fallback" in result.failure.expected
+print("test 4 (both locators fail):", result.failure.expected, "|", result.failure.observed)
+
+# (5) risky step with amount below the limit -> proceeds automatically, SUCCESS
+surface = FakeSurface()
+surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+surface.click_effects[7] = lambda s: s.set_page("/pay.htm", "Paid. Thank you.")
+result = run_capability(RISKY_CAP, surface, {"amount": "100.00"}, no_secrets, auto_approve_limit=500.0)
+assert result.status == "SUCCESS", result
+assert surface.clicked == [7]
+print("test 5 (risky under limit, auto-approved): ok")
+
+# (6) risky step with amount at/above the limit -> NEEDS_APPROVAL, escalate called, no click
+surface = FakeSurface()
+surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+calls = []
+result = run_capability(RISKY_CAP, surface, {"amount": "600.00"}, no_secrets,
+                         auto_approve_limit=500.0, escalate=lambda reason, ctx: calls.append((reason, ctx)))
+assert result.status == "NEEDS_APPROVAL" and result.pending_step == 1, result
+assert len(calls) == 1 and "500" in calls[0][0]
+assert 7 not in surface.clicked
+print("test 6 (risky at limit, escalated, not clicked): ok")
+
+# (7) checkpoint fails after all steps ran -> FAILED
+surface = new_happy_surface()
+surface.set_page("/item.htm?id=42", "Item page, no value shown here")   # no 'Value:' text -> checkpoint fails
+result = run_capability(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+assert result.status == "FAILED" and result.failure.step_action == "checkpoint", result
+print("test 7 (checkpoint fails):", result.failure.observed)
+
+# (8) a declared output whose extracted value fails its declared type/format -> FAILED
+surface = new_happy_surface()
+surface.set_value(2, "not-a-number")   # declared type is 'integer'
+result = run_capability(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+assert result.status == "FAILED" and result.failure.step_action == "extract", result
+print("test 8 (bad output type/format):", result.failure.observed)
+
+# bonus: transient failure retried, then succeeds (D26)
+surface = new_happy_surface()
+surface.fail_next("click", 1, times=2)
+result = run_capability(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+assert result.status == "SUCCESS", result
+print("bonus (retried transient failure): ok")
+
+# bonus: transient failure past the retry bound -> FAILED, never silently retried forever
+surface = new_happy_surface()
+surface.fail_next("click", 1, times=5)
+result = run_capability(TEST_CAP, surface, {"item_id": "42"}, no_secrets, max_retries=2)
+assert result.status == "FAILED" and "transient failure" in result.failure.observed, result
+print("bonus (retries exhausted): ok")
+
+# bonus: a risky click is NEVER retried on a transient failure (D26), even under the limit
+surface = FakeSurface()
+surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+surface.fail_next("click", 7, times=1)
+result = run_capability(RISKY_CAP, surface, {"amount": "10.00"}, no_secrets)
+assert result.status == "FAILED", result
+print("bonus (risky click never retried): ok")
+
+print("replay engine: all offline checks passed")
