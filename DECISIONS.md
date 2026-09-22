@@ -748,6 +748,8 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 **Chosen:** a typed or chosen value must appear in the user's goal. Otherwise the tool hands the live browser to a human, who enters it and clicks Done. Fields named ssn, password or social always go to a human.
 
+**Update:** the first version asked the human right after login, on the start page, so the human had to navigate. Now the agent must open the task page first and point at the missing field with `request_value(ref)`; both `request_value` and `ask_human` refuse while the browser is on a start page.
+
 **Reasoning:** with the goal "pay a bill" the agent made up a payee and an amount. A prompt rule did not stop it; a code check does. It is a crude substring match; Phase 3 replaces it with declared typed inputs (D29).
 
 **Brief ref:** 3.4, 3.6.
@@ -772,6 +774,9 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D37 — Strict, layered artifact schema
 
+> **Update:** superseded by D63-D66, see section O. The strict-Pydantic, collect-every-problem
+> approach described below is unchanged; the ranked-locator-list detail is not (see D63).
+
 **Question:** What shape is the artifact so both a human reviewer and a calling agent can rely on it?
 
 **Options:** (a) Free-form YAML with a light check. (b) Strict Pydantic models: unknown keys rejected, every cross-reference checked.
@@ -789,6 +794,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D38 — Risk is in the artifact; the limit is in config
 
+> **Update:** superseded by D63-D66, see section O, in one respect only: `app`/`base`/`overrides`
+> no longer exist (D64), so "one artifact works under different limits per tenant" is now purely
+> a policy-config fact, not something the artifact's own multi-tenant fields also expressed. The
+> risk/`amount_input`/`risk_level` mechanism described below is otherwise unchanged.
+
 **Chosen:** a click step is `safe` or `risky`. A risky step names which input holds the money (`amount_input`). The capability's `risk_level` must agree with its steps. The dollar limit (D20) stays in config, not in the artifact.
 
 **Reasoning:** the artifact says *what is risky*; policy says *how much is allowed*. That way one artifact works under different limits per tenant, and a reviewer sees the point of no return in the file.
@@ -799,6 +809,10 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D39 — Result contract and tool contract
 
+> **Update:** superseded by D63-D66, see section O, in one respect only: `tool_contract()`'s
+> `description` field is now just `cap.description` (D66 folded `when_to_use` into it). The
+> result contract (`ReplayResult`, `check_result`) is unchanged.
+
 **Chosen:** `ReplayResult` has four statuses (`SUCCESS`, `BUSINESS_OUTCOME`, `NEEDS_APPROVAL`, `FAILED`), each requiring exactly its own fields. `check_result` checks a result against the capability: outputs must match the declared outputs, and a business outcome must be one the capability declares. `tool_contract()` derives what a calling agent sees: description, input schema, outputs, business outcomes, may-need-approval.
 
 **Reasoning:** the brief asks that a calling agent understand what a capability needs and returns, and that business outcomes are never mixed up with failures (D10, D27). Making the shape checkable stops replay from returning ambiguous results.
@@ -806,6 +820,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 **Brief ref:** 3.2, 3.3.
 
 ### D40 — Multi-tenant fields stored, not applied
+
+> **Update: REMOVED, see D64.** `app.id`, `base`, and `overrides` are cut from the schema
+> entirely (section O). Multi-tenant reuse is now purely a REPORT.md design discussion, with no
+> corresponding schema field. The reasoning below (why the fields once existed) is kept as the
+> record of what was tried.
 
 **Chosen:** `app.id`, `base`, and `overrides` exist in the schema and are shape-checked. Applying an override is not built.
 
@@ -910,6 +929,202 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 **Brief ref:** 3.2, 3.4.
 
+## N. Phase 1 addendum (after Phase 3 work resumed)
+
+### D50 — Optional model routing between Haiku and Sonnet, via a third-party service
+
+**Question:** Should the discovery agent use one model for every step, or switch between a cheaper and a stronger model per step?
+
+**Options:**
+- (a) One model for everything (Sonnet 5, per D6b). Simplest, no new dependency, no new data leaves the process except to Anthropic.
+- (b) Route in our own code: a plain rule (e.g. "before a risky click, use Sonnet; otherwise Haiku") with no external call.
+- (c) `langchain-typesafe`'s `ModelRouterMiddleware`: an experimental (v0.0.1a3) library that classifies the current step by sending it to a third-party service, `api.typesafe.ai`, which needs its own paid `TYPESAFE_API_KEY`, then returns which model to use.
+
+**Chosen:** (c), user's explicit choice after the trade-off was explained.
+
+**Reasoning:**
+- The user asked for this by name and confirmed it after being told the cost: a second third party sees step content on every turn, a new paid key is required, and the library is marked experimental.
+- Kept **off by default**: the router only activates if `TYPESAFE_API_KEY` is set in `.env`. With no key, the agent behaves exactly as before (D6b, Sonnet only via `MODEL`). This means the safety story for the default path is unchanged.
+- Model strings are real and verified: `anthropic:claude-haiku-4-5-20251001` (fast) and `anthropic:claude-sonnet-5` (powerful), both confirmed to build via `init_chat_model` before use. An earlier draft of this code used invented model names (`openai:luna`, `openai:sol`) that do not exist; those were not used.
+- **Known gap, carried to Phase 6:** whatever text TypeSafe classifies is sent outside our process, unredacted, on every step where the router is on. This must never be enabled for a run that may show real account data, and the redaction work in Phase 6 must either cover this path too or the router must stay off for any run touching real data. For the ParaBank demo (fake data only) this is acceptable; it is called out in the report as a real-world risk.
+- Not evaluated: whether Haiku is actually reliable enough for "simple" browser steps. This is untested until the user runs it with a real `TYPESAFE_API_KEY`.
+
+**Brief ref:** 3.4 (safety and data handling), Section 4 (LLM provider/model is our call, but must be defended), Section 9 (ground rules: don't add paid services without weighing them).
+
+### D51 — Tool triage: our own middleware, no LLM, no external call (REMOVED, see D52)
+
+> **Update:** removed at the user's direction, after D52 was added. Keeping two overlapping tool-narrowing layers (one free/deterministic, one paid/classifier-based) was more to explain and maintain than one. D52's fail-open behaviour already covers the "no key set" case cleanly (no narrowing at all), so this layer's only unique benefit — narrowing with zero cost when TypeSafe is off — was traded away for a single, simpler mechanism. The trade-off: without a `TYPESAFE_API_KEY`, there is now no tool-selection help at all, not even the free, obvious cases (e.g. offering `page_text` on the login page). Code and its offline tests deleted from `agent.ipynb`; kept here, unmodified below, as the record of what was tried and why it existed.
+
+**Question:** TypeSafe has no "pick the right tool" feature (checked directly against its docs and source: only a model router and a risk-blocking gate exist). How do we stop the agent from being offered tools that make no sense on the current page (e.g. `ask_human` while still on the start page, or `page_text` before login)?
+
+**Options:**
+- (a) Prompt text only ("don't call X here"). Costs nothing, but the model can still try, wasting a round trip, and we already saw this happen (D34's original bug).
+- (b) `AutoModeMiddleware` (TypeSafe): blocks a call after the model makes it, no tool-list narrowing, another paid external call per tool call.
+- (c) Our own middleware: before each model call, remove tool names that make no sense on the current page. Plain Python, using `ModelRequest.override(tools=...)`. No LLM call, no network call.
+
+**Chosen:** (c), `ToolTriageMiddleware`.
+
+**Reasoning:**
+- It is genuinely faster than any LLM- or classifier-based decision: the rule is a plain function (`triage_tool_names`), and it runs in-process with no round trip.
+- It never removes `observe`, `click`, `type_secret`, or `finish`, so the agent can always look, act, log in, or stop. Tested exhaustively offline: for every subset of tools and every page, that set survives.
+- It is defense in depth alongside the existing code guards inside `ask_human`/`request_value` (D34): the model is now less likely to even try the call that guard would refuse, which saves a wasted step.
+- Verified before writing: `AgentMiddleware.awrap_model_call` is the correct hook for an agent run via `ainvoke`/`astream` (the sync `wrap_model_call` raises `NotImplementedError` in that case); `ModelRequest` is a dataclass with a real `.override()` method used to replace `tools`.
+- Always on, no key, costs nothing beyond what we already pay for the model call itself.
+
+**Brief ref:** 3.1 (the agent loop; correctness of tool use), Section 4 (agent loop structure is our call).
+
+### D52 — TypeSafe `Choice` for tool selection (now the only tool-selection layer)
+
+**Question:** Use TypeSafe's `Choice` primitive to classify what job the current step is, and select tools by that job.
+
+**Options:**
+- (a) Skip tool-selection help entirely.
+- (b) `Choice` decides the job (`login`, `fill_form`, `read_value`, `need_human`) each step, and the tool list narrows to that job's tools.
+
+**Chosen:** (b). After D51 was tried and removed (see D51's update), this is the only tool-selection mechanism.
+
+**Reasoning:**
+- A page URL alone cannot tell "this step needs to fill a field" from "this step needs to read a value" on the same page. `Choice`'s own guidance line, "reach for it when options map to distinct code paths," fits this exactly: four job categories, each mapping to a fixed tool set.
+- **Fail-closed would be wrong here.** A classifier can be wrong or unsure. Below a confidence threshold (0.6), the middleware changes nothing (fails open) rather than trust a shaky guess and block a tool the agent actually needs.
+- **Any error fails open too**, wrapped in `try/except`: a TypeSafe outage, timeout, or auth problem must never stop the agent from working; it just runs without this layer for that step.
+- **Never removes the always-allowed set:** `observe`, `click`, `type_secret`, and `finish` are always kept, whatever the classified job. Verified offline, including against an already-reduced starting set (in case a future layer is added again).
+- **Same data caveat as D50, now doubled:** the current page and the last tool result's text (up to 400 characters) go to `api.typesafe.ai` on every step this is on. Real values (e.g. an account number typed by the user in the goal, or in a tool result) can appear there. Off by default, same `TYPESAFE_API_KEY` gate as D50; never enable on a run that may show real account data.
+- Field names (`ChoiceAnswer.choice`, `.confidence`, `.probabilities`) and the async `ainvoke` path were confirmed against the installed package before writing this, not guessed.
+- Untested against the real service: only the pure job-mapping and confidence-gate logic were run (offline, from the notebook's own cells). The live classifier call has not been exercised; that needs the user's `TYPESAFE_API_KEY` and a browser run.
+
+**Brief ref:** 3.1, 3.4 (the redaction gap carried from D50 applies here too, and is worse: two things now leave the process per step instead of one).
+
+### D53 — Close the gap between visual grounding and human-facing messages
+
+**Question:** D2 gives the model a screenshot precisely so it can read a label even with no clean DOM. A real run on the loan page hit an element with no name anywhere in the code, and the human-facing message said only "field 17" — the model's own visual reading never reached it. Why, and how do we fix it?
+
+**Cause:** `request_value(ref)` took only a number. The message it builds asks our code (`surface.name_of(ref)`) for a name, never the model. `ask_human` never had this problem, since its `question` argument already carries the model's own words.
+
+**Chosen:** add a required `hint` argument to `request_value(ref, hint)`: the model's own reading of the field's label from the screenshot. A new `_describe(ref, hint)` combines the code's name and the model's hint when both exist, uses whichever is present, and falls back to `"field N"` only if neither is available. `type_text` and `select_option` were switched to the same helper for their own "value not given" messages, since it is a strict improvement with no downside there.
+
+**Reasoning:** this is not a new mechanism, it is wiring the one already committed to in D2 into a place that was missing it. Tested offline: DOM name only, hint only (the reported case), both, and neither (unchanged last-resort behaviour) all give the expected message.
+
+**Brief ref:** 3.1 (bias toward approaches that work with no clean DOM), 3.6 (an intervention request must carry enough context to act on).
+
+### D54 — Already-filled fields: tell the model, and enforce it in code
+
+**Question:** A real run showed every field on Bill Pay already filled (screenshot evidence), yet the agent asked again for a field ('City') that visibly had a value. Why, and how do we stop it happening again regardless of the model?
+
+**Cause:** the element list sent to the model carries a role and a name, never the field's current value. The only way the model could notice "this is already filled" was to visually re-read the screenshot correctly, every time, across many round-trips. It didn't, and nothing in our code checked either.
+
+**Chosen:** two changes, not one, because the model's judgment alone was exactly what failed:
+1. **Tell it plainly:** the scanner now reads each input/select's current value and the element list shows it, e.g. `[7] textbox "City" = '2'`. The model no longer has to infer this from pixels.
+2. **Enforce it in code:** `_ask_for_value` (used by `type_text`, `select_option`, `request_value`) now reads the field's live value first. If it is already non-empty, the handoff is refused outright with `SKIP: '<field>' already has a value (...)`, and no human is called. This never depends on the model remembering or looking carefully; the code guarantees it.
+
+**Reasoning:** this is the same pattern as D33 (approval enforced inside the tool, not left to the model) applied to a different failure: don't ask the model to track state we can just read directly. Tested offline: a filled field is skipped with no handoff; a genuinely empty one still hands off exactly as before.
+
+**Brief ref:** 3.1 (agent loop correctness), 3.6 (a well-reasoned handoff mechanism, not just a TODO).
+
+### D55 — Ask for every missing field at once, not one at a time
+
+**Question:** The agent asked for missing values field by field ("next, next, next"), a separate handoff each time. The user wants one handoff listing everything still empty, and a second one (if needed) showing only what's still missing, not the whole list again.
+
+**Chosen:** a new tool, `request_missing_values(hints)`, replacing the field-by-field loop. It scans the current page's own element list (reusing the `value` field added in D54) for empty, visible textboxes and dropdowns, builds one message naming all of them, and opens a single handoff. Calling it again after some are filled naturally shows only what remains, because it re-scans the live page rather than remembering an old list. `request_value(ref, hint)` stays available for the single-field case; the prompt tells the model to prefer the batch tool once more than one value is missing.
+
+**Reasoning:** the field-by-field loop cost one full model turn and one handoff per field, for no benefit: none of the earlier fields depend on a later one. A single batched ask matches how a person would actually fill out a form.
+
+**Brief ref:** 3.6 (a well-reasoned handoff mechanism).
+
+### D56 — Block the risky button during any handoff except the approval step itself
+
+**Question:** During an ordinary handoff (filling in a missing field, or `ask_human`), the human has full control of the page — including the Send/Transfer button. D33's approval gate only guards the *agent's* click; nothing stopped a human from clicking Send directly while filling in an unrelated field, bypassing the gate entirely.
+
+**Chosen:** `human_takeover(question, block_risky=True)`. When `block_risky` is true (the default), every element `needs_human` would flag is blurred and made unclickable (`pointer-events: none`, a blur filter) for the duration of that handoff, then restored on Done. The one call site that must NOT block is the takeover offered inside `click()`'s own approve/reject/take-over choice, since that takeover exists specifically so a human can act on that button; it passes `block_risky=False`.
+
+**Reasoning:** the risk classification already exists (`needs_human`, D33/D34); this reuses it rather than inventing a second one. It closes a real gap: a human acting directly on the page was never covered by our tool-level approval, only an agent's click was. Best-effort, not absolute: it relies on the last observation's ref numbers, so a page reload mid-handoff could reset it; acceptable for a single-page form-filling flow, called out as a limit rather than hidden.
+
+**Brief ref:** 3.4 (risky/irreversible actions handled conservatively), 3.6.
+
+### D57 — Block the risky button during the decision bar itself, not only afterward
+
+**Question:** D56 blocked the risky button during a later `human_takeover` (filling in a missing field). It missed the actual approve/reject/take-over decision window: while that bar is showing, the real page underneath was still fully live. A human clicked the real Send Payment button directly during that window and the payment went through, with neither an agent click nor a "take over" ever happening.
+
+**Chosen:** in `click()`, block every element `needs_human` would flag **before** showing the decision bar, and unblock only once a decision is resolved, in a `try/finally` so an error mid-decision can never leave it stuck blocked. From there:
+- **Approve:** unblocked, then our own `surface.click(ref)` performs the click. A human never touches it directly.
+- **Reject:** unblocked, nothing further happens to it.
+- **Take over:** unblocked, and only now, deliberately, can a human act on it themselves.
+
+**Reasoning:** the only two paths that may ever trigger the real button are the agent's own controlled click after approval, or a human who explicitly chose to take over. Direct interaction during the pending decision itself is never one of them. Verified with a control-flow test (not a browser test) that block strictly precedes the decision bar, and unblock happens on all three outcomes.
+
+**Brief ref:** 3.4, 3.6.
+
+### D58 — A submitted page counts as "done" for the take-over-to-submit case
+
+**Question:** A human took over specifically to click Send/Transfer, clicked it, and the run stayed stuck: the only hand-back signal was the separate "Done" button, and clicking Submit is not the same click as clicking Done. Nothing told the agent it could continue.
+
+**Chosen:** `human_takeover(..., auto_on_navigate=True)`. When set, the first navigation to a **different** URL counts as done automatically, in addition to the explicit Done button. A reload of the *same* URL (e.g. a validation error re-showing the form) does not auto-resolve, since that genuinely still needs a human's attention. Only the take-over call inside `click()`'s approval decision passes this; the general form-filling takeover (`request_missing_values`, `ask_human`) does not, since navigating away there does not mean the human is finished.
+
+**Reasoning:** the human's entire purpose for taking over at that specific point was to perform one action; the resulting page change is unambiguous evidence that they did. Requiring a second, separate click for the same intent is the friction that caused the stuck run. Verified offline: real navigation hands back immediately; a same-URL reload does not; the general takeover is unaffected either way; the explicit Done button still works in both modes.
+
+**Brief ref:** 3.6 (a well-reasoned control-transfer model, not just a mechanism that can get stuck).
+
+### D59 — Fix the hand-back trigger; add a whole-page lock (superseded in part by D60)
+
+**Question:** D58's auto-hand-back was still not firing after a submit. Separately, the user asked for something broader: nothing on the page should ever be clickable or typable by a human except during an explicit handoff, not just the one risky button.
+
+**Cause of the D58 bug:** it required the URL to change. ParaBank very likely posts a form back to the *same* URL and re-renders it with the result ("Transfer Complete!") in place, so the "different URL" check never matched. The fix: treat **any** page reload as the done signal for this specific takeover, not only a URL change.
+
+**Chosen (replacing D56/D57's narrower mechanism):** one whole-page lock, not a per-element one.
+- A full-viewport transparent overlay plus a capturing keydown/keypress blocker is active by default, driven by the same `cua_takeover` sessionStorage flag the banner already used. Locked whenever no handoff is active; unlocked only inside `human_takeover`.
+- Our own injected UI (the banner, the approve/reject/take-over bar) sits on a higher z-index than the lock, so it stays usable regardless of lock state.
+- Our own automated actions (`click`, `type_text`, `type_secret`, `select_option`) now pass `force=True`, confirmed to exist on all three Playwright methods before use. This bypasses Playwright's own "is the target receiving pointer events" check, which the lock would otherwise also trip for our *own* actions. `force=True` has no effect on a real human's mouse or keyboard, since those are genuine browser input events, not something routed through Playwright's API at all — the lock still stops them normally.
+- ~~`click()`'s approval branch no longer computes or applies a separate risky-element block~~ **this was a mistake, corrected in D60**: it accidentally opened the risky button during every takeover, not only the approval one.
+
+**Reasoning:** a single, general mechanism ("nothing is interactive except during a deliberate handoff") is easier to reason about and to defend than tracking which specific elements are risky at each moment, and it directly satisfies what was asked: full visibility throughout (the overlay is transparent; nothing about what's happening is hidden), zero interactivity outside an explicit handoff. Verified offline: the corrected hand-back trigger fires on a same-URL reload (the actual reported case) as well as a genuine navigation, while the general takeover and the explicit Done button are unaffected either way.
+
+**Known limit, not yet exercised in a real browser:** whether `force=True` on `select_option` behaves as expected under the lock has not been tested live; if the lock ever interferes with our own dropdown selection, that call site is the first place to check.
+
+**Brief ref:** 3.4, 3.6.
+
+### D60 — Restore the risky-element block, layered under the general lock; fix a stale-flag bug
+
+**Question:** After D59, two things broke: (1) the risky button became clickable during an *ordinary* handoff (filling a field), not only the approval one; (2) the human could click and type freely at all times, even during the agent's own turn, surviving every kernel restart.
+
+**Cause of (1):** D59 conflated two different questions into one switch. "Is a takeover active" and "should the risky button specifically stay blocked" are not the same thing — a general takeover should open the rest of the page while still keeping that one button non-interactive. Tying both to the single lock removed the protection D56/D57 had already got right. This is a real regression, not a new design choice.
+
+**Cause of (2):** the lock/unlock state is read from `sessionStorage`, which lives in the **browser tab**, not the Python kernel. Restarting the kernel does not close the browser Playwright launched — it is a separate process. If that flag was ever left at "takeover active" by an earlier run that hit an exception mid-takeover (several did, earlier in this session), it stays stuck at that value through any number of kernel restarts, since nothing was ever explicitly resetting it. No amount of code fixes on the Python side could have addressed this without also clearing the browser-side state.
+
+**Chosen:**
+- Restore `BLOCK_JS`/`UNBLOCK_JS` (the risky-element-specific block from D56/D57), applied **in addition to** unlocking the general page, inside `human_takeover(block_risky=True)` (the new default). Only the take-over-to-submit call site in `click()` passes `block_risky=False`.
+- At the one-time browser setup, explicitly clear the `cua_takeover` (and `cua_question`) flags before doing anything else, regardless of what the tab's `sessionStorage` already holds. A fresh kernel now always starts from a known "not in takeover" state, even in a browser tab reused across restarts.
+
+**Reasoning:** layering (general lock + a narrower risky-only block on top, removed only for the one deliberate case) is what the user actually asked for from the start; D59's single-switch version was an over-simplification that traded away correctness for tidiness. The stale-flag fix addresses a class of bug, not just this one instance: any state stored in the browser tab must be defensively reset at startup, since kernel restarts do not imply a clean browser.
+
+**Brief ref:** 3.4, 3.6.
+
+### D61 — force=True does not bypass a covering overlay for clicks (verified, not assumed)
+
+**Question:** After D60, "Approve" did nothing. Why?
+
+**Cause, verified against Playwright's own source and docs** (not reasoned from memory): `force=True` skips Playwright's own pre-click actionability *checks*, but the click is still delivered by coordinate — Playwright's own documented click sequence is "wait for actionability checks, unless force is set... use `page.mouse` to click over the center of the element." A coordinate-based mouse event is still hit-tested by the real browser exactly like a real click. If our lock overlay sits on top at that point, the overlay receives it, not the intended button. `force=True` never bypassed the lock; D59/D60 assumed it did, and that assumption was wrong.
+
+**Chosen:** genuinely remove the lock for the instant of our own action, then restore it immediately after, via a small `_unlocked(coro)` wrapper used by `_click`, `_type_text`, `type_secret`, and `select_option`. This is scoped as tightly as possible: only the single Playwright call itself runs unlocked, not the surrounding wait/timeout logic, to keep the window a human could theoretically act in as close to zero as practical.
+
+**Reasoning:** sidesteps the uncertainty entirely rather than depending on an assumption about how Playwright's internals interact with CSS overlays. Verified against documentation before writing, given how costly the earlier wrong assumption was.
+
+**Open, not yet confirmed:** two further reports (nothing clickable during an active takeover; everything clickable during the agent's own turn) were not reproduced by code review alone — `SYNC_UI_JS`'s own branching was read closely and no bug was found in it by inspection. Direct print diagnostics were added around every lock/unlock transition (initial setup, takeover start, takeover end) to get real evidence rather than a further guess. Until that evidence comes back, D60's mechanism should be considered unverified in practice, not confirmed working.
+
+**Brief ref:** 3.4, 3.6.
+
+### D62 — Restrict a handoff to only the field(s) actually needed
+
+**Question:** During a missing-value handoff, the whole page opened up (minus the risky button), letting a human click nav links or wander anywhere. Can the handoff instead only allow the specific field(s) that are actually missing?
+
+**Chosen:** `human_takeover(allow_refs=[...])`. When given, the general lock (D59) stays fully active, and only the named elements are individually raised above it (z-index higher than the lock, below our own UI, matching the CSS stacking technique the lock itself already relies on), with a visible green outline marking them for the human. Everything else, including navigation, stays locked. `_ask_for_value` (used by `type_text`, `select_option`, `request_value`) passes exactly the one ref it's asking about; `request_missing_values` passes every currently-missing ref at once. `ask_human` and the take-over-to-submit case in `click()` do not use this — they genuinely don't know a single specific target in advance, so they keep the broader "everything except the risky button" or "everything" access respectively.
+
+**Reasoning:** the tools that call `_ask_for_value`/`request_missing_values` already know precisely which element(s) need a human's input; there is no reason to expose more of the page than that. This is the same "only the graders access what they need" principle already applied elsewhere, now applied to the handoff surface itself.
+
+**Confidence note:** this relies on CSS z-index stacking to raise an element above the lock overlay, a standard and well-documented technique, not the kind of Playwright-internals assumption that was wrong in D61. Not yet exercised in a live browser.
+
+**Update:** first live test showed the green outline correctly, but typing into the field did nothing. Cause: the lock has two independent mechanisms, a click-blocking overlay and a *global* keydown/keypress listener on `document` that swallows every keystroke regardless of what has focus. `RESTRICT_JS` only exempted the allowed field from the click side (via z-index); the keyboard blocker had no such exemption and kept intercepting every key. Fixed: the keyboard blocker now checks `event.target.classList.contains('__cua_allowed')` and lets the event through for that element, fixed in both places the blocker is installed. This was found and fixed from direct code review of the report, not a further guess.
+
+**Brief ref:** 3.6.
+
 ## H. Assumptions and defaults (to confirm)
 
 - ParaBank needs a registered **test user**; registration asks for an SSN. We use fake data, and registration is a one-time setup outside the artifacts.
@@ -929,3 +1144,133 @@ Candidate stretch goals if the core is solid: the `draft → verified` approval 
 - **Deep agents + Playwright fit** (D4): unverified in practice; fallback is a custom LangGraph graph with the same tools.
 - **Numbered screenshot cost and covered fields** (D2, D18): tokens per step, and covered fields the model may need.
 - **ParaBank availability** (D1): public server may be slow or down; evidence must be saved early.
+
+## O. Phase 2 v2 decisions (schema simplification, agreed in conversation before build)
+
+A simplification of the Phase 2 schema (section L, D37-D40) was agreed with the user before this
+work started, and is recorded here as the decisions actually taken. Source of truth for what was
+cut and what was kept is the table below, which mirrors the table agreed in conversation exactly.
+
+| Piece | Verdict |
+|---|---|
+| Typed inputs/outputs, steps, checkpoint (both signals required), risk_level + per-step risk + `amount_input`, `outcome_rules` 3-way taxonomy, `secrets` as names only, `status` | KEEP, unchanged in spirit |
+| Locators: ranked list of up to ~3 | SIMPLIFY to one `primary` + one optional `fallback` (D63) |
+| `app.id`, `app.vendor`, `base`, `overrides` | CUT entirely (D64) |
+| `routes` (a separately-maintained list) | CUT as a stored field; derived instead (D65) |
+| `when_to_use` | CUT, folded into `description` (D66) |
+| `tool_contract()` | KEEP the concept, adjusted for the fields above (D66) |
+
+### D63 — Locators: one primary + one optional fallback, with a required note
+
+**Question:** The original schema (D8, D37) ranked up to ~3 locators per target. Is that ranked
+list pulling its weight, or is it more ceremony than the brief asks for?
+
+**Options:**
+- (a) Keep the ranked list of up to 3 (original D8/D37).
+- (b) Exactly one `primary` locator, plus one optional `fallback`. Enforce "at most one fallback"
+  by the type itself (two named fields), not by a runtime length check on a list.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- Two tries — the best-known locator, and one backup — covers the realistic case (a page redesign
+  moves an element but a second, independently-stable signal usually still works) without the
+  ceremony of ranking a third or fourth locator that, in practice, was never populated in either
+  hand-written example artifact.
+- **Enforcement is structural, not a validator:** `Target` has exactly the fields `primary` and
+  `fallback: Locator | None`. There is no list to put a third locator into, so a third locator is
+  **not representable** by the type at all, which is a stronger guarantee than a length check that
+  could in principle be loosened later. A stray extra key on `Target` is still caught, by the
+  same `extra="forbid"` base every model already uses — no new validator was needed.
+- **`note` becomes required** (`Field(min_length=1)`) on every locator, not optional. This
+  directly satisfies the brief's "identification with reasoning about robustness" (3.2): a
+  locator can no longer be checked in with no explanation of why it was trusted.
+- The ordering check (fallback must not be strictly more stable than primary) is the same rule as
+  before, just comparing two ranks instead of walking a list.
+- `structure` still requires `within` (no page-wide index); `labeled_value` is still extract-only.
+  Both cross-checks now iterate `target.locators()` (a two-or-one-element helper list) instead of
+  `target.locators`.
+
+**Brief ref:** 3.2 ("how each target element is identified... with reasoning about robustness").
+
+### D64 — Multi-tenant fields cut; `base_url` is the only surface fact left
+
+**Question:** `app.id`, `app.vendor`, `base`, and `overrides` (D21, D40) existed to gesture at
+multi-tenant reuse without building it. Do they earn their place in the schema?
+
+**Options:**
+- (a) Keep them as shape-checked-only fields (original D40).
+- (b) Cut them from the schema entirely. Keep only what replay actually needs to know: the site.
+
+**Chosen:** (b). `Capability` gains one field, `base_url: str`, with the same
+`^https?://` pattern `App.base_url` used to carry. No wrapper object.
+
+**Reasoning:**
+- 3.7 asks that the core abstractions not "paint you into a corner", not that every future idea
+  get a placeholder field today. `base`/`overrides` were validated for shape only and never
+  applied (D40 said so plainly); carrying dead weight in every artifact file is not free — it is
+  one more thing a human reviewer has to read past.
+- Multi-tenant reuse and drift detection (D21) remain exactly what they were: a REPORT.md design
+  discussion. Section 3.7 explicitly asks for design, not build, here. Nothing about the design
+  argument in D21 depended on the field existing in the schema.
+- A single top-level `base_url` is simpler than a one-field wrapper object (`app: {base_url:
+  ...}`); with `id` and `vendor` gone there is nothing left to group.
+- **Cost:** if multi-tenant override machinery is ever built, `base_url` would need to become
+  either a per-tenant override input or move into a separate deployment-config file, outside the
+  capability artifact. That is a schema change, honestly noted here rather than hidden behind a
+  field that was never wired up anyway.
+
+**Brief ref:** 3.7.
+
+### D65 — `routes` derived from `navigate` steps, not stored
+
+**Question:** The original schema stored `routes: list[str]` and cross-checked every `navigate`
+step's path against it (D15's allowlist wants "the pages this capability may touch"). Is a
+separately-maintained list the right way to get that fact?
+
+**Options:**
+- (a) Keep `routes` as a stored, cross-checked field (original schema).
+- (b) Cut it as a stored field. Compute it on demand from the capability's own `navigate` steps.
+
+**Chosen:** (b), via `derived_routes(cap) -> list[str]`.
+
+**Reasoning:**
+- A capability's `navigate` steps already say, unambiguously, every page it deliberately visits.
+  A second, hand-maintained list saying the same thing is pure redundancy — and redundant data
+  can drift out of sync, exactly the failure mode a reviewer would have to notice by hand.
+- `derived_routes` returns each `navigate` step's path with its query string dropped, in
+  first-appearance order, deduplicated: `derived_routes(bal) == ["/activity.htm"]`,
+  `derived_routes(xfer) == ["/transfer.htm"]`.
+- Whatever later phase enforces the D15 allowlist can call `derived_routes(cap)` at the point it
+  needs the list, instead of trusting a field that could have been left stale after an edit.
+- **Cost:** a capability can no longer declare a route it intends to use but has not yet written a
+  step for (e.g. "reserved for a future step"). This was not a case either example artifact used,
+  and is easy to reintroduce later as an explicit `extra_routes` field if it turns out to matter.
+
+**Brief ref:** 3.2, 3.4 (the allowlist still gets its route list, just computed rather than typed twice).
+
+### D66 — `when_to_use` folded into `description`
+
+**Question:** The schema carried both `description` and `when_to_use` as separate free-text
+fields, both ultimately read by the same audience (a human reviewer, or a calling agent choosing
+a capability by name).
+
+**Options:**
+- (a) Keep both fields (original schema).
+- (b) One field, `description`, that a capability author writes to cover both what it does and
+  when to use it.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- The original `tool_contract()` concatenated them anyway (`f"{cap.description} Use when:
+  {cap.when_to_use}"`), which is itself a sign the split was not doing useful work: the calling
+  agent always saw them as one piece of text. Removing the split removes a place a reviewer could
+  fill in one and forget the other, or duplicate the same sentence in both.
+- `tool_contract()` keeps the same shape and the same job (3.2: "a calling agent can understand
+  what it needs and returns"); its `description` key is now simply `cap.description`.
+- **Cost:** a capability author loses the gentle structural nudge to write a distinct "when to
+  use this" sentence. This is a documentation-discipline cost, not a schema-expressiveness one —
+  nothing that could be said with two fields cannot be said in one paragraph.
+
+**Brief ref:** 3.2.
