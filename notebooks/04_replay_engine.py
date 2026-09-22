@@ -642,3 +642,81 @@ assert result.status == "FAILED", result
 print("bonus (risky click never retried): ok")
 
 print("replay engine: all offline checks passed")
+
+# %% Section 5: integration check -- both REAL example artifacts through the engine
+# This is the check that proves Task A's simplified schema and Task B's engine actually agree
+# with each other end to end: it builds a FakeSurface for each example by registering exactly
+# the locators that artifact's own YAML declares (not a stand-in shape), then replays it.
+bal = from_yaml((EX / "get_account_balance.yaml").read_text())
+xfer = from_yaml((EX / "transfer_funds.yaml").read_text())
+
+
+def resolve_secret(name: str) -> str:
+    raise AssertionError("no secret is used by either example artifact")
+
+
+# ---- get_account_balance ----
+bal_surface = FakeSurface()
+bal_url = "/activity.htm?id=13344"
+bal_surface.set_page(bal_url, "Account Details\nBalance: $1,200.00")
+bal_extract = next(s for s in bal.steps if s.action == "extract")
+bal_surface.register(bal_url, bal_extract.target.primary, 1)
+bal_surface.set_value(1, "$1,200.00")
+
+bal_result = run_capability(bal, bal_surface, {"account_id": "13344"}, resolve_secret, run_id="evidence-1")
+assert bal_result.status == "SUCCESS", bal_result
+assert bal_result.outputs == {"balance": "$1,200.00"}
+check_result(bal, bal_result)   # cross-check against the capability itself (D39)
+print("integration (get_account_balance):", bal_result.status, bal_result.outputs)
+
+# same artifact, bad account id -> the business outcome declared in its own outcome_rules
+bad_surface = FakeSurface()
+bad_url = "/activity.htm?id=00000"
+bad_surface.set_page(bad_url, "Could not find account 00000")
+bad_result = run_capability(bal, bad_surface, {"account_id": "00000"}, resolve_secret, run_id="evidence-1b")
+assert bad_result.status == "BUSINESS_OUTCOME" and bad_result.outcome == "ACCOUNT_NOT_FOUND", bad_result
+check_result(bal, bad_result)
+print("integration (get_account_balance, bad id):", bad_result.status, bad_result.outcome)
+
+# ---- transfer_funds ----
+xfer_surface = FakeSurface()
+xurl = "/transfer.htm"
+xfer_surface.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+xfer_type, xfer_sel1, xfer_sel2, xfer_click, xfer_extract = (s for s in xfer.steps if s.action != "navigate")
+xfer_surface.register(xurl, xfer_type.target.primary, 10)
+xfer_surface.register(xurl, xfer_type.target.fallback, 10)
+xfer_surface.register(xurl, xfer_sel1.target.primary, 11)
+xfer_surface.register(xurl, xfer_sel2.target.primary, 12)
+xfer_surface.register(xurl, xfer_click.target.primary, 13)
+xfer_surface.register(xurl, xfer_extract.target.primary, 14)
+xfer_surface.set_value(14, "Transfer Complete!")
+xfer_surface.click_effects[13] = lambda s: s.set_page(xurl, "Transfer Complete! $20.00 has moved.")
+
+xfer_inputs = {"from_account": "13344", "to_account": "13355", "amount": "20.00"}
+xfer_result = run_capability(xfer, xfer_surface, xfer_inputs, resolve_secret, run_id="evidence-2", auto_approve_limit=500.0)
+assert xfer_result.status == "SUCCESS", xfer_result
+assert xfer_result.outputs == {"confirmation": "Transfer Complete!"}
+assert xfer_surface.typed[10] == "20.00" and xfer_surface.selected[11] == "13344" and xfer_surface.selected[12] == "13355"
+assert xfer_surface.clicked == [13]
+check_result(xfer, xfer_result)
+print("integration (transfer_funds, under limit):", xfer_result.status, xfer_result.outputs)
+
+# same artifact, amount at/above the limit -> NEEDS_APPROVAL, the Transfer button never clicked
+xfer_surface2 = FakeSurface()
+xfer_surface2.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+xfer_surface2.register(xurl, xfer_type.target.primary, 10)
+xfer_surface2.register(xurl, xfer_sel1.target.primary, 11)
+xfer_surface2.register(xurl, xfer_sel2.target.primary, 12)
+xfer_surface2.register(xurl, xfer_click.target.primary, 13)
+approvals = []
+xfer_result2 = run_capability(
+    xfer, xfer_surface2, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+    resolve_secret, run_id="evidence-3", auto_approve_limit=500.0,
+    escalate=lambda reason, ctx: approvals.append((reason, ctx)),
+)
+assert xfer_result2.status == "NEEDS_APPROVAL" and xfer_result2.pending_step == 4, xfer_result2
+assert 13 not in xfer_surface2.clicked
+assert len(approvals) == 1
+print("integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
+
+print("\nINTEGRATION CHECKS PASSED")
