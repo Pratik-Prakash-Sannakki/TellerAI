@@ -266,3 +266,206 @@ raises(lambda: Navigate(path="overview.htm"), "String should match pattern")    
 assert template_refs("id={{account_id}} pw={{secret:password}}") == [(False, "account_id"), (True, "password")]
 assert malformed_template("{{Account}}") and not malformed_template("{{account_id}}")
 print("models: all checks passed")
+
+# %% Section 2: Capability and cross-field checks
+class InputParam(Strict):
+    name: Name
+    type: ValueType
+    description: str
+    required: bool = True
+    pattern: str | None = None            # regex the caller's value must match
+
+    @field_validator("pattern")
+    @classmethod
+    def _compiles(cls, v):
+        if v is not None:
+            try:
+                re.compile(v)
+            except re.error as exc:                 # re.error is not a ValueError, so wrap it
+                raise ValueError(f"pattern is not a valid regex: {exc}") from exc
+        return v
+
+
+class OutputParam(Strict):
+    name: Name
+    type: ValueType
+    description: str
+
+
+class Capability(Strict):
+    schema_version: Literal[1] = 1
+    name: Name
+    version: int = Field(ge=1)
+    status: Literal["draft", "verified"] = "draft"     # verified = proven by a no-LLM replay (D23)
+    description: str                      # also covers "when to use" (D66); one field, not two
+    base_url: str = Field(pattern=r"^https?://")        # D64: all that is left of app/base/overrides
+    risk_level: Risk
+    inputs: list[InputParam] = []
+    outputs: list[OutputParam] = []
+    secrets: list[Name] = []              # names only. Values live in .env (D32).
+    steps: list[Step] = Field(min_length=1)
+    checkpoint: Checkpoint
+    outcome_rules: list[OutcomeRule] = []
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        problems: list[str] = []
+        in_names = [i.name for i in self.inputs]
+        out_names = [o.name for o in self.outputs]
+        for label, names in (("input", in_names), ("output", out_names), ("secret", self.secrets)):
+            for n in {n for n in names if names.count(n) > 1}:
+                problems.append(f"duplicate {label} name {n!r}")
+
+        def check(text: str, where: str, allow_secret: bool = False):
+            if malformed_template(text):
+                problems.append(f"{where}: malformed template in {text!r}")
+            for is_secret, name in template_refs(text):
+                if is_secret and not allow_secret:
+                    problems.append(f"{where}: secret {name!r} is only allowed as a typed value")
+                elif is_secret and name not in self.secrets:
+                    problems.append(f"{where}: unknown secret {name!r}")
+                elif not is_secret and name not in in_names:
+                    problems.append(f"{where}: unknown input {name!r}")
+
+        extracted: list[str] = []
+        for i, s in enumerate(self.steps):
+            where = f"steps[{i}] ({s.action})"
+            if s.action == "navigate":
+                check(s.path, where)
+            elif s.action == "type":
+                check(s.value, where, allow_secret=True)
+            elif s.action == "select":
+                check(s.option, where)
+            elif s.action == "extract":
+                extracted.append(s.save_as)
+                if s.save_as not in out_names:
+                    problems.append(f"{where}: save_as {s.save_as!r} is not a declared output")
+            elif s.action == "click":
+                if s.amount_input and s.risk != "risky":
+                    problems.append(f"{where}: amount_input only belongs on risky clicks")
+                if s.amount_input and s.amount_input not in in_names:
+                    problems.append(f"{where}: amount_input {s.amount_input!r} is not a declared input")
+            if s.action != "navigate":
+                for loc in s.target.locators():
+                    for text in locator_strings(loc):
+                        check(text, f"{where} locator")
+        for n in out_names:
+            if extracted.count(n) != 1:
+                problems.append(f"output {n!r} must be produced by exactly one extract step (found {extracted.count(n)})")
+
+        has_risky = any(s.action == "click" and s.risk == "risky" for s in self.steps)
+        if has_risky and self.risk_level != "risky":
+            problems.append("a step is risky but risk_level is 'safe'")
+        if not has_risky and self.risk_level == "risky":
+            problems.append("risk_level is 'risky' but no step is marked risky")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
+def derived_routes(cap: Capability) -> list[str]:
+    """The pages this capability may touch, derived from its own navigate steps (D65) instead of
+    a separately-maintained list. Order of first appearance, no duplicates, query string dropped."""
+    routes: list[str] = []
+    for s in cap.steps:
+        if s.action == "navigate":
+            route = s.path.split("?")[0]
+            if route not in routes:
+                routes.append(route)
+    return routes
+
+
+# %% Section 2a: YAML load and save
+import yaml
+
+
+def to_yaml(cap: Capability) -> str:
+    """Stable, human-readable YAML. Keys keep the model's field order."""
+    return yaml.safe_dump(cap.model_dump(mode="json", exclude_none=True), sort_keys=False, allow_unicode=True, width=100)
+
+
+def from_yaml(text: str) -> Capability:
+    return Capability.model_validate(yaml.safe_load(text))
+
+
+# %% Section 2b: checks for Capability and YAML
+import copy, pathlib
+
+# 1. both examples load and validate
+ROOT = pathlib.Path.cwd()
+if not (ROOT / "artifacts").exists():        # a notebook kernel usually starts inside notebooks/
+    ROOT = ROOT.parent
+EX = ROOT / "artifacts" / "examples"
+bal = from_yaml((EX / "get_account_balance.yaml").read_text())
+xfer = from_yaml((EX / "transfer_funds.yaml").read_text())
+assert bal.name == "get_account_balance" and xfer.risk_level == "risky"
+print("examples load: ok")
+
+# D65: routes are derived from navigate steps, not stored
+assert derived_routes(bal) == ["/activity.htm"]
+assert derived_routes(xfer) == ["/transfer.htm"]
+print("derived routes: ok")
+
+# D64: base_url is minimal and still shape-checked
+raises(lambda: Capability.model_validate({**yaml.safe_load((EX / "get_account_balance.yaml").read_text()), "base_url": "not-a-url"}),
+       "String should match pattern")
+print("base_url check: ok")
+
+
+# 2. each kind of mistake is rejected, with a message that says what is wrong
+def rejects(name: str, mutate, expect: str, source: str = "bal"):
+    data = copy.deepcopy(yaml.safe_load((EX / ("get_account_balance.yaml" if source == "bal" else "transfer_funds.yaml")).read_text()))
+    mutate(data)
+    try:
+        Capability.model_validate(data)
+    except ValidationError as err:
+        assert expect in str(err), f"{name}: expected {expect!r} in:\n{err}"
+        print(f"rejected ok: {name}")
+        return
+    raise AssertionError(f"{name}: was NOT rejected")
+
+rejects("typo in a key", lambda d: d.update(descripton="x"), "Extra inputs are not permitted")
+rejects("unknown input reference", lambda d: d["steps"][0].update(path="/activity.htm?id={{acount_id}}"), "unknown input 'acount_id'")
+rejects("malformed template", lambda d: d["steps"][0].update(path="/activity.htm?id={{Account}}"), "malformed template")
+rejects("output never extracted", lambda d: d["steps"].pop(1), "must be produced by exactly one extract step")
+rejects("extract into undeclared output", lambda d: d["steps"][1].update(save_as="total"), "is not a declared output")
+rejects("duplicate input", lambda d: d["inputs"].append(copy.deepcopy(d["inputs"][0])), "duplicate input name")
+rejects("checkpoint missing text", lambda d: d["checkpoint"].pop("text_present"), "a checkpoint needs both")
+rejects("business rule without outcome", lambda d: d["outcome_rules"][0].pop("outcome"), "business rules need an UPPER_SNAKE outcome")
+rejects("recoverable rule without action", lambda d: d["outcome_rules"][1].pop("action"), "recoverable rules need an action")
+rejects("hard rule with an action", lambda d: d["outcome_rules"][2].update(action="retry"), "hard rules carry only a message")
+rejects("bad input regex", lambda d: d["inputs"][0].update(pattern="["), "pattern is not a valid regex")
+rejects("secret used as a plain input", lambda d: d["steps"][0].update(path="/activity.htm?id={{secret:password}}"), "only allowed as a typed value")
+
+# steps and locators
+def bad_click(d):
+    d["steps"].insert(1, {"action": "click", "target": {"primary": {"strategy": "labeled_value", "label": "Balance:", "note": "n"}}})
+rejects("labeled_value in a click", bad_click, "only allowed in extract steps")
+
+def bad_order(d):
+    d["steps"][1]["target"] = {
+        "primary": {"strategy": "text", "text": "Balance:", "stability": "low", "note": "n"},
+        "fallback": {"strategy": "label", "label": "Balance:", "stability": "high", "note": "n"},
+    }
+rejects("locators out of order", bad_order, "ordered from most to least stable")
+
+def page_wide_index(d):
+    d["steps"][1]["target"] = {"primary": {"strategy": "structure", "tag": "td", "nth": 18, "note": "n"}}
+rejects("page-wide index (no container)", page_wide_index, "within")
+
+def missing_note(d):
+    d["steps"][1]["target"] = {"primary": {"strategy": "text", "text": "Balance:"}}
+rejects("locator missing note", missing_note, "note")
+
+# risk
+rejects("risky step but risk_level safe", lambda d: d.update(risk_level="safe"), "risky but risk_level is 'safe'", "xfer")
+rejects("safe capability marked risky", lambda d: d.update(risk_level="risky"), "no step is marked risky")
+def bad_amount(d): d["steps"][4]["amount_input"] = "cash"
+rejects("amount_input not declared", bad_amount, "is not a declared input", "xfer")
+
+
+# YAML round trip is lossless
+for cap in (bal, xfer):
+    assert from_yaml(to_yaml(cap)) == cap
+print("yaml round trip: ok")
+print("capability: all checks passed")
