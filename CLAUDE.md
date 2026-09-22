@@ -42,3 +42,10 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
 
 ## Phase 3 notebook
 - `03_recorder.py` — the recorder. Part A captures events from an agent run (browser). Part B compiles events into draft capabilities in `artifacts/` (pure Python, tested offline). Cells titled `OFFLINE` need no browser; `BROWSER` cells do.
+
+## Phase 4 notebook
+- `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback
+  locators, substitutes `{{input}}`/`{{secret:name}}`, walks a capability's steps with no LLM, and
+  gates risky clicks on a configurable auto-approve limit. Pure Python, tested against a hand-built
+  `FakeSurface`; no browser, no Playwright import. The real `ReplaySurface` (Phase 9) wraps
+  agent.ipynb's own `PlaywrightSurface` and `human_takeover`/decision-bar mechanism.
