@@ -1,6 +1,13 @@
 # %% [markdown]
-# # Phase 2: the capability artifact
+# # Phase 2 (v2): the capability artifact, simplified
 # Pure Python. No browser, no network, no API key. Run cells top to bottom.
+#
+# Rebuilt with the simplification agreed after the original Phase 2 (see DECISIONS.md section O,
+# D63-D66): locators are now exactly one `primary` + one optional `fallback` (not a ranked list
+# of ~3), multi-tenant fields (`app.id`, `app.vendor`, `base`, `overrides`) are cut in favor of a
+# single `base_url`, `routes` is derived from `navigate` steps instead of stored, and
+# `when_to_use` is folded into `description`. `ReplayResult` (D27) is unchanged.
+#
 # Builds: locators and steps, then Capability (with cross-checks), YAML load/save,
 # the calling agent's tool contract, and the replay result contract.
 
@@ -36,7 +43,7 @@ def malformed_template(text: str) -> bool:
     return text.count("{{") != len(template_refs(text))
 
 
-# ---------- locators (D8): how a control is found again, ranked from most to least stable ----------
+# ---------- locators (D8, simplified by D63): one primary + at most one fallback, ranked ----------
 class Within(Strict):
     """Scope a locator to a container, e.g. the login form."""
     role: str
@@ -49,14 +56,14 @@ class RoleLocator(Strict):
     name: str
     within: Within | None = None
     stability: Stability = "high"
-    note: str | None = None
+    note: str = Field(min_length=1)       # required: why we trust it (D63)
 
 
 class LabelLocator(Strict):
     strategy: Literal["label"] = "label"
     label: str
     stability: Stability = "medium"
-    note: str | None = None
+    note: str = Field(min_length=1)
 
 
 class TextLocator(Strict):
@@ -64,7 +71,7 @@ class TextLocator(Strict):
     text: str
     within: Within | None = None
     stability: Stability = "medium"
-    note: str | None = None
+    note: str = Field(min_length=1)
 
 
 class StructureLocator(Strict):
@@ -74,7 +81,7 @@ class StructureLocator(Strict):
     within: Within
     nth: int = Field(ge=1)
     stability: Stability = "low"
-    note: str | None = None
+    note: str = Field(min_length=1)
 
 
 class LabeledValueLocator(Strict):
@@ -82,7 +89,7 @@ class LabeledValueLocator(Strict):
     strategy: Literal["labeled_value"] = "labeled_value"
     label: str
     stability: Stability = "medium"
-    note: str | None = None
+    note: str = Field(min_length=1)
 
 
 Locator = Annotated[
@@ -92,14 +99,20 @@ Locator = Annotated[
 
 
 class Target(Strict):
-    locators: list[Locator] = Field(min_length=1)
+    """Exactly one primary locator, one optional fallback (D63). A third locator is not
+    representable by this type at all -- there is no list to extend, only two named slots."""
+    primary: Locator
+    fallback: Locator | None = None
 
     @model_validator(mode="after")
     def _ranked(self):
-        ranks = [_RANK[loc.stability] for loc in self.locators]
-        if ranks != sorted(ranks):
-            raise ValueError("locators must be ordered from most to least stable")
+        if self.fallback is not None and _RANK[self.fallback.stability] < _RANK[self.primary.stability]:
+            raise ValueError("locators must be ordered from most to least stable (primary, then fallback)")
         return self
+
+    def locators(self) -> list:
+        """All locators in try-order: primary, then fallback if present."""
+        return [self.primary] + ([self.fallback] if self.fallback else [])
 
 
 def locator_strings(loc) -> list[str]:
@@ -108,7 +121,7 @@ def locator_strings(loc) -> list[str]:
 
 
 def _no_labeled_value(target: Target) -> Target:
-    if any(loc.strategy == "labeled_value" for loc in target.locators):
+    if any(loc.strategy == "labeled_value" for loc in target.locators()):
         raise ValueError("labeled_value locators are only allowed in extract steps")
     return target
 
@@ -143,7 +156,7 @@ class StepBase(Strict):
 
 class Navigate(StepBase):
     action: Literal["navigate"] = "navigate"
-    path: str = Field(pattern=r"^/")      # relative to app.base_url
+    path: str = Field(pattern=r"^/")      # relative to base_url
 
 
 class Click(StepBase):
@@ -227,340 +240,29 @@ def raises(fn, expect: str):
     raise AssertionError("was NOT rejected")
 
 
-# a good target passes
-Target(locators=[RoleLocator(role="button", name="Log In"), TextLocator(text="Log In")])
+# a good target (primary + fallback, D63) passes
+Target(
+    primary=RoleLocator(role="button", name="Log In", note="Accessible role+name; the most stable signal we have."),
+    fallback=TextLocator(text="Log In", note="Visible text as a backup if the accessible name ever changes."),
+)
 
-raises(lambda: Target(locators=[TextLocator(text="x", stability="low"), LabelLocator(label="x", stability="high")]),
-       "ordered from most to least stable")
-raises(lambda: StructureLocator(tag="td", nth=18), "within")            # a page-wide index has no container
+raises(lambda: Target(
+    primary=TextLocator(text="x", stability="low", note="n"),
+    fallback=LabelLocator(label="x", stability="high", note="n"),
+), "ordered from most to least stable")
+raises(lambda: StructureLocator(tag="td", nth=18, note="n"), "within")            # a page-wide index has no container
+raises(lambda: RoleLocator(role="button", name="Log In"), "note")                  # note is required (D63)
+raises(lambda: Target(
+    primary=RoleLocator(role="button", name="Log In", note="n"),
+    fallback=TextLocator(text="Log In", note="n"),
+    third={"strategy": "text", "text": "x", "note": "n"},
+), "Extra inputs are not permitted")                                                # a 3rd locator has no slot (D63)
 raises(lambda: Condition(), "needs url_contains or text_present")
 raises(lambda: Checkpoint(url_contains="activity.htm"), "needs both")
 raises(lambda: OutcomeRule(when=Condition(text_present="x"), kind="business", message="m"), "UPPER_SNAKE")
 raises(lambda: OutcomeRule(when=Condition(text_present="x"), kind="hard", action="retry", message="m"), "hard rules carry only a message")
-raises(lambda: Click(target=Target(locators=[LabeledValueLocator(label="Balance:")])), "only allowed in extract steps")
+raises(lambda: Click(target=Target(primary=LabeledValueLocator(label="Balance:", note="n"))), "only allowed in extract steps")
 raises(lambda: Navigate(path="overview.htm"), "String should match pattern")     # must start with '/'
 assert template_refs("id={{account_id}} pw={{secret:password}}") == [(False, "account_id"), (True, "password")]
 assert malformed_template("{{Account}}") and not malformed_template("{{account_id}}")
 print("models: all checks passed")
-
-# %% Section 2: Capability and cross-field checks
-class App(Strict):
-    id: Name                              # the vendor product, e.g. parabank. Shared by many tenants (D21).
-    base_url: str = Field(pattern=r"^https?://")
-    vendor: str | None = None
-
-
-class BaseRef(Strict):
-    """D21: this capability specializes another. Stored now, applied in a later phase."""
-    name: Name
-    version: int = Field(ge=1)
-
-
-class Override(Strict):
-    path: str                             # e.g. "steps[1].target.locators[0].name"
-    value: Any
-
-
-class InputParam(Strict):
-    name: Name
-    type: ValueType
-    description: str
-    required: bool = True
-    pattern: str | None = None            # regex the caller's value must match
-
-    @field_validator("pattern")
-    @classmethod
-    def _compiles(cls, v):
-        if v is not None:
-            try:
-                re.compile(v)
-            except re.error as exc:                 # re.error is not a ValueError, so wrap it
-                raise ValueError(f"pattern is not a valid regex: {exc}") from exc
-        return v
-
-
-class OutputParam(Strict):
-    name: Name
-    type: ValueType
-    description: str
-
-
-class Capability(Strict):
-    schema_version: Literal[1] = 1
-    name: Name
-    version: int = Field(ge=1)
-    status: Literal["draft", "verified"] = "draft"     # verified = proven by a no-LLM replay (D23)
-    description: str
-    when_to_use: str                      # lets a calling agent choose this capability by name
-    app: App
-    base: BaseRef | None = None
-    overrides: list[Override] = []
-    risk_level: Risk
-    inputs: list[InputParam] = []
-    outputs: list[OutputParam] = []
-    secrets: list[Name] = []              # names only. Values live in .env (D32).
-    routes: list[str]                     # the pages this capability may touch; feeds the allowlist (D15)
-    steps: list[Step] = Field(min_length=1)
-    checkpoint: Checkpoint
-    outcome_rules: list[OutcomeRule] = []
-
-    @field_validator("routes")
-    @classmethod
-    def _routes(cls, v):
-        if not v or any(not r.startswith("/") for r in v):
-            raise ValueError("routes must be a non-empty list of paths starting with '/'")
-        return v
-
-    @model_validator(mode="after")
-    def _consistent(self):
-        problems: list[str] = []
-        in_names = [i.name for i in self.inputs]
-        out_names = [o.name for o in self.outputs]
-        for label, names in (("input", in_names), ("output", out_names), ("secret", self.secrets)):
-            for n in {n for n in names if names.count(n) > 1}:
-                problems.append(f"duplicate {label} name {n!r}")
-
-        def check(text: str, where: str, allow_secret: bool = False):
-            if malformed_template(text):
-                problems.append(f"{where}: malformed template in {text!r}")
-            for is_secret, name in template_refs(text):
-                if is_secret and not allow_secret:
-                    problems.append(f"{where}: secret {name!r} is only allowed as a typed value")
-                elif is_secret and name not in self.secrets:
-                    problems.append(f"{where}: unknown secret {name!r}")
-                elif not is_secret and name not in in_names:
-                    problems.append(f"{where}: unknown input {name!r}")
-
-        extracted: list[str] = []
-        for i, s in enumerate(self.steps):
-            where = f"steps[{i}] ({s.action})"
-            if s.action == "navigate":
-                check(s.path, where)
-                if not any(s.path.startswith(r) for r in self.routes):
-                    problems.append(f"{where}: path {s.path!r} is outside routes {self.routes}")
-            elif s.action == "type":
-                check(s.value, where, allow_secret=True)
-            elif s.action == "select":
-                check(s.option, where)
-            elif s.action == "extract":
-                extracted.append(s.save_as)
-                if s.save_as not in out_names:
-                    problems.append(f"{where}: save_as {s.save_as!r} is not a declared output")
-            elif s.action == "click":
-                if s.amount_input and s.risk != "risky":
-                    problems.append(f"{where}: amount_input only belongs on risky clicks")
-                if s.amount_input and s.amount_input not in in_names:
-                    problems.append(f"{where}: amount_input {s.amount_input!r} is not a declared input")
-            if s.action != "navigate":
-                for loc in s.target.locators:
-                    for text in locator_strings(loc):
-                        check(text, f"{where} locator")
-        for n in out_names:
-            if extracted.count(n) != 1:
-                problems.append(f"output {n!r} must be produced by exactly one extract step (found {extracted.count(n)})")
-
-        has_risky = any(s.action == "click" and s.risk == "risky" for s in self.steps)
-        if has_risky and self.risk_level != "risky":
-            problems.append("a step is risky but risk_level is 'safe'")
-        if not has_risky and self.risk_level == "risky":
-            problems.append("risk_level is 'risky' but no step is marked risky")
-        if problems:
-            raise ValueError("; ".join(problems))
-        return self
-
-
-# %% Section 2a: YAML load and save
-import yaml
-
-
-def to_yaml(cap: Capability) -> str:
-    """Stable, human-readable YAML. Keys keep the model's field order."""
-    return yaml.safe_dump(cap.model_dump(mode="json", exclude_none=True), sort_keys=False, allow_unicode=True, width=100)
-
-
-def from_yaml(text: str) -> Capability:
-    return Capability.model_validate(yaml.safe_load(text))
-
-
-# %% Section 2b: checks for Capability and YAML
-import copy, pathlib
-
-# 1. both examples load and validate
-ROOT = pathlib.Path.cwd()
-if not (ROOT / "artifacts").exists():        # a notebook kernel usually starts inside notebooks/
-    ROOT = ROOT.parent
-EX = ROOT / "artifacts" / "examples"
-bal = from_yaml((EX / "get_account_balance.yaml").read_text())
-xfer = from_yaml((EX / "transfer_funds.yaml").read_text())
-assert bal.name == "get_account_balance" and xfer.risk_level == "risky"
-print("examples load: ok")
-
-# 3. each kind of mistake is rejected, with a message that says what is wrong
-def rejects(name: str, mutate, expect: str, source: str = "bal"):
-    data = copy.deepcopy(yaml.safe_load((EX / ("get_account_balance.yaml" if source == "bal" else "transfer_funds.yaml")).read_text()))
-    mutate(data)
-    try:
-        Capability.model_validate(data)
-    except ValidationError as err:
-        assert expect in str(err), f"{name}: expected {expect!r} in:\n{err}"
-        print(f"rejected ok: {name}")
-        return
-    raise AssertionError(f"{name}: was NOT rejected")
-
-rejects("typo in a key", lambda d: d.update(descripton="x"), "Extra inputs are not permitted")
-rejects("unknown input reference", lambda d: d["steps"][0].update(path="/activity.htm?id={{acount_id}}"), "unknown input 'acount_id'")
-rejects("malformed template", lambda d: d["steps"][0].update(path="/activity.htm?id={{Account}}"), "malformed template")
-rejects("output never extracted", lambda d: d["steps"].pop(1), "must be produced by exactly one extract step")
-rejects("extract into undeclared output", lambda d: d["steps"][1].update(save_as="total"), "is not a declared output")
-rejects("navigate outside routes", lambda d: d["steps"][0].update(path="/admin.htm"), "outside routes")
-rejects("duplicate input", lambda d: d["inputs"].append(copy.deepcopy(d["inputs"][0])), "duplicate input name")
-rejects("checkpoint missing text", lambda d: d["checkpoint"].pop("text_present"), "a checkpoint needs both")
-rejects("business rule without outcome", lambda d: d["outcome_rules"][0].pop("outcome"), "business rules need an UPPER_SNAKE outcome")
-rejects("recoverable rule without action", lambda d: d["outcome_rules"][1].pop("action"), "recoverable rules need an action")
-rejects("hard rule with an action", lambda d: d["outcome_rules"][2].update(action="retry"), "hard rules carry only a message")
-rejects("bad input regex", lambda d: d["inputs"][0].update(pattern="["), "pattern is not a valid regex")
-rejects("secret used as a plain input", lambda d: d["steps"][0].update(path="/activity.htm?id={{secret:password}}"), "only allowed as a typed value")
-
-# steps and locators
-def bad_click(d):
-    d["steps"].insert(1, {"action": "click", "target": {"locators": [{"strategy": "labeled_value", "label": "Balance:"}]}})
-rejects("labeled_value in a click", bad_click, "only allowed in extract steps")
-
-def bad_order(d):
-    d["steps"][1]["target"]["locators"] = [
-        {"strategy": "text", "text": "Balance:", "stability": "low"},
-        {"strategy": "label", "label": "Balance:", "stability": "high"},
-    ]
-rejects("locators out of order", bad_order, "ordered from most to least stable")
-
-def page_wide_index(d):
-    d["steps"][1]["target"]["locators"] = [{"strategy": "structure", "tag": "td", "nth": 18}]
-rejects("page-wide index (no container)", page_wide_index, "within")
-
-# risk
-rejects("risky step but risk_level safe", lambda d: d.update(risk_level="safe"), "risky but risk_level is 'safe'", "xfer")
-rejects("safe capability marked risky", lambda d: d.update(risk_level="risky"), "no step is marked risky")
-def bad_amount(d): d["steps"][4]["amount_input"] = "cash"
-rejects("amount_input not declared", bad_amount, "is not a declared input", "xfer")
-
-
-# YAML round trip is lossless
-for cap in (bal, xfer):
-    assert from_yaml(to_yaml(cap)) == cap
-print("yaml round trip: ok")
-print("capability: all checks passed")
-
-# %% Section 3: tool contract for a calling agent
-_JSON_TYPE = {"string": "string", "integer": "integer", "number": "number", "currency": "string", "boolean": "boolean"}
-
-
-def tool_contract(cap: Capability) -> dict:
-    """What a calling agent sees: what this capability does, what it needs, what it returns."""
-    props, required = {}, []
-    for i in cap.inputs:
-        p = {"type": _JSON_TYPE[i.type], "description": i.description}
-        if i.pattern:
-            p["pattern"] = i.pattern
-        props[i.name] = p
-        if i.required:
-            required.append(i.name)
-    return {
-        "name": cap.name,
-        "description": f"{cap.description} Use when: {cap.when_to_use}",
-        "input_schema": {"type": "object", "properties": props, "required": required, "additionalProperties": False},
-        "returns": {
-            "outputs": {o.name: {"type": _JSON_TYPE[o.type], "description": o.description} for o in cap.outputs},
-            "business_outcomes": sorted({r.outcome for r in cap.outcome_rules if r.kind == "business"}),
-            "may_need_approval": cap.risk_level == "risky",
-        },
-    }
-
-
-# %% Section 3b: checks for the tool contract
-# what a calling agent sees
-import json
-
-import json
-contract = tool_contract(xfer)
-assert contract["input_schema"]["required"] == ["from_account", "to_account", "amount"]
-assert contract["returns"]["may_need_approval"] is True
-assert tool_contract(bal)["returns"]["business_outcomes"] == ["ACCOUNT_NOT_FOUND"]
-print(json.dumps(tool_contract(bal), indent=2))
-
-print("io: all checks passed")
-
-# %% Section 4: replay result contract
-class Failure(Strict):
-    step_index: int = Field(ge=0)
-    step_action: str
-    expected: str
-    observed: str
-    evidence: str | None = None           # path to the screenshot / page snapshot
-
-
-class ReplayResult(Strict):
-    """What replay returns to the caller (D27)."""
-    run_id: str
-    capability: Name
-    capability_version: int = Field(ge=1)
-    status: Literal["SUCCESS", "BUSINESS_OUTCOME", "NEEDS_APPROVAL", "FAILED"]
-    outputs: dict[str, str] = {}
-    outcome: str | None = None            # BUSINESS_OUTCOME: e.g. ACCOUNT_NOT_FOUND
-    pending_step: int | None = None       # NEEDS_APPROVAL: the step waiting for a human
-    reason: str | None = None             # NEEDS_APPROVAL: why
-    failure: Failure | None = None        # FAILED: step, expected, observed
-
-    @model_validator(mode="after")
-    def _shape(self):
-        s = self.status
-        if s == "SUCCESS" and (self.outcome or self.failure or self.reason):
-            raise ValueError("SUCCESS carries only outputs")
-        if s == "BUSINESS_OUTCOME" and (not self.outcome or self.failure):
-            raise ValueError("BUSINESS_OUTCOME needs an outcome and no failure")
-        if s == "NEEDS_APPROVAL" and (self.pending_step is None or not self.reason or self.failure):
-            raise ValueError("NEEDS_APPROVAL needs pending_step and reason, and no failure")
-        if s == "FAILED" and (not self.failure or self.outcome):
-            raise ValueError("FAILED needs a failure and no outcome")
-        return self
-
-
-def check_result(cap: Capability, result: ReplayResult) -> None:
-    """Check a result against the capability that produced it. Raises ValueError on a mismatch."""
-    if result.capability != cap.name or result.capability_version != cap.version:
-        raise ValueError("result is for a different capability or version")
-    declared = {o.name for o in cap.outputs}
-    if result.status == "SUCCESS" and set(result.outputs) != declared:
-        raise ValueError(f"SUCCESS outputs {sorted(result.outputs)} != declared outputs {sorted(declared)}")
-    if result.status == "BUSINESS_OUTCOME":
-        allowed = {r.outcome for r in cap.outcome_rules if r.kind == "business"}
-        if result.outcome not in allowed:
-            raise ValueError(f"outcome {result.outcome!r} is not declared. Declared: {sorted(allowed)}")
-
-
-# %% Section 4b: checks for the result contract
-# the replay result contract
-def ok(**kw):
-    base = dict(run_id="r1", capability="get_account_balance", capability_version=1)
-    return ReplayResult(**base, **kw)
-
-check_result(bal, ok(status="SUCCESS", outputs={"balance": "$1,200.00"}))
-check_result(bal, ok(status="BUSINESS_OUTCOME", outcome="ACCOUNT_NOT_FOUND"))
-ok(status="NEEDS_APPROVAL", pending_step=4, reason="amount above the auto-approve limit")
-ok(status="FAILED", failure=Failure(step_index=1, step_action="extract", expected="a value next to 'Balance:'", observed="no such label on the page", evidence="evidence/r1/step1.png"))
-
-def result_rejects(name, fn, expect):
-    try:
-        fn()
-    except (ValidationError, ValueError) as err:
-        assert expect in str(err), f"{name}: expected {expect!r} in {err}"
-        print(f"rejected ok: {name}")
-        return
-    raise AssertionError(f"{name}: was NOT rejected")
-
-result_rejects("FAILED without failure", lambda: ok(status="FAILED"), "FAILED needs a failure")
-result_rejects("BUSINESS_OUTCOME without outcome", lambda: ok(status="BUSINESS_OUTCOME"), "needs an outcome")
-result_rejects("NEEDS_APPROVAL without reason", lambda: ok(status="NEEDS_APPROVAL", pending_step=1), "needs pending_step and reason")
-result_rejects("SUCCESS with an outcome", lambda: ok(status="SUCCESS", outcome="X"), "SUCCESS carries only outputs")
-result_rejects("undeclared outcome", lambda: check_result(bal, ok(status="BUSINESS_OUTCOME", outcome="MADE_UP")), "is not declared")
-result_rejects("missing output", lambda: check_result(bal, ok(status="SUCCESS", outputs={})), "!= declared outputs")
-print("\nALL CHECKS PASSED")
