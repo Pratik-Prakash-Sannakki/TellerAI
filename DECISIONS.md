@@ -1593,3 +1593,53 @@ than a separate `tests/` file, which does not exist in this repo's layout) match
 existing convention (`02_artifact_schema.py`, `04_replay_engine.py` both do the same).
 
 **Brief ref:** Section 6 (README: how to run without live services), Section 7 (code quality).
+
+### D76 — TypeSafe added to the recorder's capture agent, at the user's explicit request
+
+**Question:** agent.ipynb's `STEP 3d`/`STEP 3e` (TypeSafe `Choice` tool-selection, D52) and the
+TypeSafe half of `STEP 4` (the Haiku/Sonnet model router, D50) were initially left out of the
+rebuilt recorder's capture half (original reasoning: optional third-party performance layer, not a
+safety mechanism, not needed to prove the compile pipeline). The user pushed back directly: "add
+it, it['s] a major part of the agent." Should the recorder's capture agent match agent.ipynb here?
+
+**Options:**
+- (a) Leave it out, as first built. Matches "not a safety mechanism" reasoning, but the recorder's
+  capture agent would then behave differently from agent.ipynb in a way the user considers
+  significant, not marginal.
+- (b) Copy `STEP 3d`/`STEP 3e`/the TypeSafe half of `STEP 4` verbatim, exactly as every other
+  agent.ipynb cell in the capture half already is.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- The user's own framing ("a major part of the agent") overrides the earlier judgment call that
+  it was a minor, skippable extra. Both stay **off by default**, unchanged from agent.ipynb: only
+  `TYPESAFE_API_KEY` in `.env` activates either layer, so the default (no-key) capture run behaves
+  exactly as before this change.
+- **One small, additive, clearly-labelled extension was still necessary, not optional:**
+  agent.ipynb's own `JOB_EXTRA_TOOLS` mapping (four job categories) predates `request_missing_values`
+  (D55) and, in this notebook specifically, also predates the three new tools this rebuild adds
+  (`extract_value`, `open_path`, `finish_business_outcome`, D73) — none of the four job categories'
+  criteria mention them. Left alone, an active, confident TypeSafe classification of any job could
+  silently strip these tools from what the model is offered, mid-capture, defeating their purpose.
+  The fix is the same one D52 already committed to for exactly this situation ("never removes the
+  always-allowed set"): these four tool names are folded into `NEVER_HIDE`. `JOB_EXTRA_TOOLS` and
+  `JOB_CRITERIA` themselves are untouched — copied verbatim, not respelled.
+- **A real, pre-existing bug in agent.ipynb was found and fixed in this copy, not in agent.ipynb
+  itself:** `STEP 3e`'s own offline check asserts `confidence_gate(_ALL, "fill_form", 0.75) ==
+  NEVER_HIDE | {"type_text", "select_option"}`. This is mathematically false as written: `0.75 <
+  JOB_CONFIDENCE_THRESHOLD` (`0.8`), so `confidence_gate` fails OPEN at that confidence and returns
+  the full tool set unchanged, not a narrowed one. Verified directly by running agent.ipynb's own
+  `confidence_gate` with these exact values, not assumed. agent.ipynb's own `.ipynb` shows no
+  executed output for this cell (unlike the cells immediately around it), consistent with this
+  assertion never actually having been run for real. agent.ipynb is read-only for this task, so the
+  bug is not fixed there; this notebook's own copy of the same check uses `0.85` instead, since
+  this notebook actually executes its offline checks with `uv run python` and a false assertion
+  would silently break "ALL OFFLINE CHECKS PASSED".
+- Verified offline (no network, no key): `job_tool_names`/`confidence_gate` behave exactly as
+  agent.ipynb's own STEP 3e checks require (with the one corrected value above), and the D76
+  extension itself is checked directly -- all four of the new/predating tools survive
+  `confidence_gate` under every job category, confident or not.
+
+**Brief ref:** 3.1 (agent loop correctness), 3.4 (the D50/D52 redaction caveat applies here
+unchanged: step text and page state leave the process to `api.typesafe.ai` whenever this is on).

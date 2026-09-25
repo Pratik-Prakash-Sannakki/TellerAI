@@ -964,6 +964,97 @@ with tempfile.TemporaryDirectory() as tmp:
 
 print("save_capability: all checks passed")
 
+# %% [markdown]
+# ### TypeSafe (D50/D52), added at the user's request 2026-09-25
+# agent.ipynb's own tool-selection and model-routing middleware (`STEP 3d`/`STEP 3e`, the
+# TypeSafe half of `STEP 4`) is a major, load-bearing part of that notebook, so it is copied here
+# too -- not left out. Copied verbatim: `TypeSafeToolRouterMiddleware` (the `Choice`-based
+# tool-selection layer) and `ModelRouterMiddleware` (the Haiku/Sonnet router). Both stay **off by
+# default**, exactly as in agent.ipynb: they only activate if `TYPESAFE_API_KEY` is set in `.env`.
+#
+# **One small, additive, clearly-labelled extension, not a rewrite:** agent.ipynb's own
+# `JOB_EXTRA_TOOLS` mapping predates `request_missing_values` (D55) and, in this notebook, also
+# predates `extract_value`/`open_path`/`finish_business_outcome` (all new here, D73) -- none of
+# them belong to any of the four job categories the classifier knows about. Left alone, an active
+# TypeSafe router could silently strip them from the tool list whenever its job classification is
+# confident about something else. The fix is the same one D52 already committed to for exactly
+# this situation ("never removes the always-allowed set"): these four tool names are added to
+# `NEVER_HIDE` (see D76), so they always survive tool-selection, regardless of the classified job.
+# `JOB_EXTRA_TOOLS`/`JOB_CRITERIA` themselves are untouched.
+
+# %% OFFLINE 13b: TypeSafe job mapping and confidence gate (pure, no network -- copied verbatim
+# from agent.ipynb STEP 3d/3e, then additively extended per the markdown cell above and D76)
+NEVER_HIDE = {"observe", "click", "type_secret", "finish"}   # always allowed, whatever the job -- unchanged from agent.ipynb
+
+JOB_EXTRA_TOOLS = {
+    "login":      {"type_secret"},
+    "fill_form":  {"type_text", "select_option"},
+    "read_value": {"page_text"},
+    "need_human": {"request_value", "ask_human"},
+}
+JOB_CRITERIA = {
+    "login": "The page shows a username or password field, or we have not logged in yet.",
+    "fill_form": "A form is on screen and a field still needs a value typed or a dropdown chosen.",
+    "read_value": "We need to read a value already on the page, such as a balance or a confirmation message.",
+    "need_human": "We are unsure which element to use, or a value we need was not given by the user.",
+}
+JOB_CONFIDENCE_THRESHOLD = 0.8
+
+
+def job_tool_names(job: str) -> set[str]:
+    """Tools this job needs, plus the always-allowed set. Pure: no network, no LLM."""
+    return NEVER_HIDE | JOB_EXTRA_TOOLS.get(job, set())
+
+
+def confidence_gate(base_tools: set[str], job: str, confidence: float,
+                     threshold: float = JOB_CONFIDENCE_THRESHOLD) -> set[str]:
+    """Narrow base_tools to this job's tools, but only if the classifier is confident.
+    Below the threshold, fail OPEN: return base_tools unchanged rather than guess wrong."""
+    if confidence < threshold:
+        return base_tools
+    return base_tools & job_tool_names(job)
+
+
+# D76 (additive, not in agent.ipynb): this notebook's own new tools, and request_missing_values
+# (already in agent.ipynb's BROWSER_TOOLS since D55 but never added to JOB_EXTRA_TOOLS there
+# either -- a pre-existing gap, not introduced here), must never be silently stripped by the job
+# router just because agent.ipynb's job mapping predates them.
+NEVER_HIDE = NEVER_HIDE | {"request_missing_values", "extract_value", "open_path", "finish_business_outcome"}
+
+# %% OFFLINE 13c: offline checks (copied verbatim from agent.ipynb STEP 3e, plus checks for the
+# D76 extension above). No network, no key.
+_ALL = {"observe", "click", "type_text", "type_secret", "select_option", "page_text",
+        "request_value", "request_missing_values", "ask_human", "finish",
+        "extract_value", "open_path", "finish_business_outcome"}
+
+assert confidence_gate(_ALL, "login", 0.9) == NEVER_HIDE | {"type_secret"}
+# NOTE: agent.ipynb's own STEP 3e literally has `confidence_gate(_ALL, "fill_form", 0.75)` here,
+# asserted equal to a NARROWED set. That is mathematically false: 0.75 < JOB_CONFIDENCE_THRESHOLD
+# (0.8), so confidence_gate fails OPEN at 0.75 and returns _ALL unchanged, not a narrowed set.
+# Verified directly (not assumed) by running agent.ipynb's own confidence_gate with these exact
+# values: confidence_gate(_ALL, "fill_form", 0.75) == _ALL, not NEVER_HIDE | {"type_text",
+# "select_option"}. agent.ipynb's own copy of this cell shows no executed output in the .ipynb
+# (unlike the cells around it), consistent with this assertion never actually having been run.
+# Not fixed in agent.ipynb (read-only); fixed here (0.85, confidently above threshold) since this
+# notebook actually executes its own offline checks.
+assert confidence_gate(_ALL, "fill_form", 0.85) == NEVER_HIDE | {"type_text", "select_option"}
+assert confidence_gate(_ALL, "read_value", 0.8) == NEVER_HIDE | {"page_text"}
+assert confidence_gate(_ALL, "need_human", 0.99) == NEVER_HIDE | {"request_value", "ask_human"}
+assert confidence_gate(_ALL, "login", 0.59) == _ALL                          # low confidence: fail open
+assert confidence_gate(_ALL, "login", JOB_CONFIDENCE_THRESHOLD) == NEVER_HIDE | {"type_secret"}  # boundary is inclusive
+_from_triage = _ALL - {"request_value", "ask_human"}
+assert NEVER_HIDE <= confidence_gate(_from_triage, "fill_form", 0.9)          # never-hide survives even when the base tool set is already reduced
+assert confidence_gate(_ALL, "not_a_real_job", 0.95) == NEVER_HIDE           # unknown job: no crash, no extras
+print("typesafe job-router checks passed")
+
+# D76's own extension, checked directly: the three new tools + request_missing_values always
+# survive tool-selection, whatever job is classified, confident or not.
+_NEW_TOOLS = {"request_missing_values", "extract_value", "open_path", "finish_business_outcome"}
+assert _NEW_TOOLS <= NEVER_HIDE
+for _job in ("login", "fill_form", "read_value", "need_human", "not_a_real_job"):
+    assert _NEW_TOOLS <= confidence_gate(_ALL, _job, 0.99), f"job {_job!r} must not strip the new tools"
+print("D76 (new tools always survive tool-selection): all checks passed")
+
 # %% OFFLINE 14: summary
 print("\nALL OFFLINE CHECKS PASSED")
 
@@ -981,18 +1072,23 @@ print("\nALL OFFLINE CHECKS PASSED")
 # 5. `STEP 1: scanner patch (dropdown options + submit flag)`
 # 6. `STEP 2: banner, takeover, Approve / Reject / Take over buttons, hand_off`
 # 7. `STEP 3: browser tools`
+# 8. `STEP 3d: TypeSafe tool selection (Choice)` -- copied verbatim, D50/D52, D76 below
+# 9. `STEP 3e: offline checks for the job mapping and the confidence gate` -- copied verbatim
+# 10. The TypeSafe half of `STEP 4: system prompt and agents` (the Haiku/Sonnet model router)
 #
-# **Not copied, on purpose:** `STEP 3d`/`STEP 3e` (the TypeSafe `Choice` tool-selection
-# middleware) and the TypeSafe half of `STEP 4` (the Haiku/Sonnet model router). These are an
-# optional third-party performance layer (D50/D52), not a safety mechanism, and a capture run has
-# no reason to pay for or depend on a second external service. `web_search` is also left off the
-# tool list here, per D48's original reasoning (unchanged): it sends goal/page text to a third
-# party outside the allowlist, and discovery for a capability recording does not need outside facts.
+# `STEP 3d`/`STEP 3e`/the TypeSafe half of `STEP 4` were added 2026-09-25 at the user's explicit
+# request ("it is a major part of the agent"). Both stay **off by default**, exactly as in
+# agent.ipynb: only `TYPESAFE_API_KEY` being set in `.env` activates them. See the markdown cell
+# right before the TypeSafe cells for the one small, labelled extension this required (D76:
+# `NEVER_HIDE` grows to cover this notebook's own new tools, which predate agent.ipynb's job
+# mapping). `web_search` is still left off the tool list here, per D48's original reasoning
+# (unchanged): it sends goal/page text to a third party outside the allowlist, and discovery for a
+# capability recording does not need outside facts -- this is unrelated to the TypeSafe decision.
 #
-# Cells after `STEP 3` are new, additive, and clearly labelled: they wrap each tool to log an
-# event, and add three small new tools the compiler needs that agent.ipynb has no reason to carry
-# itself (`extract_value`, `open_path`, `finish_business_outcome`). None of them touch the body of
-# any tool copied above.
+# Cells after `STEP 3` (other than the TypeSafe ones above) are new, additive, and clearly
+# labelled: they wrap each tool to log an event, and add three small new tools the compiler needs
+# that agent.ipynb has no reason to carry itself (`extract_value`, `open_path`,
+# `finish_business_outcome`). None of them touch the body of any tool copied above.
 #
 # ## How the user tests this
 # Before you start: `.env` has the API key and the ParaBank test user. Kernel = this repo's
@@ -1001,15 +1097,17 @@ print("\nALL OFFLINE CHECKS PASSED")
 # | Step | Run cells | What you should see (exact lines) |
 # |---|---|---|
 # | 1. Browser setup | `BROWSER 1` to `BROWSER 7` (verbatim) | `model: anthropic:claude-sonnet-5 \| base: https://parabank.parasoft.com/parabank`, then `opened: https://parabank.parasoft.com/parabank/index.htm`, then `[lock] initial setup done ...`, then `tools ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'page_text', 'request_value', 'request_missing_values', 'ask_human', 'finish']` |
-# | 2. Capture additions | `BROWSER 8` to `BROWSER 11` | `capture ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'page_text', 'request_value', 'request_missing_values', 'ask_human', 'finish', 'extract_value', 'open_path', 'finish_business_outcome']`, then `agent ready (capture)` |
-# | 3. A good balance run, starting logged out | `BROWSER 12`, with `GOAL = "Log in and read the balance of account <YOUR_ACCOUNT_ID>."` (an account you own) | the agent logs in, opens the account, reads the balance. Then `AGENT SAID: ...`, then `captured N events`, then a printed table of events. You should see `type_secret` twice, `click` (Log In), `open_path` or `click` (reaching the account), `extract_value`, `finish` |
-# | 4. A bad-input probe (needs run 3's login still active) | `BROWSER 13`, with `GOAL = "Open account <A_BAD_ACCOUNT_ID> and, if it does not exist, call finish_business_outcome with outcome='ACCOUNT_NOT_FOUND' and the exact page text that proves it."` | `AGENT SAID: ...` ending in a `finish_business_outcome` call; `captured N events`; the last event's `tool` is `finish_business_outcome` with `status: ok` |
-# | 5. Compile and save | `BROWSER 14` | two YAML blocks (`----- login: login_parabank -----`, `----- task: get_account_balance -----`, now including the business outcome rule from step 4), then `----- report -----`, then `saved: artifacts/login_parabank.yaml` and `saved: artifacts/get_account_balance.yaml` |
-# | 6. Optional, risky flow | `BROWSER 15`, with a transfer goal | the browser shows the dark decision bar ("Agent wants to click 'Transfer'"). Click **Approve**. Then a YAML with `risk: risky` and `amount_input`, and `saved: artifacts/transfer_funds.yaml` |
+# | 2. Capture additions | `BROWSER 8` to `BROWSER 10` | `capture ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'page_text', 'request_value', 'request_missing_values', 'ask_human', 'finish', 'extract_value', 'open_path', 'finish_business_outcome']` |
+# | 3. TypeSafe (D50/D52/D76) + agent | `BROWSER 11` to `BROWSER 12` | `TypeSafe tool router middleware ready (activates only if TYPESAFE_API_KEY is set below)`, then either `model router OFF: no TYPESAFE_API_KEY in .env. Using MODEL only: anthropic:claude-sonnet-5` (no key set) or `model router ON (TypeSafe): fast=... \| powerful=...` (key set), then `agent ready (capture)` |
+# | 4. A good balance run, starting logged out | `BROWSER 14`, with `GOAL = "Log in and read the balance of account <YOUR_ACCOUNT_ID>."` (an account you own) | the agent logs in, opens the account, reads the balance. Then `AGENT SAID: ...`, then `captured N events`, then a printed table of events. You should see `type_secret` twice, `click` (Log In), `open_path` or `click` (reaching the account), `extract_value`, `finish` |
+# | 5. A bad-input probe (needs run 4's login still active) | `BROWSER 15`, with `GOAL = "Open account <A_BAD_ACCOUNT_ID> and, if it does not exist, call finish_business_outcome with outcome='ACCOUNT_NOT_FOUND' and the exact page text that proves it."` | `AGENT SAID: ...` ending in a `finish_business_outcome` call; `captured N events`; the last event's `tool` is `finish_business_outcome` with `status: ok` |
+# | 6. Compile and save | `BROWSER 16` | two YAML blocks (`----- login: login_parabank -----`, `----- task: get_account_balance -----`, now including the business outcome rule from step 5), then `----- report -----`, then `saved: artifacts/login_parabank.yaml` and `saved: artifacts/get_account_balance.yaml` |
+# | 7. Optional, risky flow | `BROWSER 17`, with a transfer goal | the browser shows the dark decision bar ("Agent wants to click 'Transfer'"). Click **Approve**. Then a YAML with `risk: risky` and `amount_input`, and `saved: artifacts/transfer_funds.yaml` |
 #
-# **Send back:** (1) the `tools ready:`/`capture ready:` lines, (2) the printed event tables from
-# steps 3 and 4, (3) the two saved YAML files (or paste them), (4) the `----- report -----` block,
-# (5) any red error, exactly as shown. Never paste `.env` or anything typed as a secret.
+# **Send back:** (1) the `tools ready:`/`capture ready:`/model-router lines, (2) the printed event
+# tables from steps 4 and 5, (3) the two saved YAML files (or paste them), (4) the
+# `----- report -----` block, (5) any red error, exactly as shown. Never paste `.env` or anything
+# typed as a secret.
 
 # %% BROWSER 1: Setup 1/4 (copied verbatim from agent.ipynb)
 import os
@@ -2236,7 +2334,38 @@ finish_business_outcome.coroutine = _probe_wrapped
 ALL_TOOLS = [*BROWSER_TOOLS, extract_value, open_path, finish_business_outcome]
 print("capture ready:", [t.name for t in ALL_TOOLS])
 
-# %% BROWSER 11: system prompt and agent (no TypeSafe, no web_search -- see the markdown cell above)
+# %% BROWSER 11: STEP 3d equivalent (TypeSafe tool-selection middleware, copied verbatim from
+# agent.ipynb; uses the job mapping from OFFLINE 13b above, D76-extended). Off by default.
+class TypeSafeToolRouterMiddleware(AgentMiddleware):
+    """Classifies the step's job with TypeSafe's Choice primitive and narrows the tool
+    list to it. Sends the current page path and the last tool result's text to
+    api.typesafe.ai (D50/D52 caveat: never enable on a run that may show real account
+    data). Any error here (network, auth, timeout) fails OPEN: the request goes through
+    unmodified."""
+
+    def __init__(self, classifier):
+        self.classifier = classifier
+
+    async def awrap_model_call(self, request, handler):
+        try:
+            state = f"page={current_page()!r}. last result: {str(request.messages[-1].content)[:400]!r}"
+            response = await self.classifier.ainvoke(
+                {"state": state, "questions": {"job": Choice(instructions="What kind of step is this?", criteria=JOB_CRITERIA)}}
+            )
+            answer = response.choices["job"]
+            named = {t.name for t in request.tools if hasattr(t, "name")}
+            keep = confidence_gate(named, answer.choice, answer.confidence)
+            request = request.override(tools=[t for t in request.tools if not hasattr(t, "name") or t.name in keep])
+            print(f"typesafe job -> {answer.choice!r} confidence={answer.confidence:.2f} kept={sorted(keep)}")
+        except Exception as exc:
+            print(f"typesafe job router FAILED, continuing with no change: {type(exc).__name__}: {exc}")
+        return await handler(request)
+
+
+print("TypeSafe tool router middleware ready (activates only if TYPESAFE_API_KEY is set below)")
+
+# %% BROWSER 12: system prompt and agent, with TypeSafe wired in exactly as agent.ipynb's STEP 4
+# does (model router + tool router, both gated by TYPESAFE_API_KEY; off by default)
 from langgraph.checkpoint.memory import MemorySaver
 
 # Same numbered rules as agent.ipynb's SYSTEM_PROMPT (STEP 4), items 1-9 unchanged verbatim,
@@ -2270,15 +2399,48 @@ Every tool result shows a screenshot with red numbered boxes plus a list of numb
 9. Do not use ls, read_file, write_file, edit_file, delete, glob, grep or task.
 """
 
+# Optional: route each step to Haiku or Sonnet, and narrow tools by job, via TypeSafe (a
+# third-party classifier service). Off by default. Turns on only if TYPESAFE_API_KEY is set in
+# .env (get one at typesafe.ai). Copied verbatim from agent.ipynb's STEP 4 -- same trade-off,
+# same decision (D50): step text and page state are sent to api.typesafe.ai on every step this is
+# on. Never enable this for a run that may show real account data.
+TYPESAFE_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
+HAIKU_MODEL = "anthropic:claude-haiku-4-5-20251001"
+SONNET_MODEL = "anthropic:claude-sonnet-5"
+
+recorder_middleware = []   # no key: no TypeSafe layer at all, same as agent.ipynb with no key set
+if TYPESAFE_API_KEY:
+    from langchain_typesafe import Choice, TypeSafeClassifier
+    from langchain_typesafe.experimental.middleware import ModelChoice, ModelRouterMiddleware
+
+    recorder_router = ModelRouterMiddleware(
+        choices={
+            "fast": ModelChoice(
+                model=HAIKU_MODEL,
+                criteria="A single simple step: reading the page, or one obvious click, type, or select with no ambiguity.",
+            ),
+            "powerful": ModelChoice(
+                model=SONNET_MODEL,
+                criteria="Anything else: planning, choosing between several similar elements, forms, or any step before a risky click.",
+            ),
+        },
+        instructions="Pick the cheapest model that can do the step correctly. If unsure, pick 'powerful'.",
+    )
+    recorder_middleware = [TypeSafeToolRouterMiddleware(TypeSafeClassifier()), recorder_router]
+    print(f"model router ON (TypeSafe): fast={HAIKU_MODEL} | powerful={SONNET_MODEL}")
+else:
+    print("model router OFF: no TYPESAFE_API_KEY in .env. Using MODEL only:", MODEL)
+
 recorder_agent = create_deep_agent(
     model=MODEL,
     tools=ALL_TOOLS,
     system_prompt=RECORDER_SYSTEM_PROMPT,
     checkpointer=MemorySaver(),
+    middleware=recorder_middleware,
 )
 print("agent ready (capture) | tools:", [t.name for t in ALL_TOOLS])
 
-# %% BROWSER 12: your test values and the run helper
+# %% BROWSER 13: your test values and the run helper
 import uuid
 
 
@@ -2300,12 +2462,12 @@ ACCOUNT_ID = "CHANGE_ME"       # <-- an account you own
 BAD_ACCOUNT_ID = "CHANGE_ME"   # <-- an account id that does NOT exist
 print("ready. account:", ACCOUNT_ID, "| bad account:", BAD_ACCOUNT_ID)
 
-# %% BROWSER 13: RUN 1, good balance flow (starting logged out -- this records the login too)
+# %% BROWSER 14: RUN 1, good balance flow (starting logged out -- this records the login too)
 GOAL_BALANCE = f"Log in and read the balance of account {ACCOUNT_ID}. Use extract_value to save it as 'balance'."
 await run_capture(GOAL_BALANCE)
 BALANCE_EVENTS = list(EVENTS)
 
-# %% BROWSER 14: RUN 2, bad-input probe (needs run 1's login still active)
+# %% BROWSER 15: RUN 2, bad-input probe (needs run 1's login still active)
 GOAL_PROBE = (
     f"Open account {BAD_ACCOUNT_ID}. If the page says the account could not be found, call "
     "finish_business_outcome with outcome='ACCOUNT_NOT_FOUND' and proof_text copied exactly from the page."
@@ -2313,7 +2475,7 @@ GOAL_PROBE = (
 await run_capture(GOAL_PROBE)
 PROBE_EVENTS = list(EVENTS)
 
-# %% BROWSER 15: compile RUN 1 (+ the outcome rule from RUN 2), show it, then save
+# %% BROWSER 16: compile RUN 1 (+ the outcome rule from RUN 2), show it, then save
 probe_rule = rule_from_probe(PROBE_EVENTS, {"account_id": BAD_ACCOUNT_ID})
 print("RULE the recorder made:", probe_rule.outcome, "| when the page shows:", repr(probe_rule.when.text_present))
 
@@ -2328,7 +2490,7 @@ if result["login"]:
     print("saved:", save_capability(result["login"]))
 print("saved:", save_capability(result["task"]))
 
-# %% BROWSER 16: RUN 3 (optional). Transfer. A human must click Approve in the browser
+# %% BROWSER 17: RUN 3 (optional). Transfer. A human must click Approve in the browser
 FROM_ACCOUNT = "CHANGE_ME"
 TO_ACCOUNT = "CHANGE_ME"
 AMOUNT = "20.00"

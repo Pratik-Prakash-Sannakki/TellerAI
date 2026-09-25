@@ -47,8 +47,11 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   agent.ipynb's own tool-result prefixes. Part B, CAPTURE (`BROWSER` cells): copies agent.ipynb's
   current setup/scanner/tools/safety cells verbatim (a deliberate, temporary duplication, Phase 9
   consolidates), wraps each tool to log an event, and adds three small new tools the compiler
-  needs (`extract_value`, `open_path`, `finish_business_outcome`). See DECISIONS.md section P
-  (D70-D75); D41-D49 (original Phase 3) are marked superseded there.
+  needs (`extract_value`, `open_path`, `finish_business_outcome`). Also carries agent.ipynb's
+  TypeSafe tool-selection/model-router middleware (`STEP 3d`/`3e`, the TypeSafe half of `STEP 4`),
+  copied verbatim and off by default, with one additive extension (D76) so this notebook's own new
+  tools always survive tool-selection. See DECISIONS.md section P (D70-D76); D41-D49 (original
+  Phase 3) are marked superseded there.
 
 ## Phase 4 notebook
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback
