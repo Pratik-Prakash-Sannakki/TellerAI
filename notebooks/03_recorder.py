@@ -1,44 +1,40 @@
 # %% [markdown]
-# # Phase 3: the recorder
-# A real agent run becomes a **draft capability** (YAML). The model discovers. The recorder writes it down.
-# - **Part A, CAPTURE** (browser): every tool call is logged with a description of the element it touched.
-# - **Part B, COMPILE** (pure Python): events + declared inputs -> `login_parabank.yaml` and `get_account_balance.yaml`.
+# # Phase 3 v2: the recorder, rebuilt
+# A real agent run becomes a **draft capability** (YAML), against the CURRENT schema
+# (`02_artifact_schema.py`, D63-D68) and the CURRENT `agent.ipynb` (D50-D69).
+# - **Part A, COMPILE** (pure Python, cells titled `OFFLINE`): `events + declared inputs ->
+#   Capability`. Tested entirely with hand-made fixture events. No browser, ever.
+# - **Part B, CAPTURE** (cells titled `BROWSER`): copies agent.ipynb's current setup/scanner/
+#   tools/safety cells verbatim, then wraps each tool to log an event, and adds two small new
+#   tools the compiler needs (`extract_value`, `finish_business_outcome`) plus `open_path`.
 #
-# ## How to test this (the exact cells, in order)
-# Before you start: `.env` has the API key and the ParaBank test user. Kernel = this repo's `.venv`. ParaBank is up.
+# The old `03_recorder.py` this file replaces targeted a schema that no longer exists
+# (`Target(locators=[...])`, `Capability(app=..., when_to_use=..., routes=...)`) and copied
+# browser tools from before every Phase 1 safety fix. See
+# `docs/superpowers/plans/2026-09-25-phase3-recorder-v2.md` and `DECISIONS.md` D41-D49
+# (superseded) and D70+ (this rebuild).
 #
-# | Step | Run cells | What you should see (exact lines) |
-# |---|---|---|
-# | 1. Offline tests | `OFFLINE 1` to `OFFLINE 15` | last line: `ALL OFFLINE CHECKS PASSED` |
-# | 2. Browser setup | `BROWSER 1` to `BROWSER 8` | `model: anthropic:claude-sonnet-5 \| base: https://parabank.parasoft.com/parabank`, then `opened: https://parabank.parasoft.com/parabank/index.htm`, then `scanner ready`, `takeover ready`, `capture ready`, `tools ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'extract_value', 'open_path', 'page_text', 'request_value', 'ask_human', 'finish']`, then `agent ready \| approval is enforced inside the click tool` |
-# | 3. Your values | `BROWSER 9`: first edit `ACCOUNT_ID` (an account you own) and `BAD_ACCOUNT` (one that does not exist) | `ready. accounts: <yours> \| bad: <yours>` |
-# | 4. Run 1, good balance | `BROWSER 10` | agent logs in and reads the balance. Then `AGENT SAID: ...` and `RECORDED: N events -> .../notebooks/scratch/events_balance.json`, then a table of events. You should see `type_secret` twice, `click` (Log In, page goes to `/overview.htm`), `click` (the account link, page goes to `/activity.htm?id=...`), `extract_value`, `finish` |
-# | 5. Run 2, bad input | `BROWSER 11` | `RULE the recorder made: ACCOUNT_NOT_FOUND \| when the page shows: '<some sentence>'`. **Read that sentence.** If it is a generic "internal error" text, tell me: it is too vague for a business rule |
-# | 6. Compile and save | `BROWSER 12` | two YAML blocks (`----- login: login_parabank -----`, `----- task: get_account_balance -----`), then `----- report -----` with `dropped:` lines, `constants ...: none`, `warnings: none`, then `saved: artifacts/login_parabank.yaml` and `saved: artifacts/get_account_balance.yaml` |
-# | 7. Optional, risky flow | `BROWSER 13` | the browser shows a dark bar "Agent wants to click 'Transfer'". Click **Approve**. Then a YAML with `risk: risky` and `amount_input: amount`, and `saved: artifacts/transfer_funds.yaml`. Moves a tiny fake amount |
+# ## How to test the COMPILE half (this agent runs this; no browser)
+# Run every `OFFLINE` cell top to bottom. Last line: `ALL OFFLINE CHECKS PASSED`.
 #
-# **Send me back:** (1) the output of step 1 last line, (2) the event tables from steps 4 and 5, (3) the RULE line, (4) the two saved YAML files (or paste them),
-# (5) the `----- report -----` block, (6) any red error, exactly as shown. Do not paste `.env` or anything you typed as a secret.
-#
-# Notes: run 1 clears the browser cookies first, so the login is part of the recording. Run 2 needs run 1's login to still be active.
-# Cell titles start with `OFFLINE` (no browser needed) or `BROWSER` (needs browser + API key).
+# ## How the user tests the CAPTURE half (see the markdown cell right before `BROWSER 1`)
 
 # %% OFFLINE 1: config and Phase 2 models
 # Pure Python. No browser, no network, no API key.
-# The Phase 2 models are NOT copied. We run the model cells of 02_artifact_schema.py in this namespace.
+# The Phase 2 models are NOT copied. We run the model cells of 02_artifact_schema.py in this
+# namespace -- the same technique 04_replay_engine.py already uses.
 import json
 import pathlib
 import re
 import tempfile
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import urlparse
 
-# ParaBank values live in config only (CLAUDE.md). Nothing below this cell knows about ParaBank.
+# ParaBank values live in config only (CLAUDE.md). Nothing below this cell knows about ParaBank
+# beyond these four lines.
 BASE = "https://parabank.parasoft.com/parabank"
-ALLOWED_HOSTS = {"parabank.parasoft.com"}
-SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}   # name -> env var. Names only.
-APP = {"id": "parabank", "base_url": BASE, "vendor": "Parasoft"}
-SESSION_EXPIRED_TEXT = "Customer Login"       # text of the login page, used for the relogin rule
-START_PAGES = {"overview.htm", "index.htm"}   # pages where asking a human is too early
+SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}   # names only
+APP_ID = "parabank"
+SESSION_EXPIRED_TEXT = "Customer Login"       # login page text, used for the relogin rule
 
 
 def _find_repo() -> pathlib.Path:
@@ -55,7 +51,10 @@ SCRATCH = REPO / "notebooks" / "scratch"       # git-ignored. Raw events go here
 
 
 def load_schema(wanted=("Section 1:", "Section 2:", "Section 2a:", "Section 3:")) -> None:
-    """Run the model cells of the Phase 2 notebook in this namespace. The check cells are skipped."""
+    """Run the non-check model cells of the CURRENT Phase 2 notebook in this namespace. Cells
+    whose header does not start with exactly one of `wanted` (every `*b`-suffixed checks cell) are
+    skipped. `Capability`, `Target`, `RoleLocator`, ..., `to_yaml`/`from_yaml` all come from there,
+    unmodified -- this file never redefines them."""
     text = (REPO / "notebooks" / "02_artifact_schema.py").read_text()
     for cell in re.split(r"(?m)^# %%", text)[1:]:
         header, _, body = cell.partition("\n")
@@ -67,14 +66,18 @@ load_schema()
 print("schema loaded:", Capability.__name__, "| repo:", REPO.name)
 
 # %% [markdown]
-# ## Part B. COMPILE (pure Python)
-# Events in, capability out. An **event** is one tool call the agent made, with a description of the element it touched.
+# ## Part A. COMPILE (pure Python)
+# Events in, capability out. An **event** is one tool call the agent made, with a description of
+# the element it touched. See `docs/superpowers/plans/2026-09-25-phase3-recorder-v2.md` for the
+# full event shape and its field-by-field justification. In short:
 # ```
-# {i, tool, status, before:{url, heading}, after:{url, heading}, el, value, approved, label, save_as,
-#  value_type, description, path, outcome, proof}
+# {i, tool, args, message, status, before:{url,heading}, after:{url,heading}, approved,
+#  el:{role,name,name_source,label,text,tag,type,submit,options,container,nth,name_count,
+#      label_count} | None,
+#  value, label, save_as, value_type, description, outcome, proof, summary, values}
 # ```
 
-# %% OFFLINE 2: small helpers (urls, literals)
+# %% OFFLINE 2: small helpers (urls, literals, status)
 class CompileError(Exception):
     """The recording cannot become a valid capability. `.problems` lists every reason."""
 
@@ -85,7 +88,8 @@ class CompileError(Exception):
 
 def norm_url(url: str, base: str = BASE) -> str:
     """Relative path + query. Drops the host, the base path, ;jsessionid=... and the fragment.
-    Session ids never reach an event."""
+    Session ids never reach an event. CAPTURE calls this before an event is ever appended; COMPILE
+    trusts that every before/after url is already normalized."""
     if not url or url == "about:blank":
         return url or ""
     u, b = urlparse(url), urlparse(base)
@@ -93,7 +97,7 @@ def norm_url(url: str, base: str = BASE) -> str:
     if u.hostname == b.hostname and path.startswith(b.path):
         path = path[len(b.path):] or "/"
     elif u.hostname != b.hostname:
-        return f"{u.scheme}://{u.hostname}{path}"          # off-site: keep the host so the compile refuses it
+        return f"{u.scheme}://{u.hostname}{path}"          # off-site: keep the host so compile refuses it
     return path + (f"?{u.query}" if u.query else "")
 
 
@@ -102,7 +106,8 @@ def path_only(url: str) -> str:
 
 
 def _literal_re(lit: str):
-    """The literal, but not inside a longer word or number: '5' is not found in '$50' or '1.5', 'id' not in 'account_id'."""
+    """The literal, but not inside a longer word or number: '5' is not found in '$50' or '1.5',
+    'id' not in 'account_id'."""
     return re.compile(r"(?<![A-Za-z0-9_])(?<!\d[.,])" + re.escape(lit) + r"(?![A-Za-z0-9_])(?![.,]\d)")
 
 
@@ -111,9 +116,11 @@ def contains_literal(text: str, lit: str) -> bool:
 
 
 def substitute(text: str, inputs: dict[str, str]) -> str:
-    """Replace declared literals with {{name}}. Longest literal first."""
+    """Replace declared literals with {{name}}. Longest literal first, so a longer value is never
+    partially shadowed by a shorter one sharing a prefix."""
     for name, lit in sorted(inputs.items(), key=lambda kv: -len(kv[1])):
-        text = _literal_re(lit).sub(lambda _m, n=name: "{{" + n + "}}", text)
+        if lit:
+            text = _literal_re(lit).sub(lambda _m, n=name: "{{" + n + "}}", text)
     return text
 
 
@@ -128,36 +135,241 @@ def same_value(a: str, b: str) -> bool:
     return _canon(a) == _canon(b)
 
 
-# %% OFFLINE 3: locator derivation (D8)
+def classify_status(message: str) -> str:
+    """Bucket a tool result's own text by the EXACT prefixes agent.ipynb's tools return (read
+    directly from STEP 3's code, not guessed). Shared by CAPTURE (to fill event["status"]) and by
+    the fixtures below (so a fixture's status matches what a real run would actually produce)."""
+    t = (message or "").strip()
+    if t.startswith("DENIED"):
+        return "denied"
+    if t.startswith("DECLINED"):
+        return "declined"
+    if t.startswith("BLOCKED"):
+        return "blocked"
+    if t.startswith("SKIP:"):
+        return "skip"
+    if t.startswith("NOT YET:"):
+        return "not_yet"
+    if t.startswith("STOP:"):
+        return "stop"
+    if (t.startswith("UNKNOWN SECRET") or t.startswith("REFUSED:") or "FAILED for" in t
+            or t.startswith("CLICK FAILED") or t.startswith("TYPE FAILED") or t.startswith("SELECT FAILED")):
+        return "failed"
+    if t.startswith("A human"):
+        return "handoff"
+    return "ok"
+
+
+VALUE_TYPES = {"string": r"\S.*", "integer": r"-?\d+", "number": r"-?[\d,]*\.?\d+",
+               "currency": r"-?\$?-?[\d,]+(\.\d{2})?", "boolean": r"true|false|yes|no"}
+
+
+def value_matches_type(value: str, value_type: str) -> bool:
+    """Same shape as replay's own `matches_value_type` (04_replay_engine.py) -- used at CAPTURE
+    time so `extract_value` catches a type mismatch while the browser is still open, not later."""
+    return value_type in VALUE_TYPES and bool(re.fullmatch(VALUE_TYPES[value_type], value.strip(), re.I))
+
+
+# %% OFFLINE 2b: checks for the small helpers
+assert norm_url("https://parabank.parasoft.com/parabank/overview.htm") == "/overview.htm"
+assert norm_url("https://parabank.parasoft.com/parabank/activity.htm;jsessionid=ABC?id=13344") == "/activity.htm?id=13344"
+assert norm_url("https://evil.example/phish") == "https://evil.example/phish"
+assert contains_literal("id=13344", "13344") and not contains_literal("$50", "5")
+assert not contains_literal("account_id", "id")
+assert substitute("/activity.htm?id=13344", {"account_id": "13344"}) == "/activity.htm?id={{account_id}}"
+assert same_value("$20.00", "20") and same_value("20.00", "20.0") and not same_value("013", "13")
+assert classify_status("DENIED: 'register' is not allowed.") == "denied"
+assert classify_status("DECLINED earlier by a human. Do not retry.") == "declined"
+assert classify_status("BLOCKED: login already failed or hit its attempt limit.") == "blocked"
+assert classify_status("STOP: login failed (the login page reported: 'could not be verified').") == "stop"
+assert classify_status("SKIP: 'City' already has a value ('2').") == "skip"
+assert classify_status("NOT YET: you are still on the start page.") == "not_yet"
+assert classify_status("CLICK FAILED for [3]: TimeoutError") == "failed"
+assert classify_status("A human entered the value for 'Amount' themselves. ...") == "handoff"
+assert classify_status("A human took over and handed back. ...") == "handoff"
+assert classify_status("Clicked [3].") == "ok"
+assert classify_status("Typed into [1].") == "ok"
+assert value_matches_type("$1,200.00", "currency") and not value_matches_type("free", "currency")
+assert value_matches_type("42", "integer") and not value_matches_type("x", "integer")
+print("helpers: all checks passed")
+
+# %% OFFLINE 3: locator derivation (D8, D42, D63, D68)
 ACCESSIBLE = {"aria", "label", "value", "text", "attr_acc"}   # name sources a role locator can really match
 
 
-def derive_target(desc: dict, inputs: dict[str, str]) -> "Target":
-    """Descriptor -> ranked Target. role+name (high) > label, text (medium) > structure inside a container (low).
-    data-cua-ref is never used. A page-wide index is never produced."""
-    t = lambda s: substitute(s, inputs) if s else s
-    name, label, text = t(desc.get("name")), t(desc.get("label")), t(desc.get("text"))
-    locs: list = []
-    if name and desc.get("name_source") in ACCESSIBLE and desc.get("role") not in (None, "generic"):
-        locs.append(RoleLocator(role=desc["role"], name=name))
+def _sub(s: str | None, inputs: dict[str, str]) -> str | None:
+    return substitute(s, inputs) if s else s
+
+
+def _within_from_container(container: dict | None, inputs: dict[str, str]):
+    if not container:
+        return None
+    return Within(role=container["role"], name=_sub(container.get("name"), inputs))
+
+
+def _refuse_if_duplicate_label(label: str, label_count: int, strategy: str) -> None:
+    """D68: `label` and `labeled_value` locators have no `within` slot in the schema. A duplicated
+    label cannot be scoped, so it must be refused, not silently saved ambiguous."""
+    if label_count and label_count > 1:
+        raise CompileError(
+            f"label {label!r} is used by {label_count} elements on this page. The schema has no "
+            f"`within` scope for a {strategy!r} locator (D68), so this cannot be saved "
+            "unambiguously. Pick a different element, or one with a real accessible name."
+        )
+
+
+def derive_target(el: dict, inputs: dict[str, str], warnings: list[str]) -> "Target":
+    """Descriptor -> Target(primary, fallback). role+name (high, only when the name is a REAL
+    accessible name) > label, text (medium) > structure inside a container (low). data-cua-ref is
+    never used. A page-wide index is never produced (structure always needs a real `within`).
+
+    Duplicate names (D68): a role/text locator whose name is not unique on the page is scoped with
+    `within` when a container was captured; if no container was captured, it is saved unscoped and
+    flagged in `warnings` rather than silently invented. A duplicated `label` cannot be scoped at
+    all (no `within` slot on that strategy) and is refused outright.
+    """
+    name = _sub(el.get("name"), inputs)
+    label = _sub(el.get("label"), inputs)
+    text = _sub(el.get("text"), inputs)
+    role = el.get("role")
+    name_source = el.get("name_source")
+    container = el.get("container")
+    name_count = el.get("name_count") or 1
+    label_count = el.get("label_count") or 1
+    data_dependent = any("{{" in s for s in (name, label, text) if s)
+
+    role_ok = bool(name) and name_source in ACCESSIBLE and role not in (None, "generic")
+    scoped_note = " Scoped to its container: this name repeats elsewhere on the page."
+    candidates: list = []
+
+    if role_ok:
+        within = None
+        if name_count > 1:
+            within = _within_from_container(container, inputs)
+            if within is None:
+                warnings.append(f"role={role!r} name={name!r} is not unique on the page and no "
+                                 "container was captured to scope it; saved unscoped")
+        candidates.append(RoleLocator(
+            role=role, name=name, within=within, stability="high",
+            note="Accessible role and name; the most stable signal we have." + (scoped_note if within else ""),
+        ))
+
     if label:
-        locs.append(LabelLocator(label=label))
-    if text and text != label:
-        locs.append(TextLocator(text=text))
-    c = desc.get("container")
-    # A position inside a table means "the first account", not "account 14232". If the identity of the element
-    # comes from an input, a positional fallback would silently hit the WRONG record. So: no structure locator.
-    data_dependent = any("{{" in (s or "") for s in (name, label, text))
-    if c and desc.get("nth") and desc.get("tag") and not data_dependent:
-        within = Within(role=c["role"], name=t(c.get("name")))
-        locs.append(StructureLocator(tag=desc["tag"], within=within, nth=desc["nth"],
-                                     note=f"nth <{desc['tag']}> in the container, counting all of that tag"))
-    if not locs:
-        raise CompileError(f"cannot identify element {desc.get('role')!r} {desc.get('name')!r}: no role name, label, text or container")
-    return Target(locators=locs)
+        _refuse_if_duplicate_label(label, label_count, "label")
+        candidates.append(LabelLocator(
+            label=label, stability="medium",
+            note="Label text next to the field; unlikely to change independently of the field itself.",
+        ))
+
+    if text and text != label and not (role_ok and text == name):
+        within = None
+        if name_count > 1:
+            within = _within_from_container(container, inputs)
+            if within is None:
+                warnings.append(f"text={text!r} is not unique on the page and no container was "
+                                 "captured to scope it; saved unscoped")
+        candidates.append(TextLocator(
+            text=text, within=within, stability="medium",
+            note="Visible text; a reasonable backup if the accessible name ever changes." + (scoped_note if within else ""),
+        ))
+
+    if container and el.get("nth") and el.get("tag") and not data_dependent:
+        candidates.append(StructureLocator(
+            tag=el["tag"], within=_within_from_container(container, inputs), nth=el["nth"], stability="low",
+            note="Position inside its container, counting all elements of that tag; last resort only.",
+        ))
+
+    if not candidates:
+        raise CompileError(f"cannot identify element role={role!r} name={el.get('name')!r}: "
+                            "no accessible name, label, text, or container")
+
+    primary, fallback = candidates[0], (candidates[1] if len(candidates) > 1 else None)
+    return Target(primary=primary, fallback=fallback)
 
 
-# %% OFFLINE 4: clean-up (D23)
+def _extract_target(label: str, label_count: int) -> "Target":
+    _refuse_if_duplicate_label(label, label_count, "labeled_value")
+    return Target(primary=LabeledValueLocator(
+        label=label, stability="medium",
+        note="Label text is stable across releases; a labeled-value read does not depend on page position.",
+    ))
+
+
+# %% OFFLINE 3b: checks for locator derivation
+def expect_raises(fn, expect: str):
+    try:
+        fn()
+    except (CompileError, ValidationError, ValueError) as err:
+        assert expect in str(err), f"expected {expect!r} in:\n{err}"
+        return
+    raise AssertionError("was NOT rejected")
+
+
+# happy path: a real accessible name, unique -> role primary, no fallback needed elsewhere
+login_button = {"role": "button", "name": "Log In", "name_source": "value", "label": None,
+                 "text": None, "tag": "input", "type": "submit", "submit": True, "options": None,
+                 "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+w = []
+t = derive_target(login_button, {}, w)
+assert t.primary.strategy == "role" and t.primary.name == "Log In" and t.primary.within is None
+assert w == []
+print("locator (happy path, role, unique):", t.primary.strategy, t.primary.name)
+
+# duplicate name (D68), container captured -> scoped with `within`
+edit_link = {"role": "link", "name": "Edit", "name_source": "text", "label": None, "text": "Edit",
+             "tag": "a", "type": None, "submit": False, "options": None,
+             "container": {"role": "table", "name": "Accounts"}, "nth": 2, "name_count": 2, "label_count": 1}
+w = []
+t = derive_target(edit_link, {}, w)
+assert t.primary.strategy == "role" and t.primary.within is not None
+assert t.primary.within.role == "table" and t.primary.within.name == "Accounts"
+assert w == [], "a scoped duplicate should not need a warning"
+print("locator (duplicate name, scoped via within):", t.primary.within)
+
+# duplicate name, NO container captured -> saved unscoped, flagged in warnings (not refused)
+edit_link_no_container = {**edit_link, "container": None, "nth": None}
+w = []
+t = derive_target(edit_link_no_container, {}, w)
+assert t.primary.within is None and len(w) == 1 and "not unique" in w[0]
+print("locator (duplicate name, no container):", w[0])
+
+# duplicate LABEL (D68's stated gap): no `within` slot exists for label/labeled_value -> refuse
+dup_label_field = {"role": "textbox", "name": "", "name_source": "none", "label": "Amount",
+                    "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                    "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 2}
+expect_raises(lambda: derive_target(dup_label_field, {}, []), "no `within` scope for a 'label'")
+print("locator (duplicate label): correctly refused, not silently saved")
+
+# duplicate label on an EXTRACT target -> same refusal, via _extract_target
+expect_raises(lambda: _extract_target("Balance:", 2), "no `within` scope for a 'labeled_value'")
+print("locator (duplicate labeled_value): correctly refused")
+
+# an attribute-only name (fromAccountId) is NOT an accessible name -> no role locator built from it
+attr_only = {"role": "textbox", "name": "fromAccountId", "name_source": "attr", "label": "From account #:",
+             "text": None, "tag": "select", "type": None, "submit": False, "options": ["13344", "13355"],
+             "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+t = derive_target(attr_only, {}, [])
+assert t.primary.strategy == "label", "an attribute name must not become a role locator (D42)"
+print("locator (attribute-only name -> label, not role): ok")
+
+# a data-dependent name never gets a structure fallback (D42's original rule, unchanged)
+data_dep = {"role": "link", "name": "13344", "name_source": "text", "label": None, "text": "13344",
+            "tag": "a", "type": None, "submit": False, "options": None,
+            "container": {"role": "table", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+t = derive_target(data_dep, {"account_id": "13344"}, [])
+assert t.primary.name == "{{account_id}}"
+assert t.fallback is None, "a data-dependent name must never get a positional structure fallback"
+print("locator (data-dependent name -> no structure fallback): ok")
+
+# nothing to identify it by at all -> refuse
+expect_raises(lambda: derive_target(
+    {"role": "generic", "name": "", "name_source": "none", "label": None, "text": None,
+     "tag": "div", "type": None, "submit": False, "options": None, "container": None, "nth": None,
+     "name_count": 1, "label_count": 1}, {}, []), "no accessible name, label, text, or container")
+print("locator (nothing to identify): correctly refused")
+print("locator derivation: all checks passed")
+
+# %% OFFLINE 4: clean-up (D23, D43)
 ACTION_TOOLS = {"click", "type_text", "type_secret", "select_option", "extract_value", "open_path"}
 NAV_TOOLS = {"click", "open_path"}
 STATE_TOOLS = {"type_text", "type_secret", "select_option", "extract_value"}
@@ -167,16 +379,14 @@ def _key(e: dict):
     el = e.get("el") or {}
     c = el.get("container") or {}
     return (e["tool"], el.get("role"), el.get("name"), el.get("tag"), c.get("role"), el.get("nth"),
-            e.get("value"), e.get("label"), e.get("path"))
+            e.get("value"), e.get("label"), (e.get("args") or {}).get("path"))
 
 
 def clean_events(events: list[dict]):
-    """Keep only actions that worked and mattered. Returns (kept, dropped). dropped = [(i, tool, reason)]."""
+    """Keep only actions that worked and mattered. Returns (kept, dropped). dropped = [(i, tool, reason)].
+    Any status other than 'ok' covers DENIED/BLOCKED/SKIP/NOT YET/failed in one rule."""
     dropped, kept = [], []
     for e in events:
-        if e.get("status") == "handoff":
-            raise CompileError(f"event {e['i']} ({e['tool']}): a human entered something by hand. That step cannot be recorded. "
-                               "Put every value in the goal as a declared input and run again.")
         if e["tool"] not in ACTION_TOOLS:
             dropped.append((e["i"], e["tool"], "not an action"))
         elif e.get("status") != "ok":
@@ -189,8 +399,8 @@ def clean_events(events: list[dict]):
 
 
 def drop_detours(kept: list[dict], dropped: list):
-    """A click that changed the page, then a later click that returned to the page it left, with nothing typed,
-    chosen or read in between: both are a dead end. Remove them."""
+    """A click/open_path that changed the page, then a later one that returned to the page it
+    left, with nothing typed, chosen, or extracted in between: both are a dead end. Remove them."""
     out, i = [], 0
     while i < len(kept):
         e, end = kept[i], None
@@ -213,12 +423,11 @@ def drop_detours(kept: list[dict], dropped: list):
 
 
 def _meaningful(e: dict) -> bool:
-    # A submit button (Find Transactions) is the point of the run even when a human did not have to approve it.
     return e["tool"] in STATE_TOOLS or bool(e.get("approved")) or bool((e.get("el") or {}).get("submit"))
 
 
 def trim_tail(task: list[dict], dropped: list):
-    """Link clicks after the last meaningful action changed nothing that the capability needs."""
+    """Link clicks after the last meaningful action changed nothing the capability needs."""
     last = max((n for n, e in enumerate(task) if _meaningful(e)), default=None)
     if last is None:
         return task
@@ -228,7 +437,7 @@ def trim_tail(task: list[dict], dropped: list):
 
 
 def split_login(kept: list[dict]):
-    """D32: everything up to and including the first click after the last type_secret is login."""
+    """D32/D45: everything up to and including the first click after the last type_secret is login."""
     secret_idx = [n for n, e in enumerate(kept) if e["tool"] == "type_secret"]
     if not secret_idx:
         return [], kept
@@ -238,12 +447,99 @@ def split_login(kept: list[dict]):
     raise CompileError("secrets were typed but no click followed. The login click is missing.")
 
 
-# %% OFFLINE 5: steps, capability, outcome rule (D8, D9, D10, D29, D33)
+def _refuse_bad_run(events: list[dict]) -> None:
+    """Top-level refusals, BEFORE any cleanup runs. A run that hit the login attempt guard, used a
+    human handoff, gave up, or was declined must never become a capability at all."""
+    if any(e.get("status") == "stop" for e in events):
+        raise CompileError(
+            "this run hit the login attempt guard (D69: 'STOP: login failed...'). "
+            "Refusing to compile any capability from it."
+        )
+    if any(e.get("status") == "handoff" for e in events):
+        raise CompileError(
+            "a human entered a value by hand during this run. That step cannot be recorded. "
+            "Put every value in the goal as a declared input and run again."
+        )
+    fin = next((e for e in events if e["tool"] == "finish"), None)
+    if fin and (fin.get("summary") or "").startswith(("STUCK:", "DECLINED:")):
+        raise CompileError(f"this run did not complete: {fin['summary']!r}. Refusing to compile a capability from it.")
+    if any(e["tool"] == "finish_business_outcome" for e in events):
+        raise CompileError("this run ended with a business outcome. It is a probe: use rule_from_probe(), not compile_run().")
+
+
+# %% OFFLINE 4b: checks for clean-up
+_OK = {"status": "ok"}
+
+
+def _ev(i, tool, before, after, **kw):
+    return {"i": i, "tool": tool, "args": kw.pop("args", {}), "status": kw.pop("status", "ok"),
+            "before": {"url": before, "heading": kw.pop("before_heading", "")},
+            "after": {"url": after, "heading": kw.pop("after_heading", "")}, **kw}
+
+
+# observe/page_text dropped as "not an action"; a failed call dropped as "did not work"
+events = [
+    _ev(0, "observe", "/overview.htm", "/overview.htm"),
+    _ev(1, "click", "/overview.htm", "/overview.htm", status="denied", el={"name": "register"}),
+    _ev(2, "click", "/overview.htm", "/activity.htm?id=13344", el={"role": "link", "name": "13344", "name_source": "text"}),
+]
+kept, dropped = clean_events(events)
+assert [e["i"] for e in kept] == [2]
+assert dropped == [(0, "observe", "not an action"), (1, "click", "did not work (denied)")]
+print("clean_events (drops non-actions and failures): ok")
+
+# a dead-end: click away, then click back, nothing meaningful in between
+events = [
+    _ev(0, "click", "/overview.htm", "/billpay.htm", el={"role": "link", "name": "Bill Pay", "name_source": "text"}),
+    _ev(1, "click", "/billpay.htm", "/overview.htm", el={"role": "link", "name": "Accounts Overview", "name_source": "text"}),
+    _ev(2, "open_path", "/overview.htm", "/activity.htm?id=13344", args={"path": "/activity.htm?id=13344"}),
+]
+kept, dropped = clean_events(events)
+kept = drop_detours(kept, dropped)
+assert [e["i"] for e in kept] == [2]
+assert dropped[0][2].startswith("dead end:") and dropped[1][2].startswith("dead end:")
+print("drop_detours (removes a click-away/click-back pair):", [d[0] for d in dropped])
+
+# trailing link click after the last meaningful step is trimmed
+events = [
+    _ev(0, "extract_value", "/activity.htm?id=13344", "/activity.htm?id=13344", label="Balance:", save_as="balance", value_type="currency"),
+    _ev(1, "click", "/activity.htm?id=13344", "/overview.htm", el={"role": "link", "name": "Accounts Overview", "name_source": "text"}),
+]
+task = trim_tail(list(events), dropped := [])
+assert [e["i"] for e in task] == [0]
+assert dropped == [(1, "click", "after the last meaningful step")]
+print("trim_tail (drops a trailing safe link click): ok")
+
+# login split: two type_secret events + the click right after them
+events = [
+    _ev(0, "type_secret", "/index.htm", "/index.htm", value="username"),
+    _ev(1, "type_secret", "/index.htm", "/index.htm", value="password"),
+    _ev(2, "click", "/index.htm", "/overview.htm", el={"role": "button", "name": "Log In", "name_source": "value", "submit": True}),
+    _ev(3, "open_path", "/overview.htm", "/activity.htm?id=13344", args={"path": "/activity.htm?id=13344"}),
+]
+login_ev, task_ev = split_login(events)
+assert [e["i"] for e in login_ev] == [0, 1, 2] and [e["i"] for e in task_ev] == [3]
+print("split_login: login =", [e["tool"] for e in login_ev], "| task =", [e["tool"] for e in task_ev])
+
+# top-level refusals
+expect_raises(lambda: _refuse_bad_run([_ev(0, "click", "/index.htm", "/index.htm", status="stop")]),
+              "login attempt guard")
+expect_raises(lambda: _refuse_bad_run([_ev(0, "ask_human", "/x", "/x", status="handoff")]),
+              "a human entered a value by hand")
+expect_raises(lambda: _refuse_bad_run([_ev(0, "finish", "/x", "/x", summary="STUCK: lost")]),
+              "this run did not complete")
+expect_raises(lambda: _refuse_bad_run([_ev(0, "finish_business_outcome", "/x", "/x", outcome="X", proof="p")]),
+              "It is a probe")
+_refuse_bad_run([_ev(0, "click", "/x", "/y")])   # a normal run: no refusal
+print("clean-up: all checks passed")
+
+# %% OFFLINE 5: parameterisation and per-step assembly (D8, D9, D10, D29, D33, D38)
 SENSITIVE_WORDS = ("ssn", "password", "social")
 
 
-def _params(text: str, inputs: dict, constants: list, where: str) -> str:
-    """A typed or chosen value. Whole-value match -> {{name}}. Otherwise substitute inside. No match at all -> constant."""
+def _params(text: str, inputs: dict[str, str], constants: list[dict], where: str) -> str:
+    """A typed or chosen value. Whole-value match -> {{name}}. Otherwise substitute inside. No
+    match at all -> reported as a constant, never refused (D44)."""
     for name, lit in inputs.items():
         if same_value(text, lit):
             return "{{" + name + "}}"
@@ -261,54 +557,66 @@ def _amount_input(specs: dict) -> str | None:
     return named[0] if named else None
 
 
-def build_steps(events: list[dict], specs: dict, constants: list):
-    """Events -> (steps, outputs, secrets, paths). Adds a navigate for the start page, and where the URL changed with no click."""
+def build_steps(events: list[dict], specs: dict, warnings: list[str], constants: list):
+    """Events -> (steps, outputs, secrets, paths). Adds a navigate for the start page, and where
+    the URL changed without a click."""
     inputs = {n: s["value"] for n, s in specs.items()}
     steps, outputs, secrets, paths = [], [], [], []
-    prev = None
-    for n, e in enumerate(events):
-        t, where = e["tool"], f"event {e['i']} ({e['tool']})"
-        b, a = e["before"]["url"], e["after"]["url"]
-        paths += [b, a]
-        if t == "open_path":
-            steps.append(Navigate(path=substitute(norm_url(e["path"]), inputs), why="Opened directly by the agent."))
-            paths.append(norm_url(e["path"]))
-        elif prev is None or b != prev:
-            steps.append(Navigate(path=substitute(b, inputs),
-                                  why="Start page of this capability." if prev is None else "The page changed without a click."))
-        prev = a
+    prev_after = None
+    for e in events:
+        tool, where = e["tool"], f"event {e['i']} ({e['tool']})"
+        before_url, after_url = e["before"]["url"], e["after"]["url"]
+        paths += [before_url, after_url]
+        if tool == "open_path":
+            # e["args"]["path"] is already a relative path (the tool's own argument shape, same
+            # as Navigate.path) -- CAPTURE never normalizes a URL that started out relative.
+            steps.append(Navigate(path=substitute(e["args"]["path"], inputs), why="Opened directly by the agent."))
+        elif prev_after is None or before_url != prev_after:
+            steps.append(Navigate(
+                path=substitute(before_url, inputs),
+                why="Start page of this capability." if prev_after is None else "The page changed without a click.",
+            ))
+        prev_after = after_url
         el = e.get("el") or {}
-        if t == "click":
+        if tool == "click":
             risky = bool(e.get("approved"))
-            steps.append(Click(target=derive_target(el, inputs), risk="risky" if risky else "safe",
-                               amount_input=_amount_input(specs) if risky else None,
-                               why="Point of no return. A human approved it in discovery. Replay decides by policy." if risky else None))
-        elif t in ("type_text", "type_secret"):
+            steps.append(Click(
+                target=derive_target(el, inputs, warnings), risk="risky" if risky else "safe",
+                amount_input=_amount_input(specs) if risky else None,
+                why="Point of no return. A human approved it in discovery. Replay decides by policy." if risky else None,
+            ))
+        elif tool in ("type_text", "type_secret"):
             field = f"{el.get('name') or ''} {el.get('label') or ''}".lower()
-            if t == "type_text" and any(w in field for w in SENSITIVE_WORDS):
+            if tool == "type_text" and any(w in field for w in SENSITIVE_WORDS):
                 raise CompileError(f"{where}: typed into a sensitive field ({el.get('label') or el.get('name')}). Refusing to record it.")
-            if t == "type_secret":
-                if e["value"] not in secrets:
-                    secrets.append(e["value"])
-                value = "{{secret:" + e["value"] + "}}"
+            if tool == "type_secret":
+                name = e["value"]
+                if name not in secrets:
+                    secrets.append(name)
+                value = "{{secret:" + name + "}}"
             else:
                 value = _params(e["value"], inputs, constants, f"{where} into {el.get('label') or el.get('name')!r}")
-            steps.append(TypeText(target=derive_target(el, inputs), value=value))
-        elif t == "select_option":
+            steps.append(TypeText(target=derive_target(el, inputs, warnings), value=value))
+        elif tool == "select_option":
             if el.get("options") and e["value"] not in el["options"]:
                 raise CompileError(f"{where}: option {e['value']!r} is not in the dropdown's options")
-            steps.append(Select(target=derive_target(el, inputs),
-                                option=_params(e["value"], inputs, constants, f"{where} in {el.get('label') or el.get('name')!r}")))
-        elif t == "extract_value":
-            steps.append(Extract(target=Target(locators=[LabeledValueLocator(label=substitute(e["label"], inputs))]), save_as=e["save_as"]))
-            outputs.append(OutputParam(name=e["save_as"], type=e.get("value_type", "string"),
-                                       description=e.get("description") or f"The value shown next to '{e['label']}'."))
+            steps.append(Select(
+                target=derive_target(el, inputs, warnings),
+                option=_params(e["value"], inputs, constants, f"{where} in {el.get('label') or el.get('name')!r}"),
+            ))
+        elif tool == "extract_value":
+            label = substitute(e["label"], inputs)
+            steps.append(Extract(target=_extract_target(label, e.get("label_count", 1)), save_as=e["save_as"]))
+            outputs.append(OutputParam(
+                name=e["save_as"], type=e.get("value_type", "string"),
+                description=e.get("description") or f"The value shown next to '{e['label']}'.",
+            ))
     return steps, outputs, secrets, paths
 
 
 def find_leftovers(cap: "Capability", inputs: dict) -> list[str]:
-    """D29: no declared literal may survive anywhere in the capability, except in the `inputs` docs.
-    The message names the input and the place, never the value."""
+    """D29/D44: no declared literal may survive anywhere in the capability, except in the
+    `inputs` docs. The message names the input and the place, never the value."""
     data = cap.model_dump(mode="json", exclude_none=True)
     data.pop("inputs", None)
     found: list[str] = []
@@ -327,37 +635,31 @@ def find_leftovers(cap: "Capability", inputs: dict) -> list[str]:
     return found
 
 
-def _routes(paths: list[str]) -> list[str]:
-    out: list[str] = []
-    for p in paths:
-        p = path_only(p)
-        if p and p not in out:
-            out.append(p)
-    return out
-
-
-def _checkpoint(last: dict) -> "Checkpoint":
-    url, heading = last["after"]["url"], (last["after"].get("heading") or "").strip()
+def _checkpoint_from_last(events: list[dict]) -> "Checkpoint":
+    last = events[-1]
+    heading = (last["after"].get("heading") or "").strip()
     if not heading:
-        raise CompileError("the final page has no heading or title, so the checkpoint has no text signal (D9 needs both)")
+        raise CompileError("the final kept step's page has no heading, so the checkpoint has no text signal (D9 needs both)")
+    url = last["after"]["url"]
     return Checkpoint(url_contains=path_only(url).rsplit("/", 1)[-1] or "/", text_present=heading)
 
 
-def _cap(name, description, when_to_use, events, specs, rules, constants) -> "Capability":
-    steps, outputs, secrets, paths = build_steps(events, specs, constants)
-    inputs = {n: s["value"] for n, s in specs.items()}
-    text = json.dumps([x.model_dump(mode="json") for x in steps])
-    used = [n for n in specs if "{{" + n + "}}" in text]
+def _cap(name: str, description: str, events: list[dict], specs: dict, rules: list,
+         constants: list, warnings: list[str], base_url: str) -> "Capability":
+    steps, outputs, secrets, paths = build_steps(events, specs, warnings, constants)
+    inputs_literals = {n: s["value"] for n, s in specs.items()}
+    text = json.dumps([s.model_dump(mode="json") for s in steps])
+    used = {n for n in specs if "{{" + n + "}}" in text}
+    used |= {s.amount_input for s in steps if getattr(s, "amount_input", None)}   # a risky click's amount_input counts as using that input, even with no separate typed step
     cap = Capability(
-        name=name, version=1, status="draft", description=description, when_to_use=when_to_use,
-        app=App(**APP),
+        name=name, version=1, status="draft", description=description, base_url=base_url,
         risk_level="risky" if any(s.action == "click" and s.risk == "risky" for s in steps) else "safe",
         inputs=[InputParam(name=n, type=s.get("type", "string"), description=s.get("description", n),
                            pattern=s.get("pattern")) for n, s in specs.items() if n in used],
-        outputs=outputs, secrets=secrets, routes=_routes(paths), steps=steps,
-        checkpoint=_checkpoint(events[-1]), outcome_rules=list(rules),
+        outputs=outputs, secrets=secrets, steps=steps,
+        checkpoint=_checkpoint_from_last(events), outcome_rules=list(rules),
     )
-    bad = find_leftovers(cap, inputs)
+    bad = find_leftovers(cap, inputs_literals)
     if bad:
         raise CompileError(bad)
     return cap
@@ -368,7 +670,23 @@ def relogin_rule() -> "OutcomeRule":
                        message="The session expired. Run the login capability again and continue.")
 
 
-def _check_specs(specs: dict):
+def rule_from_probe(events: list[dict], probe_inputs: dict[str, str]) -> "OutcomeRule":
+    """D10/D47: a bad-input run ended with finish_business_outcome(outcome, proof_text). Turn it
+    into a business rule. The bad value is cut out of the proof text so the rule matches any input."""
+    fin = next((e for e in reversed(events) if e["tool"] == "finish_business_outcome" and e.get("status") == "ok"), None)
+    if not fin:
+        raise CompileError("this run has no successful finish_business_outcome(outcome, proof_text). It is not a probe.")
+    pieces = [fin["proof"]]
+    for lit in probe_inputs.values():
+        pieces = [x for p in pieces for x in _literal_re(lit).split(p)]
+    text = max((p.strip(" :#.-,") for p in pieces), key=len, default="")
+    if len(text) < 6:
+        raise CompileError("the proof text is too short once the probe's input value is removed. Ask for a longer message from the page.")
+    return OutcomeRule(when=Condition(text_present=text), kind="business", outcome=fin["outcome"],
+                       message=f"Seen in a bad-input probe. The application answered: {text}")
+
+
+def _check_specs(specs: dict) -> None:
     problems = []
     for n, s in specs.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]*", n):
@@ -381,57 +699,40 @@ def _check_specs(specs: dict):
         raise CompileError(problems)
 
 
-def compile_run(events: list[dict], spec: dict, *, extra_rules=()) -> dict:
+def compile_run(events: list[dict], spec: dict, *, extra_rules=(), base_url: str = BASE) -> dict:
     """The whole pipeline. Returns {"login": Capability|None, "task": Capability, "report": {...}}.
-    spec = {name, description, when_to_use, inputs: {name: {value, type, description, pattern?}}}"""
+    spec = {name, description, inputs: {name: {value, type, description, pattern?}}}"""
+    _refuse_bad_run(events)
     specs = spec["inputs"]
     _check_specs(specs)
-    if any(e["tool"] == "finish" and e.get("outcome") for e in events):
-        raise CompileError("this run ended with a business outcome. It is a probe: use rule_from_probe(), not compile_run().")
+
     kept, dropped = clean_events(events)
     kept = drop_detours(kept, dropped)
     login_ev, task_ev = split_login(kept)
     task_ev = trim_tail(task_ev, dropped)
     if not task_ev:
         raise CompileError("nothing left to record after the login. The run did nothing that matters.")
+
     constants: list = []
+    warnings: list[str] = []
     try:
         login = None
         if login_ev:
-            login = _cap(f"login_{APP['id']}", f"Log in to {APP['id']} with the stored credentials.",
-                         "The session is logged out or has expired. Run before any capability that needs a logged-in session.",
-                         login_ev, {}, [], constants)
+            login = _cap(f"login_{APP_ID}", f"Log in to {APP_ID} with the stored credentials.",
+                         login_ev, {}, [], constants, warnings, base_url)
             leak = find_leftovers(login, {n: s["value"] for n, s in specs.items()})
             if leak:
                 raise CompileError(leak)
         rules = [*extra_rules] + ([relogin_rule()] if login else [])
-        task = _cap(spec["name"], spec["description"], spec["when_to_use"], task_ev, specs, rules, constants)
-    except ValidationError as err:                      # the Phase 2 schema said no
+        task = _cap(spec["name"], spec["description"], task_ev, specs, rules, constants, warnings, base_url)
+    except ValidationError as err:
         raise CompileError([f"schema: {'; '.join(x['msg'] for x in err.errors())}"]) from err
     except ValueError as err:
         raise CompileError(f"schema: {err}") from err
-    warnings = [f"declared input {n!r} is never used in the steps" for n in specs if n not in {i.name for i in task.inputs}]
-    report = {"dropped": dropped, "constants": constants, "warnings": warnings}
+
+    unused = [f"declared input {n!r} is never used in the steps" for n in specs if n not in {i.name for i in task.inputs}]
+    report = {"dropped": dropped, "constants": constants, "warnings": warnings + unused}
     return {"login": login, "task": task, "report": report}
-
-
-def rule_from_probe(events: list[dict], probe_inputs: dict[str, str]) -> "OutcomeRule":
-    """D10: a bad-input run ended with finish(outcome, proof_text). Turn it into a business rule.
-    The bad value is cut out of the proof text, so the rule matches for any input."""
-    fin = next((e for e in reversed(events) if e["tool"] == "finish" and e.get("outcome")), None)
-    if not fin:
-        raise CompileError("this run has no finish(outcome=..., proof_text=...). It is not a probe.")
-    pieces = [fin["proof"]]
-    for lit in probe_inputs.values():
-        pieces = [x for p in pieces for x in _literal_re(lit).split(p)]
-    text = max((p.strip(" :#.-,") for p in pieces), key=len, default="")
-    if len(text) < 6:
-        raise CompileError("the proof text is too short once the input value is removed. Ask for a longer message from the page.")
-    try:
-        return OutcomeRule(when=Condition(text_present=text), kind="business", outcome=fin["outcome"],
-                           message=f"Seen in a bad-input probe. The application answered: {text}")
-    except ValidationError as err:
-        raise CompileError(f"outcome rule: {'; '.join(x['msg'] for x in err.errors())}") from err
 
 
 # %% OFFLINE 6: save (only after validation) and show
@@ -446,7 +747,7 @@ def save_capability(cap: "Capability", out_dir: pathlib.Path = ARTIFACTS, *, for
     if path.exists() and from_yaml(path.read_text()).status == "verified":
         raise CompileError(f"{path.name} is already verified. Refusing to overwrite it with a draft.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("# DRAFT written by the recorder (Phase 3). A reviewer must read it before it is verified.\n" + text)
+    path.write_text("# DRAFT written by the recorder (Phase 3 v2). A reviewer must read it before it is verified.\n" + text)
     return path
 
 
@@ -466,295 +767,268 @@ def show(result: dict) -> None:
 
 print("compile ready")
 
-
-# %% OFFLINE 6b: declared output types (D12). The extract tool and, later, replay use the same check
-VALUE_TYPES = {"string": r"\S.*", "integer": r"-?\d+", "number": r"-?[\d,]*\.?\d+",
-               "currency": r"-?\$?-?[\d,]+(\.\d{2})?", "boolean": r"true|false|yes|no"}
-
-
-def value_matches_type(value: str, value_type: str) -> bool:
-    return value_type in VALUE_TYPES and bool(re.fullmatch(VALUE_TYPES[value_type], value.strip(), re.I))
-
-
 # %% [markdown]
-# ## Offline tests (hand-made events, no browser)
-# Run these cells any time. They prove the risky logic without a browser.
+# ## Offline fixtures and checks (hand-made events, no browser)
+# Every fixture below is shaped exactly like what agent.ipynb's tools + the CAPTURE wrapper
+# (Part B) actually produce -- built from the literal message prefixes read out of `agent.ipynb`
+# STEP 3, not invented text. See `docs/superpowers/plans/2026-09-25-phase3-recorder-v2.md`'s
+# fixture table for the numbering used in comments below.
 
-# %% OFFLINE 7: fixtures (hand-made events that look like a real ParaBank run)
-def D(role, name, src, tag, *, label=None, text=None, submit=False, options=None, container=None, nth=None, type=None):
-    """A descriptor, as the browser scanner would produce it."""
-    return dict(role=role, name=name, name_source=src, tag=tag, type=type, label=label, text=text,
-                submit=submit, options=options, container=container, nth=nth)
-
-
-FORM, TABLE = {"role": "form", "name": None}, {"role": "table", "name": None}
-USER = D("textbox", "username", "attr", "input", label="Username:", container=FORM, nth=1, type="text")
-PASS = D("textbox", "password", "attr", "input", label="Password:", container=FORM, nth=2, type="password")
-LOGIN = D("button", "Log In", "value", "input", submit=True, container=FORM, nth=3, type="submit")
-ACCT = D("link", "14232", "text", "a", text="14232", container=TABLE, nth=1)
-NEWACCT = D("link", "Open New Account", "text", "a", text="Open New Account")
-OVERVIEW = D("link", "Accounts Overview", "text", "a", text="Accounts Overview")
-XFER_LINK = D("link", "Transfer Funds", "text", "a", text="Transfer Funds")
-AMOUNT = D("textbox", "amount", "attr", "input", label="Amount:", container=FORM, nth=1, type="text")
-FROM = D("combobox", "fromAccountId", "attr", "select", label="From account #:", container=FORM, nth=1, options=["14232", "14343"])
-TO = D("combobox", "toAccountId", "attr", "select", label="To account #:", container=FORM, nth=2, options=["14232", "14343"])
-NOTE = D("textbox", "note", "attr", "input", label="Note:", container=FORM, nth=3, type="text")
-TRANSFER = D("button", "Transfer", "value", "input", submit=True, container=FORM, nth=4, type="submit")
-SSN = D("textbox", "ssn", "attr", "input", label="Social Security Number:", container=FORM, nth=5, type="text")
-
-
-class Run:
-    """Builds an event list the way the tools would. `to=(url, heading)` moves the page."""
-
-    def __init__(self, url, heading=""):
-        self.ev, self.url, self.head = [], url, heading
-
-    def act(self, tool, el=None, *, status="ok", to=None, **kw):
-        before = {"url": self.url, "heading": self.head}
-        if to:
-            self.url, self.head = to
-        self.ev.append({"i": len(self.ev), "tool": tool, "status": status, "before": before,
-                        "after": {"url": self.url, "heading": self.head}, "el": el, **kw})
-        return self
-
-
-def login_events(r):
-    r.act("observe")
-    r.act("type_secret", USER, value="username")
-    r.act("type_secret", PASS, value="password")
-    return r.act("click", LOGIN, to=("/overview.htm", "Accounts Overview"))
+# %% OFFLINE 7: fixture 1 -- good balance-lookup flow, login split out correctly
+def _e(i, tool, before, after, **kw):
+    """Same shape as `_ev` above, kept separate so a message/status default of 'ok' can still be
+    overridden by a fixture that wants to show a non-ok event."""
+    msg = kw.pop("message", None)
+    status = kw.pop("status", classify_status(msg) if msg is not None else "ok")
+    return {"i": i, "tool": tool, "args": kw.pop("args", {}),
+            "before": {"url": before, "heading": kw.pop("before_heading", "")},
+            "after": {"url": after, "heading": kw.pop("after_heading", "")},
+            "message": msg or "", "status": status, **kw}
 
 
 BAL_SPEC = {
     "name": "get_account_balance",
-    "description": "Read the current balance of one account.",
-    "when_to_use": "A caller needs the balance of a specific account and can name it by account id.",
-    "inputs": {"account_id": {"value": "14232", "type": "string", "description": "The account number.", "pattern": "^[0-9]{4,10}$"}},
+    "description": "Read the current balance of one account, given its account id.",
+    "inputs": {"account_id": {"value": "13344", "type": "string", "description": "The account number.", "pattern": r"^[0-9]{4,10}$"}},
 }
+
+LOGIN_BUTTON_EL = {"role": "button", "name": "Log In", "name_source": "value", "label": None,
+                    "text": None, "tag": "input", "type": "submit", "submit": True, "options": None,
+                    "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+USERNAME_FIELD_EL = {"role": "textbox", "name": "Username", "name_source": "label", "label": "Username",
+                      "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                      "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+PASSWORD_FIELD_EL = {"role": "textbox", "name": "Password", "name_source": "label", "label": "Password",
+                      "text": None, "tag": "input", "type": "password", "submit": False, "options": None,
+                      "container": {"role": "form", "name": None}, "nth": 2, "name_count": 1, "label_count": 1}
+
+
+def _balance_events(extra_description: str | None = None) -> list[dict]:
+    return [
+        _e(0, "observe", "/index.htm", "/index.htm", before_heading="Customer Login", after_heading="Customer Login"),
+        _e(1, "type_secret", "/index.htm", "/index.htm", el=USERNAME_FIELD_EL, value="username", message="Typed secret 'username' into [1]."),
+        _e(2, "type_secret", "/index.htm", "/index.htm", el=PASSWORD_FIELD_EL, value="password", message="Typed secret 'password' into [2]."),
+        _e(3, "click", "/index.htm", "/overview.htm", el=LOGIN_BUTTON_EL, message="Clicked [3].",
+           before_heading="Customer Login", after_heading="Accounts Overview"),
+        _e(4, "open_path", "/overview.htm", "/activity.htm?id=13344", args={"path": "/activity.htm?id=13344"},
+           message="Opened /activity.htm?id=13344.", before_heading="Accounts Overview", after_heading="Account Details"),
+        _e(5, "extract_value", "/activity.htm?id=13344", "/activity.htm?id=13344",
+           label="Balance:", save_as="balance", value_type="currency",
+           description=extra_description or "Current balance, for example $1,200.00.",
+           message="Read 'Balance:'.", before_heading="Account Details", after_heading="Account Details"),
+        _e(6, "finish", "/activity.htm?id=13344", "/activity.htm?id=13344",
+           summary="Read the balance.", values={"balance": "$1,200.00"}, message="Recorded. Stop now."),
+    ]
+
+
+result = compile_run(_balance_events(), BAL_SPEC)
+login, task, report = result["login"], result["task"], result["report"]
+assert login is not None and login.name == "login_parabank" and len(login.secrets) == 2
+assert [s.action for s in login.steps] == ["navigate", "type", "type", "click"]
+assert login.steps[0].path == "/index.htm"
+assert login.checkpoint.url_contains == "overview.htm" and login.checkpoint.text_present == "Accounts Overview"
+assert task.name == "get_account_balance" and task.secrets == []
+assert [s.action for s in task.steps] == ["navigate", "extract"]
+assert task.steps[0].path == "/activity.htm?id={{account_id}}"
+assert task.inputs[0].name == "account_id"
+assert task.outputs[0].name == "balance" and task.outputs[0].type == "currency"
+assert task.risk_level == "safe"
+assert any(r.kind == "recoverable" and r.action == "relogin" for r in task.outcome_rules)
+assert (0, "observe", "not an action") in report["dropped"]
+assert from_yaml(to_yaml(task)) == task and from_yaml(to_yaml(login)) == login
+print("fixture 1 (good balance flow, login split): ok")
+show(result)
+
+# %% OFFLINE 8: fixture 2 -- a dead-end click is removed
+def _balance_events_with_detour() -> list[dict]:
+    ev = _balance_events()
+    detour = [
+        _e(40, "click", "/overview.htm", "/billpay.htm", el={"role": "link", "name": "Bill Pay", "name_source": "text"},
+           message="Clicked [4]."),
+        _e(41, "click", "/billpay.htm", "/overview.htm", el={"role": "link", "name": "Accounts Overview", "name_source": "text"},
+           message="Clicked [2]."),
+    ]
+    return ev[:4] + detour + ev[4:]
+
+
+result2 = compile_run(_balance_events_with_detour(), BAL_SPEC)
+assert [s.action for s in result2["task"].steps] == ["navigate", "extract"], "the detour must not survive into steps"
+dead_ends = [d for d in result2["report"]["dropped"] if d[2].startswith("dead end:")]
+assert len(dead_ends) == 2 and {d[0] for d in dead_ends} == {40, 41}
+print("fixture 2 (dead-end click removed):", dead_ends)
+
+# %% OFFLINE 9: fixture 5 -- leftover-literal refusal
+LEAKY_SPEC = {**BAL_SPEC}
+leaky_events = _balance_events(extra_description="Current balance of account 13344.")
+try:
+    compile_run(leaky_events, LEAKY_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert any("account_id" in p and "description" in p for p in err.problems), err.problems
+    print("fixture 5 (leftover-literal refusal):", err.problems)
+
+# %% OFFLINE 10: fixture 6 -- a risky click produces risk: risky + a matching risk_level
 XFER_SPEC = {
     "name": "transfer_funds",
-    "description": "Move money between two accounts of the same customer.",
-    "when_to_use": "A caller wants to transfer a stated amount from one account to another.",
-    "inputs": {
-        "from_account": {"value": "14232", "type": "string", "description": "Account to take the money from.", "pattern": "^[0-9]{4,10}$"},
-        "to_account": {"value": "14343", "type": "string", "description": "Account to put the money in.", "pattern": "^[0-9]{4,10}$"},
-        "amount": {"value": "20.00", "type": "currency", "description": "Amount to move."},
-    },
+    "description": "Move a stated amount from one account to another.",
+    "inputs": {"amount": {"value": "20.00", "type": "currency", "description": "Amount to move.",
+                          "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"}},
 }
+TRANSFER_BUTTON_EL = {"role": "button", "name": "Transfer", "name_source": "value", "label": None,
+                      "text": None, "tag": "input", "type": "submit", "submit": True, "options": None,
+                      "container": {"role": "form", "name": None}, "nth": 1, "name_count": 1, "label_count": 1}
+xfer_events = [
+    _e(0, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Funds", after_heading="Transfer Complete!"),
+    _e(1, "finish", "/transfer.htm", "/transfer.htm", summary="Transferred the amount.",
+       values={"confirmation": "Transfer Complete!"}, message="Recorded. Stop now."),
+]
+xfer_result = compile_run(xfer_events, XFER_SPEC)
+xfer_task = xfer_result["task"]
+click_step = xfer_task.steps[-1]
+assert click_step.action == "click" and click_step.risk == "risky" and click_step.amount_input == "amount"
+assert xfer_task.risk_level == "risky"
+assert xfer_task.checkpoint.url_contains == "transfer.htm" and xfer_task.checkpoint.text_present == "Transfer Complete!"
+print("fixture 6 (risky click -> risk: risky, risk_level: risky, amount_input='amount'): ok")
 
-
-def good_balance(final_heading="Account Details"):
-    r = login_events(Run("/index.htm", "Customer Login"))
-    r.act("page_text")
-    r.act("click", ACCT, status="failed")                                   # first try failed
-    r.act("click", ACCT, to=("/activity.htm?id=14232", final_heading))
-    r.act("extract_value", label="Balance:", save_as="balance", value_type="currency")
-    r.act("finish")
-    return r.ev
-
-
-def transfer_events(approved=True):
-    r = Run("/overview.htm", "Accounts Overview")
-    r.act("click", XFER_LINK, to=("/transfer.htm", "Transfer Funds"))
-    r.act("type_text", AMOUNT, value="$20.00")
-    r.act("type_text", AMOUNT, value="$20.00")                              # repeated identical action
-    r.act("select_option", FROM, value="14232")
-    r.act("select_option", TO, value="14343")
-    r.act("type_text", NOTE, value="Ref-77")                                # a constant: matches no input
-    r.act("click", TRANSFER, approved=approved, to=("/transfer.htm", "Transfer Complete!"))
-    r.act("finish")
-    return r.ev
-
-
-def rejects(name, fn, expect, hide=()):
-    """fn must raise CompileError whose message contains `expect` and none of `hide`."""
-    try:
-        fn()
-    except CompileError as err:
-        msg = str(err)
-        assert expect in msg, f"{name}: expected {expect!r} in: {msg}"
-        assert not any(h in msg for h in hide), f"{name}: message leaks a value: {msg}"
-        print(f"refused ok: {name}")
-        return
-    raise AssertionError(f"{name}: was NOT refused")
-
-
-print("fixtures ready")
-
-# %% OFFLINE 8: test helpers
-assert norm_url("https://parabank.parasoft.com/parabank/activity.htm;jsessionid=ABC123?id=14232") == "/activity.htm?id=14232"
-assert norm_url("https://parabank.parasoft.com/parabank/index.htm;jsessionid=ZZ") == "/index.htm"
-assert norm_url("https://evil.example.com/x") == "https://evil.example.com/x"
-assert contains_literal("id=5&x", "5") and not contains_literal("$50", "5") and not contains_literal("1.5", "5")
-assert not contains_literal("account_id", "id")
-assert substitute("Account #14232 to 14343", {"a": "14232", "b": "14343"}) == "Account #{{a}} to {{b}}"
-assert same_value("$20.00", "20") and same_value("14232", "14232") and not same_value("0123", "123")
-assert value_matches_type("$1,200.00", "currency") and value_matches_type("-5", "integer")
-assert not value_matches_type("abc", "currency") and not value_matches_type("", "string") and not value_matches_type("x", "nope")
-print("helpers: ok")
-
-# %% OFFLINE 9: TEST good balance flow, login split, cleanup
-res = compile_run(good_balance(), BAL_SPEC)
-login, task = res["login"], res["task"]
-assert login.name == "login_parabank" and login.secrets == ["username", "password"]
-assert [s.action for s in login.steps] == ["navigate", "type", "type", "click"]
-assert login.steps[1].value == "{{secret:username}}" and login.steps[2].value == "{{secret:password}}"
-assert login.checkpoint.url_contains == "overview.htm" and login.checkpoint.text_present == "Accounts Overview"
-# the task starts logged in and has no secret steps (D32)
-assert task.secrets == [] and "secret:" not in to_yaml(task)
-assert [s.action for s in task.steps] == ["navigate", "click", "extract"]
-assert task.steps[0].path == "/overview.htm"
-loc = task.steps[1].target.locators
-assert loc[0].strategy == "role" and loc[0].role == "link" and loc[0].name == "{{account_id}}"
-assert all(l.strategy != "structure" for l in loc), "no positional fallback for a data-dependent element"
-assert task.steps[2].target.locators[0].strategy == "labeled_value" and task.steps[2].save_as == "balance"
-assert [(o.name, o.type) for o in task.outputs] == [("balance", "currency")] and [i.name for i in task.inputs] == ["account_id"]
-assert task.checkpoint.url_contains == "activity.htm" and task.checkpoint.text_present == "Account Details"
-assert task.routes == ["/overview.htm", "/activity.htm"] and task.risk_level == "safe" and task.status == "draft"
-assert [r.kind for r in task.outcome_rules] == ["recoverable"] and task.outcome_rules[0].action == "relogin"
-text = to_yaml(task) + to_yaml(login)
-assert "14232" not in text and "data-cua" not in text and "jsessionid" not in text
-assert from_yaml(to_yaml(task)) == task and from_yaml(to_yaml(login)) == login
-reasons = {(i, why) for i, _, why in res["report"]["dropped"]}
-assert (0, "not an action") in reasons and (4, "not an action") in reasons and (5, "did not work (failed)") in reasons
-print("good balance flow: ok | login split: ok | cleanup: ok")
-
-# a run with no secrets typed (already logged in) has no login capability
-r = Run("/overview.htm", "Accounts Overview")
-r.act("click", ACCT, to=("/activity.htm?id=14232", "Account Details"))
-r.act("extract_value", label="Balance:", save_as="balance", value_type="currency")
-res2 = compile_run(r.ev, BAL_SPEC)
-assert res2["login"] is None and res2["task"].outcome_rules == []
-print("no login in run -> no login capability: ok")
-
-# %% OFFLINE 10: TEST dead-end click and trailing click
-r = login_events(Run("/index.htm", "Customer Login"))
-r.act("click", NEWACCT, to=("/openaccount.htm", "Open New Account"))        # wrong turn
-r.act("click", OVERVIEW, to=("/overview.htm", "Accounts Overview"))         # and back
-r.act("click", ACCT, to=("/activity.htm?id=14232", "Account Details"))
-r.act("extract_value", label="Balance:", save_as="balance", value_type="currency")
-r.act("click", OVERVIEW, to=("/overview.htm", "Accounts Overview"))         # wandered off afterwards
-res = compile_run(r.ev, BAL_SPEC)
-assert [s.action for s in res["task"].steps] == ["navigate", "click", "extract"]
-assert "/openaccount.htm" not in res["task"].routes
-assert res["task"].checkpoint.url_contains == "activity.htm"                # from the last KEPT step, not the wandering
-why = {i: w for i, _, w in res["report"]["dropped"]}
-assert why[4].startswith("dead end") and why[5].startswith("dead end") and why[8] == "after the last meaningful step"
-print("dead-end click removed: ok | trailing click removed: ok")
-
-# a page change with no click (e.g. the harness opened a page) becomes a navigate
-r = Run("/overview.htm", "Accounts Overview")
-r.act("click", ACCT, to=("/activity.htm?id=14232", "Account Details"))
-r.url = "/transactions.htm"                                                  # the URL moved by itself
-r.act("extract_value", label="Balance:", save_as="balance", value_type="currency")
-steps = compile_run(r.ev, BAL_SPEC)["task"].steps
-assert [s.action for s in steps] == ["navigate", "click", "navigate", "extract"] and steps[2].path == "/transactions.htm"
-print("navigation without a click is kept: ok")
-
-# %% OFFLINE 11: TEST leftover-literal refusal
-rejects("literal left in the checkpoint", lambda: compile_run(good_balance("Details for account 14232"), BAL_SPEC),
-        "input 'account_id' still appears as a literal in checkpoint.text_present", hide=("14232",))
-rejects("declared value does not match its own pattern",
-        lambda: compile_run(good_balance(), {**BAL_SPEC, "inputs": {"account_id": {**BAL_SPEC["inputs"]["account_id"], "value": "12"}}}),
-        "does not match its own pattern")
-rejects("empty declared value",
-        lambda: compile_run(good_balance(), {**BAL_SPEC, "inputs": {"account_id": {"value": ""}}}), "no declared value")
-
-# %% OFFLINE 12: TEST risky click, parameters, constants
-res = compile_run(transfer_events(), XFER_SPEC)
-t = res["task"]
-click = t.steps[-1]
-assert click.action == "click" and click.risk == "risky" and click.amount_input == "amount" and t.risk_level == "risky"
-assert [s.action for s in t.steps] == ["navigate", "click", "type", "select", "select", "type", "click"]   # the repeat is gone
-assert t.steps[2].value == "{{amount}}" and t.steps[3].option == "{{from_account}}" and t.steps[4].option == "{{to_account}}"
-assert t.steps[3].target.locators[0].strategy == "label"                      # name came from an attribute, so no role locator
-assert t.steps[3].target.locators[-1].strategy == "structure" and t.steps[3].target.locators[-1].within.role == "form"
-assert click.target.locators[0].role == "button" and click.target.locators[0].name == "Transfer"
-assert t.checkpoint.url_contains == "transfer.htm" and t.checkpoint.text_present == "Transfer Complete!"
-assert res["report"]["constants"] == [{"where": "event 5 (type_text) into 'Note:'", "value": "Ref-77"}]
-assert any(why == "repeat of the previous action" for _, _, why in res["report"]["dropped"])
-assert not any(v in to_yaml(t) for v in ("14232", "14343", "20.00"))
-assert [i.name for i in t.inputs] == ["from_account", "to_account", "amount"]
-c = tool_contract(t)
-assert c["returns"]["may_need_approval"] is True and c["input_schema"]["required"] == ["from_account", "to_account", "amount"]
-print("risky click: ok | typed values -> inputs: ok | constants reported: ok")
-
-# control: the same run with no human approval is a safe capability
-t2 = compile_run(transfer_events(approved=False), XFER_SPEC)["task"]
-assert t2.risk_level == "safe" and t2.steps[-1].risk == "safe" and t2.steps[-1].amount_input is None
-print("no approval -> safe: ok")
-
-# %% OFFLINE 13: TEST bad-input outcome
-probe = Run("/overview.htm", "Accounts Overview")
-probe.act("open_path", path="/activity.htm?id=99999999", to=("/activity.htm?id=99999999", "Error!"))
-probe.act("finish", outcome="ACCOUNT_NOT_FOUND", proof="Could not find account number 99999999")
-rule = rule_from_probe(probe.ev, {"account_id": "99999999"})
+# %% OFFLINE 11: fixture 7 -- a bad-input probe run produces a business OutcomeRule
+probe_events = [
+    _e(0, "open_path", "/overview.htm", "/activity.htm?id=00000", args={"path": "/activity.htm?id=00000"},
+       message="Opened /activity.htm?id=00000."),
+    _e(1, "finish_business_outcome", "/activity.htm?id=00000", "/activity.htm?id=00000",
+       outcome="ACCOUNT_NOT_FOUND", proof="Could not find account 00000",
+       message="Recorded as a business-outcome probe. Stop now."),
+]
+rule = rule_from_probe(probe_events, {"account_id": "00000"})
 assert rule.kind == "business" and rule.outcome == "ACCOUNT_NOT_FOUND"
-assert rule.when.text_present == "Could not find account number" and "99999999" not in rule.when.text_present
-res = compile_run(good_balance(), BAL_SPEC, extra_rules=[rule])
-task = res["task"]
-assert [r.kind for r in task.outcome_rules] == ["business", "recoverable"]
-assert tool_contract(task)["returns"]["business_outcomes"] == ["ACCOUNT_NOT_FOUND"]
-assert from_yaml(to_yaml(task)) == task
-rejects("a probe is not a capability", lambda: compile_run(probe.ev, BAL_SPEC), "It is a probe")
-rejects("a normal run is not a probe", lambda: rule_from_probe(good_balance(), {}), "not a probe")
-print("bad-input outcome rule: ok")
+assert rule.when.text_present == "Could not find account"
+print("fixture 7a (business outcome rule from a probe):", rule.when.text_present, "->", rule.outcome)
 
-# %% OFFLINE 14: TEST refusals (handoff, sensitive field, secret value on save, save path)
-r = Run("/transfer.htm", "Transfer Funds")
-r.act("request_value", AMOUNT, status="handoff")
-r.act("click", TRANSFER, approved=True, to=("/transfer.htm", "Transfer Complete!"))
-rejects("a human typed a value by hand", lambda: compile_run(r.ev, XFER_SPEC), "entered something by hand")
+try:
+    compile_run(probe_events, BAL_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert "It is a probe" in str(err)
+    print("fixture 7b (a probe run is never compiled as a task): correctly refused")
 
-r = Run("/register.htm", "Signing up")
-r.act("type_text", SSN, value="123-45-6789")
-rejects("typed into a sensitive field", lambda: compile_run(r.ev, XFER_SPEC), "sensitive field", hide=("123-45-6789",))
+# a real task run, with the probe's rule merged in as extra_rules
+merged = compile_run(_balance_events(), BAL_SPEC, extra_rules=[rule])
+assert any(r.kind == "business" and r.outcome == "ACCOUNT_NOT_FOUND" for r in merged["task"].outcome_rules)
+print("fixture 7c (probe's rule merged into a real task capability): ok")
 
-rejects("secrets typed but no login click", lambda: compile_run(Run("/index.htm").act("type_secret", USER, value="username").ev, BAL_SPEC),
-        "login click is missing")
-rejects("off-site start page is not a valid path",
-        lambda: compile_run(Run("https://evil.example.com/x").act("click", ACCT, to=("/a.htm", "A")).ev, BAL_SPEC), "schema")
+# %% OFFLINE 12: fixture 8 -- a run that hit the login-attempt guard is refused entirely
+guard_events = [
+    _e(0, "type_secret", "/index.htm", "/index.htm", el=USERNAME_FIELD_EL, value="username", message="Typed secret 'username' into [1]."),
+    _e(1, "type_secret", "/index.htm", "/index.htm", el=PASSWORD_FIELD_EL, value="password", message="Typed secret 'password' into [2]."),
+    _e(2, "click", "/index.htm", "/index.htm", el=LOGIN_BUTTON_EL,
+       message="STOP: login failed (login was attempted 3 times with no success). Do not try again. Call finish with a summary starting 'STUCK:' explaining this."),
+]
+assert guard_events[2]["status"] == "stop"
+try:
+    compile_run(guard_events, BAL_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert "login attempt guard" in str(err)
+    print("fixture 8 (login-attempt-guard STOP refused entirely):", err)
 
+# %% OFFLINE 13: save_capability -- happy path, secret-value guard, verified-overwrite guard
 with tempfile.TemporaryDirectory() as tmp:
-    good = compile_run(good_balance(), BAL_SPEC)["task"]
-    rejects("secret value must never reach the file", lambda: save_capability(good, tmp, forbidden=["Account Details"]),
-            "secret value would be written", hide=("Account Details",))
-    assert not list(pathlib.Path(tmp).iterdir()), "nothing may be written when the guard trips"
-    path = save_capability(good, tmp, forbidden=["hunter2-not-present"])
-    assert from_yaml(path.read_text()) == good and path.read_text().startswith("# DRAFT")
-    verified = good.model_copy(update={"status": "verified"})
-    path.write_text(to_yaml(verified))
-    rejects("never overwrite a verified capability", lambda: save_capability(good, tmp), "already verified")
-print("refusals: ok | save: ok")
+    tmp = pathlib.Path(tmp)
+    path = save_capability(task, out_dir=tmp)
+    assert path.name == "get_account_balance.yaml"
+    reloaded = from_yaml(path.read_text().split("\n", 1)[1])   # strip the leading "# DRAFT" comment line
+    assert reloaded == task
+    print("save_capability (happy path):", path.name)
 
-# %% OFFLINE 15: summary
+    fake = Capability.model_validate({
+        **task.model_dump(mode="json", exclude_none=True), "name": "fake_secret_cap",
+        "description": "hunter2 lives in this description on purpose, to test the save guard.",
+    })
+    try:
+        save_capability(fake, out_dir=tmp, forbidden=["hunter2"])
+        raise AssertionError("was NOT rejected")
+    except CompileError as err:
+        assert "secret value would be written" in str(err)
+        print("save_capability (secret-value guard):", err)
+
+    verified_path = tmp / "already_verified.yaml"
+    verified_cap = Capability.model_validate({**task.model_dump(mode="json", exclude_none=True), "name": "already_verified", "status": "verified"})
+    verified_path.write_text(to_yaml(verified_cap))
+    draft_same_name = Capability.model_validate({**task.model_dump(mode="json", exclude_none=True), "name": "already_verified"})
+    try:
+        save_capability(draft_same_name, out_dir=tmp)
+        raise AssertionError("was NOT rejected")
+    except CompileError as err:
+        assert "already verified" in str(err)
+        print("save_capability (never overwrite verified):", err)
+
+print("save_capability: all checks passed")
+
+# %% OFFLINE 14: summary
 print("\nALL OFFLINE CHECKS PASSED")
 
-
 # %% [markdown]
-# ## Part A. CAPTURE (needs the browser and an API key)
-# **Temporary duplication:** the setup, scanner, takeover and tool cells below are copied from `agent.ipynb`
-# (Phase 1) and changed only where the recorder needs it. `agent.ipynb` is untouched. Phase 9 merges them into `src/`.
-# What changed vs Phase 1:
-# - the scanner returns a full **descriptor** per element (role, name, where the name came from, label, text, container, nth);
-# - every tool logs an **event** (before and after page, descriptor, did it work, was it approved);
-# - new tools `extract_value` and `open_path`; `finish` can report a business **outcome** with proof;
-# - value grounding uses the declared inputs first; `web_search` is removed (it sends text outside the allowlist).
+# ## Part B. CAPTURE (browser, never run by this agent -- the user runs this)
+#
+# **This is a deliberate, temporary duplication of `agent.ipynb`, not a fork of it.** Phase 9
+# consolidates both into one shared module. The cells below marked "copied verbatim" are copied,
+# cell for cell, from the CURRENT `notebooks/agent.ipynb` as it stood on 2026-09-25 (15 real code
+# cells at that time). The exact source cells copied are:
+# 1. `Setup 1/4: config + secrets`
+# 2. `Setup 2/4: browser`
+# 3. `Setup 3/4: domain guard`
+# 4. `Setup 4/4: numbered screenshot (PlaywrightSurface)`
+# 5. `STEP 1: scanner patch (dropdown options + submit flag)`
+# 6. `STEP 2: banner, takeover, Approve / Reject / Take over buttons, hand_off`
+# 7. `STEP 3: browser tools`
+#
+# **Not copied, on purpose:** `STEP 3d`/`STEP 3e` (the TypeSafe `Choice` tool-selection
+# middleware) and the TypeSafe half of `STEP 4` (the Haiku/Sonnet model router). These are an
+# optional third-party performance layer (D50/D52), not a safety mechanism, and a capture run has
+# no reason to pay for or depend on a second external service. `web_search` is also left off the
+# tool list here, per D48's original reasoning (unchanged): it sends goal/page text to a third
+# party outside the allowlist, and discovery for a capability recording does not need outside facts.
+#
+# Cells after `STEP 3` are new, additive, and clearly labelled: they wrap each tool to log an
+# event, and add three small new tools the compiler needs that agent.ipynb has no reason to carry
+# itself (`extract_value`, `open_path`, `finish_business_outcome`). None of them touch the body of
+# any tool copied above.
+#
+# ## How the user tests this
+# Before you start: `.env` has the API key and the ParaBank test user. Kernel = this repo's
+# `.venv`. ParaBank is up. Run cells top to bottom.
+#
+# | Step | Run cells | What you should see (exact lines) |
+# |---|---|---|
+# | 1. Browser setup | `BROWSER 1` to `BROWSER 7` (verbatim) | `model: anthropic:claude-sonnet-5 \| base: https://parabank.parasoft.com/parabank`, then `opened: https://parabank.parasoft.com/parabank/index.htm`, then `[lock] initial setup done ...`, then `tools ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'page_text', 'request_value', 'request_missing_values', 'ask_human', 'finish']` |
+# | 2. Capture additions | `BROWSER 8` to `BROWSER 11` | `capture ready: ['observe', 'click', 'type_text', 'type_secret', 'select_option', 'page_text', 'request_value', 'request_missing_values', 'ask_human', 'finish', 'extract_value', 'open_path', 'finish_business_outcome']`, then `agent ready (capture)` |
+# | 3. A good balance run, starting logged out | `BROWSER 12`, with `GOAL = "Log in and read the balance of account <YOUR_ACCOUNT_ID>."` (an account you own) | the agent logs in, opens the account, reads the balance. Then `AGENT SAID: ...`, then `captured N events`, then a printed table of events. You should see `type_secret` twice, `click` (Log In), `open_path` or `click` (reaching the account), `extract_value`, `finish` |
+# | 4. A bad-input probe (needs run 3's login still active) | `BROWSER 13`, with `GOAL = "Open account <A_BAD_ACCOUNT_ID> and, if it does not exist, call finish_business_outcome with outcome='ACCOUNT_NOT_FOUND' and the exact page text that proves it."` | `AGENT SAID: ...` ending in a `finish_business_outcome` call; `captured N events`; the last event's `tool` is `finish_business_outcome` with `status: ok` |
+# | 5. Compile and save | `BROWSER 14` | two YAML blocks (`----- login: login_parabank -----`, `----- task: get_account_balance -----`, now including the business outcome rule from step 4), then `----- report -----`, then `saved: artifacts/login_parabank.yaml` and `saved: artifacts/get_account_balance.yaml` |
+# | 6. Optional, risky flow | `BROWSER 15`, with a transfer goal | the browser shows the dark decision bar ("Agent wants to click 'Transfer'"). Click **Approve**. Then a YAML with `risk: risky` and `amount_input`, and `saved: artifacts/transfer_funds.yaml` |
+#
+# **Send back:** (1) the `tools ready:`/`capture ready:` lines, (2) the printed event tables from
+# steps 3 and 4, (3) the two saved YAML files (or paste them), (4) the `----- report -----` block,
+# (5) any red error, exactly as shown. Never paste `.env` or anything typed as a secret.
 
-# %% BROWSER 1: environment, secrets, model
+# %% BROWSER 1: Setup 1/4 (copied verbatim from agent.ipynb)
+import os
 import asyncio
 import base64
-import functools
-import os
-
+import json
+import re
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
+
 MODEL = os.getenv("MODEL", "anthropic:claude-sonnet-5")
+BASE = "https://parabank.parasoft.com/parabank"
+ALLOWED_HOSTS = {"parabank.parasoft.com"}
+SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}
 
 
 def resolve_secret(name: str) -> str:
-    """Look up a secret by name. Raises on unknown name or empty value. The value is never printed."""
+    """Look up a secret by name. Raises on unknown name or empty value."""
     if name not in SECRETS:
         raise KeyError(f"unknown secret name: {name!r}")
     value = os.environ.get(SECRETS[name], "")
@@ -765,7 +1039,7 @@ def resolve_secret(name: str) -> str:
 
 print("model:", MODEL, "| base:", BASE)
 
-# %% BROWSER 2: open the browser (skips if one is already open in this kernel)
+# %% BROWSER 2: Setup 2/4 (copied verbatim from agent.ipynb)
 from playwright.async_api import async_playwright
 
 if "page" not in globals():
@@ -776,20 +1050,22 @@ if "page" not in globals():
 await page.goto(f"{BASE}/index.htm")
 print("opened:", page.url)
 
-# %% BROWSER 3: domain guard
-def host_allowed(url: str) -> bool:
-    return url == "about:blank" or urlparse(url).hostname in ALLOWED_HOSTS
+# %% BROWSER 3: Setup 3/4 (copied verbatim from agent.ipynb)
+from urllib.parse import urlparse
 
-# %% BROWSER 4: scanner with element descriptors, and read_labeled_value
+
+def host_allowed(url: str) -> bool:
+    if url == "about:blank":
+        return True
+    return urlparse(url).hostname in ALLOWED_HOSTS
+
+# %% BROWSER 4: Setup 4/4 (copied verbatim from agent.ipynb)
 from dataclasses import dataclass
 
-# The model still sees only "[ref] role "name"". The extra fields are for the recorder.
-# data-cua-ref is a TEMPORARY handle so a tool can find the element the model pointed at. It is never saved.
 OBSERVE_JS = """
 () => {
   document.querySelectorAll('[data-cua-ref]').forEach(e => e.removeAttribute('data-cua-ref'));
   const sel = 'a[href], button, input:not([type=hidden]), select, textarea, [role=button], [role=link], [onclick]';
-  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
   const roleOf = (el) => {
     const r = el.getAttribute('role'); if (r) return r;
     const t = el.tagName.toLowerCase();
@@ -806,42 +1082,15 @@ OBSERVE_JS = """
     }
     return 'generic';
   };
-  const formCtl = (el) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
-  // [name, where the name came from]. Only aria/label/value/text/attr_acc are real accessible names.
-  // 'attr' (the name= or id= attribute) is NOT one, so the recorder will not build a role locator from it.
-  const nameInfo = (el) => {
-    const aria = norm(el.getAttribute('aria-label')); if (aria) return [aria, 'aria'];
-    const lb = el.getAttribute('aria-labelledby');
-    if (lb) { const t = norm(lb.split(/\\s+/).map(id => (document.getElementById(id) || {}).innerText || '').join(' ')); if (t) return [t, 'aria']; }
-    if (el.labels && el.labels.length) { const t = norm(el.labels[0].innerText); if (t) return [t, 'label']; }
-    const tag = el.tagName.toLowerCase(), ty = (el.getAttribute('type') || '').toLowerCase();
-    if (tag === 'input' && ['submit', 'button', 'reset'].includes(ty)) { const v = norm(el.value); if (v) return [v, 'value']; }
-    if (!['select', 'textarea', 'input'].includes(tag)) { const t = norm(el.innerText); if (t) return [t.slice(0, 80), 'text']; }
-    for (const a of ['placeholder', 'title', 'alt']) { const v = norm(el.getAttribute(a)); if (v) return [v, 'attr_acc']; }
-    const nm = el.getAttribute('name') || el.id; if (nm) return [nm, 'attr'];
-    return ['', 'none'];
-  };
-  const labelOf = (el, role) => {
-    if (!formCtl(el) || role === 'button') return '';
-    if (el.labels && el.labels.length) return norm(el.labels[0].innerText).slice(0, 60);
-    const cell = el.closest('td, th, dd');
-    const prev = cell && cell.previousElementSibling;
-    return prev ? norm(prev.innerText).slice(0, 60) : '';
-  };
-  // The container the control sits in. Controls prefer their form, other things prefer their table.
-  const containerOf = (el) => {
-    const form = el.closest('form, [role=form]');
-    const tbl = el.closest('table, [role=table], [role=grid]');
-    const c = formCtl(el) || el.tagName === 'BUTTON' ? (form || tbl) : (tbl || form);
-    if (!c) return [null, null];
-    const isForm = c === form;
-    let name = norm(c.getAttribute('aria-label'));
-    if (!name) { const lb = c.getAttribute('aria-labelledby'); if (lb) name = norm(lb.split(/\\s+/).map(id => (document.getElementById(id) || {}).innerText || '').join(' ')); }
-    if (!name && !isForm) { const cap = c.querySelector('caption'); if (cap) name = norm(cap.innerText); }
-    if (!name && isForm) { const lg = c.querySelector('legend'); if (lg) name = norm(lg.innerText); }
-    const tag = el.tagName.toLowerCase();
-    const nth = Array.from(c.querySelectorAll(tag)).indexOf(el) + 1;
-    return [{ role: isForm ? 'form' : 'table', name: name || null }, nth || null];
+  const nameOf = (el) => {
+    const aria = el.getAttribute('aria-label'); if (aria) return aria.trim();
+    if (el.labels && el.labels.length) return el.labels[0].innerText.trim();
+    const t = el.tagName.toLowerCase();
+    const ty = (el.getAttribute('type') || '').toLowerCase();
+    if (t === 'input' && ['submit', 'button', 'reset'].includes(ty)) return (el.value || '').trim();
+    const txt = (el.innerText || '').trim(); if (txt) return txt.slice(0, 80);
+    return (el.getAttribute('placeholder') || el.getAttribute('title') ||
+            el.getAttribute('alt') || el.getAttribute('name') || '').trim();
   };
   const items = [];
   document.querySelectorAll(sel).forEach((el) => {
@@ -850,15 +1099,18 @@ OBSERVE_JS = """
     if (r.width < 2 || r.height < 2 || st.visibility === 'hidden' || st.display === 'none') return;
     const ref = items.length + 1;
     el.setAttribute('data-cua-ref', String(ref));
-    const role = roleOf(el), ni = nameInfo(el), cn = containerOf(el);
+    const valueOf = (el) => {
+      const t = el.tagName.toLowerCase();
+      if (t === 'select') return el.selectedOptions[0] ? el.selectedOptions[0].text.trim() : '';
+      if (t === 'input' || t === 'textarea') {
+        const ty = (el.getAttribute('type') || 'text').toLowerCase();
+        if (['submit', 'button', 'reset', 'image', 'password'].includes(ty)) return '';
+        return (el.value || '').trim();
+      }
+      return '';
+    };
     items.push({
-      ref, role, name: ni[0], name_source: ni[1],
-      tag: el.tagName.toLowerCase(), type: (el.getAttribute('type') || '').toLowerCase() || null,
-      label: labelOf(el, role) || null,
-      text: formCtl(el) ? null : (norm(el.innerText).slice(0, 80) || null),
-      container: cn[0], nth: cn[1],
-      options: el.tagName === 'SELECT' ? Array.from(el.options).map(o => o.text.trim()).slice(0, 15) : null,
-      submit: (el.tagName === 'BUTTON' && el.type !== 'button') || (el.tagName === 'INPUT' && ['submit', 'image'].includes(el.type)),
+      ref, role: roleOf(el), name: nameOf(el), value: valueOf(el),
       x: r.x, y: r.y, w: r.width, h: r.height,
       inViewport: r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth,
     });
@@ -884,60 +1136,16 @@ DRAW_JS = """
   document.body.appendChild(box);
 }
 """
+
 CLEAR_JS = "() => { const o = document.getElementById('__cua_overlay'); if (o) o.remove(); }"
-
-HEADING_JS = """
-() => {
-  const vis = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none'; };
-  const pick = (q) => Array.from(document.querySelectorAll(q)).find(vis);
-  const el = pick('h1') || pick('.title') || pick('h2');
-  return ((el && el.innerText) || document.title || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
-}
-"""
-
-# The value shown next to a label: the cell after it, the input a <label> points at, or the next sibling.
-READ_LABELED_JS = """
-(label) => {
-  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
-  const bare = (s) => norm(s).replace(/:$/, '').toLowerCase();
-  const want = bare(label);
-  const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
-  const all = Array.from(document.body.querySelectorAll('td, th, dt, label, b, strong, span, div, p, li')).filter(vis);
-  const hits = all.filter(e => bare(e.innerText || e.textContent) === want &&
-                               !Array.from(e.children).some(c => bare(c.innerText || c.textContent) === want));
-  const valueOf = (el) => {
-    const cell = el.closest('td, th, dt');
-    if (cell && cell.nextElementSibling) return norm(cell.nextElementSibling.innerText);
-    if (el.tagName === 'LABEL' && el.htmlFor) { const t = document.getElementById(el.htmlFor); if (t) return norm(t.value || t.innerText); }
-    if (el.nextElementSibling) return norm(el.nextElementSibling.innerText);
-    let n = el.nextSibling;
-    while (n) { const t = norm(n.textContent); if (t) return t; n = n.nextSibling; }
-    return '';
-  };
-  for (const h of hits) { const v = valueOf(h); if (v) return { value: v, matches: hits.length }; }
-  return { value: '', matches: hits.length };
-}
-"""
-
-
-async def read_labeled_value(page, label: str) -> str:
-    """The value shown next to `label` on the current page. Raises LookupError if there is none.
-    Written to be reused by Phase 4 replay, so record and replay read values the same way."""
-    res = await page.evaluate(READ_LABELED_JS, label)
-    if not res["value"]:
-        raise LookupError(f"no value found next to the label {label!r}")
-    return res["value"]
-
-
-def shown_name(e: dict) -> str:
-    """What the model sees. A name that is only an attribute (fromAccountId) reads better as its label."""
-    return e["label"] if e.get("name_source") == "attr" and e.get("label") else e["name"]
 
 
 def format_elements(elements: list[dict]) -> str:
     lines = []
     for e in elements:
-        line = f'[{e["ref"]}] {e["role"]} "{shown_name(e)}"'
+        line = f'[{e["ref"]}] {e["role"]} "{e["name"]}"'
+        if e.get("value"):
+            line += f' = {e["value"]!r}'      # already-typed content, so the model does not have to guess from pixels
         if e.get("options"):
             line += f' options={e["options"]}'
         if not e["inViewport"]:
@@ -972,34 +1180,41 @@ class PlaywrightSurface:
         self.last_elements = elements
         return Observation(png, elements, self.page.url, await self.page.title())
 
-    def element(self, ref: int) -> dict | None:
-        return next((e for e in self.last_elements if e["ref"] == ref), None)
-
     def name_of(self, ref: int) -> str | None:
-        e = self.element(ref)
-        return shown_name(e) if e else None
+        for e in self.last_elements:
+            if e["ref"] == ref:
+                return e["name"]
+        return None
 
-    async def click(self, ref: int):
-        await self.page.locator(f'[data-cua-ref="{ref}"]').click(timeout=5000)
-        await self.page.wait_for_timeout(600)
-        try:
-            await self.page.wait_for_load_state("load", timeout=5000)
-        except Exception:
-            pass
-
-    async def type_text(self, ref: int, text: str):
-        await self.page.locator(f'[data-cua-ref="{ref}"]').fill(text, timeout=5000)
-
-    async def page_text(self) -> str:
-        return (await self.page.inner_text("body"))[:4000]
+# %% BROWSER 5: STEP 1 (copied verbatim from agent.ipynb)
+OBSERVE_JS = OBSERVE_JS.replace(
+    "inViewport: r.bottom",
+    "options: el.tagName === 'SELECT' ? Array.from(el.options).map(o => o.text.trim()).slice(0, 15) : null,\n"
+    "      submit: (el.tagName === 'BUTTON' && el.type !== 'button') || (el.tagName === 'INPUT' && ['submit', 'image'].includes(el.type)),\n"
+    "      inViewport: r.bottom",
+)
+assert "options:" in OBSERVE_JS and "submit:" in OBSERVE_JS, "patch did not apply"
 
 
-surface = PlaywrightSurface(page)
-print("scanner ready")
+def format_elements(elements: list[dict]) -> str:
+    lines = []
+    for e in elements:
+        line = f'[{e["ref"]}] {e["role"]} "{e["name"]}"'
+        if e.get("options"):
+            line += f' options={e["options"]}'
+        if not e["inViewport"]:
+            line += " (below the fold)"
+        lines.append(line)
+    return "\n".join(lines)
 
-# %% BROWSER 5: takeover (red bar with a Done button) and the approval bar
+
+# %% BROWSER 6: STEP 2 (copied verbatim from agent.ipynb)
+import asyncio
+from langgraph.types import Command
+
 HANDBACK = {"event": None}
 
+# ---- Approve / Reject / Take over buttons (their own floating bar, always clickable) ----
 DECISION_JS = """(info) => new Promise(resolve => {
   const bar = document.createElement('div');
   bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#111;color:#fff;font:14px sans-serif;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center';
@@ -1016,26 +1231,144 @@ DECISION_JS = """(info) => new Promise(resolve => {
   document.body.appendChild(bar);
 })"""
 
-BANNER_JS = """
+# ---- Whole-page lock: while it is the agent's turn, a real human can neither click nor type
+# anywhere on the page. Our own injected UI (this banner, the decision bar above) always sits
+# on a higher z-index, so it stays usable regardless of lock state. Our OWN automated actions
+# use force=True (STEP 3), which bypasses this overlay entirely -- it only stops a real human's
+# mouse and keyboard, never Playwright's own dispatched actions. ----
+LOCK_JS = """
+() => {
+  if (!document.getElementById('__cua_lock')) {
+    const d = document.createElement('div');
+    d.id = '__cua_lock';
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:transparent;';
+    document.documentElement.appendChild(d);
+  }
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  if (!window.__cuaBlockKeys) {
+    // Let typing through for an element explicitly poked open by RESTRICT_JS (allow_refs mode).
+    // Without this check, the click-blocking overlay and the keyboard block were two separate
+    // mechanisms: raising an element's z-index let a click focus it, but every keystroke was
+    // still swallowed here, at the document level, regardless of what had focus.
+    window.__cuaBlockKeys = (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('__cua_allowed')) return;
+      e.preventDefault(); e.stopPropagation();
+    };
+    document.addEventListener('keydown', window.__cuaBlockKeys, true);
+    document.addEventListener('keypress', window.__cuaBlockKeys, true);
+  }
+}
+"""
+UNLOCK_JS = """
+() => {
+  document.getElementById('__cua_lock')?.remove();
+  if (window.__cuaBlockKeys) {
+    document.removeEventListener('keydown', window.__cuaBlockKeys, true);
+    document.removeEventListener('keypress', window.__cuaBlockKeys, true);
+    window.__cuaBlockKeys = null;
+  }
+}
+"""
+
+# ---- Risky-element block: separate from the general lock above. During a GENERAL takeover
+# (filling in a field), the rest of the page opens up but the risky button must still stay
+# non-interactive. Only the take-over-to-submit case turns this off too. ----
+BLOCK_JS = """(refs) => {
+  document.querySelectorAll('.__cua_blocked').forEach(el => {
+    el.classList.remove('__cua_blocked');
+    el.style.filter = ''; el.style.pointerEvents = ''; el.style.opacity = '';
+  });
+  refs.forEach(ref => {
+    const el = document.querySelector(`[data-cua-ref="${ref}"]`);
+    if (el) { el.classList.add('__cua_blocked'); el.style.filter = 'blur(3px)'; el.style.pointerEvents = 'none'; el.style.opacity = '0.5'; }
+  });
+}"""
+UNBLOCK_JS = "() => document.querySelectorAll('.__cua_blocked').forEach(el => { el.classList.remove('__cua_blocked'); el.style.filter = ''; el.style.pointerEvents = ''; el.style.opacity = ''; })"
+
+# ---- Restrict to specific fields: keep the general lock fully ACTIVE, and poke a hole (raise
+# z-index above the lock, but below our own UI) for ONLY the given refs. A visible green outline
+# shows the human exactly what is expected. Used by request_value/request_missing_values, where
+# we know precisely which field(s) are needed -- unlike ask_human or the approval take-over,
+# which genuinely need broader access. ----
+RESTRICT_JS = """(refs) => {
+  document.querySelectorAll('.__cua_allowed').forEach(el => {
+    el.classList.remove('__cua_allowed');
+    el.style.position = ''; el.style.zIndex = ''; el.style.outline = '';
+  });
+  refs.forEach(ref => {
+    const el = document.querySelector(`[data-cua-ref="${ref}"]`);
+    if (el) {
+      el.classList.add('__cua_allowed');
+      if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+      el.style.zIndex = '2147483001';
+      el.style.outline = '3px solid #2a7';
+    }
+  });
+}"""
+UNRESTRICT_JS = "() => document.querySelectorAll('.__cua_allowed').forEach(el => { el.classList.remove('__cua_allowed'); el.style.position = ''; el.style.zIndex = ''; el.style.outline = ''; })"
+
+BANNER_ONLY_JS = """
+() => {
+  if (document.getElementById('__cua_banner')) return;
+  const q = sessionStorage.getItem('cua_question') || '';
+  const b = document.createElement('div');
+  b.id = '__cua_banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c00;color:#fff;font:14px sans-serif;padding:8px;display:flex;gap:12px;align-items:center;justify-content:center';
+  const label = document.createElement('b'); label.textContent = 'YOU are in control.';
+  const msg = document.createElement('span'); msg.textContent = q ? 'Agent asks: ' + q : 'Do the step in this page.';
+  const btn = document.createElement('button'); btn.textContent = 'Done, hand back to agent';
+  btn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer';
+  btn.onclick = () => window.__cua_handback();
+  b.append(label, msg, btn);
+  document.documentElement.appendChild(b);
+}
+"""
+
+# ---- "You are in control" bar with a Done button. Runs on every page load (add_init_script);
+# also applied immediately to the current page. Locked/unlocked state is driven by the SAME
+# 'cua_takeover' sessionStorage flag, so both stay in sync across navigations for free. ----
+SYNC_UI_JS = """
 (() => {
-  const render = () => {
-    if (sessionStorage.getItem('cua_takeover') !== '1' || document.getElementById('__cua_banner')) return;
-    const q = sessionStorage.getItem('cua_question') || '';
-    const b = document.createElement('div');
-    b.id = '__cua_banner';
-    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c00;color:#fff;font:14px sans-serif;padding:8px;display:flex;gap:12px;align-items:center;justify-content:center';
-    const label = document.createElement('b');
-    label.textContent = 'YOU are in control.';
-    const msg = document.createElement('span');
-    msg.textContent = q ? 'Agent asks: ' + q : 'Do the step in this page.';
-    const btn = document.createElement('button');
-    btn.textContent = 'Done, hand back to agent';
-    btn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer';
-    btn.onclick = () => window.__cua_handback();
-    b.append(label, msg, btn);
-    document.documentElement.appendChild(b);
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render); else render();
+  const active = sessionStorage.getItem('cua_takeover') === '1';
+  if (!active) {
+    if (!document.getElementById('__cua_lock')) {
+      const d = document.createElement('div');
+      d.id = '__cua_lock';
+      d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:transparent;';
+      document.documentElement.appendChild(d);
+    }
+    if (!window.__cuaBlockKeys) {
+      window.__cuaBlockKeys = (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('__cua_allowed')) return;
+        e.preventDefault(); e.stopPropagation();
+      };
+      document.addEventListener('keydown', window.__cuaBlockKeys, true);
+      document.addEventListener('keypress', window.__cuaBlockKeys, true);
+    }
+    document.getElementById('__cua_banner')?.remove();
+    return;
+  }
+  document.getElementById('__cua_lock')?.remove();
+  if (window.__cuaBlockKeys) {
+    document.removeEventListener('keydown', window.__cuaBlockKeys, true);
+    document.removeEventListener('keypress', window.__cuaBlockKeys, true);
+    window.__cuaBlockKeys = null;
+  }
+  if (document.getElementById('__cua_banner')) return;
+  const q = sessionStorage.getItem('cua_question') || '';
+  const b = document.createElement('div');
+  b.id = '__cua_banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c00;color:#fff;font:14px sans-serif;padding:8px;display:flex;gap:12px;align-items:center;justify-content:center';
+  const label = document.createElement('b');
+  label.textContent = 'YOU are in control.';
+  const msg = document.createElement('span');
+  msg.textContent = q ? 'Agent asks: ' + q : 'Do the step in this page.';
+  const btn = document.createElement('button');
+  btn.textContent = 'Done, hand back to agent';
+  btn.style.cssText = 'padding:6px 14px;font-size:14px;cursor:pointer';
+  btn.onclick = () => window.__cua_handback();
+  b.append(label, msg, btn);
+  document.documentElement.appendChild(b);
 })();
 """
 
@@ -1043,70 +1376,92 @@ if "_takeover_ready" not in globals():
     async def _handback():
         if HANDBACK["event"]:
             HANDBACK["event"].set()
-    await page.expose_function("__cua_handback", _handback)
-    await page.add_init_script(BANNER_JS)
+    await page.expose_function("__cua_handback", _handback)   # page -> notebook signal
+    await page.add_init_script(SYNC_UI_JS)                    # keeps lock/banner correct after every navigation
+    # sessionStorage lives in the BROWSER TAB, not the Python kernel: restarting the kernel does
+    # NOT clear it, since Playwright's browser process is separate and keeps running. Force-clear
+    # any flag left over from an earlier, possibly-interrupted run, so a fresh kernel always starts
+    # from a known "not in takeover" state regardless of the tab's history.
+    await page.evaluate("() => { sessionStorage.removeItem('cua_takeover'); sessionStorage.removeItem('cua_question'); }")
+    await page.evaluate(SYNC_UI_JS)                            # apply to the current page right now (locked by default)
+    _lock_present = await page.evaluate("() => !!document.getElementById('__cua_lock')")
+    print(f"[lock] initial setup done | __cua_lock present on page: {_lock_present} | url={page.url}")
     _takeover_ready = True
 
 
-async def human_takeover(question: str = "") -> str:
-    """Give the live browser to a human. Returns when they click 'Done' in the page."""
+async def human_takeover(question: str = "", auto_on_navigate: bool = False, block_risky: bool = True, allow_refs: list[int] | None = None) -> str:
+    """Give the live browser to a human. Returns when they click 'Done', OR, if auto_on_navigate
+    is set, as soon as the page reloads at all (same url or not -- a form POST-back that
+    re-renders the same url still counts).
+
+    allow_refs, when given, is the STRICTEST mode: the general lock stays fully ACTIVE, and only
+    these specific elements are poked open (a visible green outline marks them). Everything else
+    on the page, including navigation links, stays locked. Used by request_value and
+    request_missing_values, which know exactly which field(s) are needed.
+
+    Without allow_refs, the whole page unlocks instead. block_risky=True (the default) then
+    ADDITIONALLY blurs and disables every button needs_human (STEP 3) would flag, so a general
+    takeover (ask_human) can still not be used to bypass the approval step. The one call site
+    that should pass block_risky=False is the take-over-to-submit case in click(), since acting
+    on that specific button is the entire point of that one takeover.
+
+    auto_on_navigate=True is for that same approval-step takeover: the human took over
+    specifically to click a submit button, so ANY resulting page reload IS the "done" signal.
+    """
     HANDBACK["event"] = asyncio.Event()
     visited = []
-    on_nav = lambda frame: visited.append(norm_url(frame.url)) if frame == page.main_frame else None
+    print(f"[takeover] started | auto_on_navigate={auto_on_navigate} | block_risky={block_risky} | allow_refs={allow_refs} | url={page.url}")
+
+    def on_nav(frame):
+        if frame != page.main_frame:
+            return
+        visited.append(frame.url)
+        print(f"[takeover] framenavigated fired -> {frame.url}")
+        if auto_on_navigate and not HANDBACK["event"].is_set():
+            HANDBACK["event"].set()
+            print("[takeover] auto hand-back triggered")
+
     page.on("framenavigated", on_nav)
     await page.evaluate("([q]) => { sessionStorage.setItem('cua_takeover', '1'); sessionStorage.setItem('cua_question', q); }", [question])
-    await page.evaluate(BANNER_JS)
+    if allow_refs is not None:
+        await page.evaluate(BANNER_ONLY_JS)     # lock stays active; only these refs are poked open
+        await page.evaluate(RESTRICT_JS, allow_refs)
+        risky = []
+    else:
+        await page.evaluate(SYNC_UI_JS)
+        risky = [e["ref"] for e in surface.last_elements if e["inViewport"] and needs_human(e["ref"])] if block_risky else []
+        if block_risky:
+            await page.evaluate(BLOCK_JS, risky)
+    _lock_present = await page.evaluate("() => !!document.getElementById('__cua_lock')")
+    print(f"[lock] takeover open | __cua_lock present={_lock_present} (True only expected in allow_refs mode) | risky refs blocked: {risky}")
     await HANDBACK["event"].wait()
+    print(f"[takeover] hand-back received | visited={visited} | url now={page.url}")
     page.remove_listener("framenavigated", on_nav)
-    await page.evaluate("sessionStorage.removeItem('cua_takeover'); sessionStorage.removeItem('cua_question'); document.getElementById('__cua_banner')?.remove()")
-    text = (await page.inner_text("body"))[:300].replace("\n", " ")
-    return f"Pages the human visited: {visited or 'none'}. Page now: {norm_url(page.url)}. Page text: {text}"
-
-print("takeover ready")
-
-# %% BROWSER 6: capture (events)
-from langchain.tools import tool
-
-EVENTS: list[dict] = []          # the recording. One dict per tool call. No secret values, no extracted values.
-DECLARED: dict[str, str] = {}    # input name -> the literal value the user declared for this run (D29)
-GIVEN = {"text": ""}             # the goal text of this run
-TYPED: dict[str, str] = {}       # what the agent entered, by field name (shown in the approval bar)
-DECLINED: set[str] = set()       # buttons a human refused. Never clicked again this run.
-RESULT: dict = {}
-
-DESCRIPTOR_KEYS = ("role", "name", "name_source", "tag", "type", "label", "text", "submit", "options", "container", "nth")
-
-
-async def page_state() -> dict:
+    if allow_refs is not None:
+        await page.evaluate(UNRESTRICT_JS)
+    elif block_risky:
+        await page.evaluate(UNBLOCK_JS)
     try:
-        heading = await page.evaluate(HEADING_JS)
-    except Exception:
-        heading = ""
-    return {"url": norm_url(page.url), "heading": heading}
+        await page.evaluate("sessionStorage.removeItem('cua_takeover'); sessionStorage.removeItem('cua_question');")
+        await page.evaluate(SYNC_UI_JS)   # re-lock and remove the banner right away (safe in both modes)
+        _lock_present = await page.evaluate("() => !!document.getElementById('__cua_lock')")
+        print(f"[lock] takeover ended, re-locked | __cua_lock present (should be True): {_lock_present}")
+    except Exception as exc:
+        print(f"[lock] could not confirm re-lock after hand-back (page likely moved on): {type(exc).__name__}")
+    text = (await page.inner_text("body"))[:300].replace("\n", " ")
+    return f"Pages the human visited: {visited or 'none'}. Page now: {page.url}. Page text: {text}"
 
 
-def descriptor_of(ref: int) -> dict | None:
-    """Describe the element the model pointed at. The temporary ref number is left out on purpose."""
-    e = surface.element(ref)
-    return {k: e.get(k) for k in DESCRIPTOR_KEYS} if e else None
+def approval_info(args: dict) -> dict:
+    name = surface.name_of(args["ref"])
+    fields = "; ".join(f"{k}: {v}" for k, v in TYPED.items()) or "(nothing typed)"
+    return {"title": f"Agent wants to click '{name}' on {page.url.split('/')[-1]}", "details": f"Values it entered: {fields}"}
 
+# %% BROWSER 7: STEP 3 (copied verbatim from agent.ipynb)
+import asyncio, base64, functools
+from langchain.tools import tool
+from langchain.agents.middleware import AgentMiddleware, AgentState, Runtime
 
-async def record(tool_name: str, before: dict, status: str = "ok", el: dict | None = None, **extra):
-    EVENTS.append({"i": len(EVENTS), "tool": tool_name, "status": status, "before": before,
-                   "after": await page_state(), "el": el, **extra})
-
-
-def is_given(text: str) -> bool:
-    """D34 + D29: a typed or chosen value must be a declared input value, or a whole word/number in the goal."""
-    t = text.strip()
-    if not t:
-        return False
-    return any(same_value(t, v) for v in DECLARED.values()) or contains_literal(GIVEN["text"].lower(), t.lower())
-
-
-print("capture ready")
-
-# %% BROWSER 7: tools (Phase 1 safety kept; every tool logs an event)
 ACT_LOCK = asyncio.Lock()
 
 
@@ -1118,9 +1473,45 @@ def one_at_a_time(fn):
     return wrapper
 
 
+TYPED: dict[str, str] = {}      # what the agent entered, by field name (shown in the approval bar)
+GIVEN = {"text": ""}            # what the user actually gave us; set before each run
+RESULT: dict = {}
 DENY_LINKS = ("register", "lookup", "admin")
-SAFE_SUBMITS = {"log in", "find transactions"}   # buttons that do not change data
-AUTO_LIMIT = None                                # None = always ask a human. Later: 500.0 for small transfers
+SENSITIVE_WORDS = ("ssn", "password", "social")
+
+
+async def _unlocked(coro):
+    """Run one Playwright action with the general lock (STEP 2) removed for just that instant.
+    force=True alone does NOT bypass the lock: Playwright still dispatches the click/fill by
+    coordinate ('use page.mouse over the center of the element', per its own docs), so the real
+    browser hit-tests normally and the lock overlay -- being on top -- would receive it instead
+    of our intended target. Genuinely removing the lock, only for this one action, is what
+    actually works."""
+    await page.evaluate(UNLOCK_JS)
+    try:
+        return await coro
+    finally:
+        await page.evaluate(LOCK_JS)
+
+
+async def _click(self, ref: int):
+    await _unlocked(self.page.locator(f'[data-cua-ref="{ref}"]').click(timeout=5000, force=True))
+    await self.page.wait_for_timeout(600)
+    try:
+        await self.page.wait_for_load_state("load", timeout=5000)
+    except Exception:
+        pass
+
+async def _type_text(self, ref: int, text: str):
+    await _unlocked(self.page.locator(f'[data-cua-ref="{ref}"]').fill(text, timeout=5000, force=True))
+
+async def _page_text(self) -> str:
+    return (await self.page.inner_text("body"))[:4000]
+
+PlaywrightSurface.click = _click
+PlaywrightSurface.type_text = _type_text
+PlaywrightSurface.page_text = _page_text
+surface = PlaywrightSurface(page)
 
 
 def _blocks(prefix: str, obs) -> list[dict]:
@@ -1131,42 +1522,56 @@ def _blocks(prefix: str, obs) -> list[dict]:
     ]
 
 
+def _describe(ref: int, hint: str = "") -> str:
+    """Best available description of an element: the code's own name, the model's visual
+    hint, both together, or a last-resort 'field N' only if neither is available. This is
+    what closes the gap between D2 (the model can read a label visually, from the screenshot)
+    and a human-facing message (which used to ask only the code, never the model)."""
+    name = (surface.name_of(ref) or "").strip()
+    hint = (hint or "").strip()
+    if name and hint:
+        return f"{name} ({hint})"
+    return name or hint or f"field {ref}"
+
+
+START_PAGES = {"overview.htm", "index.htm"}   # start pages: asking a human here is too early. Open the task page first.
+
+
 def current_page() -> str:
     """Page name from the URL: no query, no ;jsessionid=, no trailing slash, lower case."""
     return page.url.split("?")[0].split(";")[0].rstrip("/").rsplit("/", 1)[-1].lower()
 
 
-def _amount() -> float:
-    raw = next((v for k, v in TYPED.items() if k.startswith("amount")), "").replace("$", "").replace(",", "")
+async def current_value(ref: int) -> str:
+    """Read whatever is currently in this field, live from the page. Empty string if none or unreadable."""
     try:
-        return float(raw)
-    except ValueError:
-        return float("inf")                      # unknown amount counts as risky
+        loc = page.locator(f'[data-cua-ref="{ref}"]')
+        tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+        if tag == "select":
+            return (await loc.evaluate("el => el.selectedOptions[0] ? el.selectedOptions[0].text : ''")).strip()
+        return (await loc.input_value(timeout=1000)).strip()
+    except Exception:
+        return ""
 
 
-def needs_human(ref: int) -> bool:
-    """Every button except a short safe list needs a human. Links (navigation) run freely."""
-    el = surface.element(ref)
-    role = (el or {}).get("role")
-    name = (surface.name_of(ref) or "").strip().lower()
-    risky = bool(el) and (bool(el.get("submit")) or role == "button") and name not in SAFE_SUBMITS
-    if risky and "transfer" in name and AUTO_LIMIT is not None and _amount() <= AUTO_LIMIT:
-        risky = False
-    print(f"approval check -> role={role!r} name={name!r} risky={risky}")
-    return risky
-
-
-def approval_info(ref: int) -> dict:
-    fields = "; ".join(f"{k}: {v}" for k, v in TYPED.items()) or "(nothing typed)"
-    return {"title": f"Agent wants to click '{surface.name_of(ref)}' on {current_page()}", "details": f"Values it entered: {fields}"}
-
-
-async def _ask_for_value(field: str, kind: str, tool_name: str, before: dict, el: dict | None) -> list:
-    """The agent tried to enter a value the user never gave. Hand the browser to a human.
-    The compile refuses runs with a handoff: a hand-typed step cannot be recorded."""
-    report = await human_takeover(f"I need a value for '{field}' and you did not give me one. Please {kind} it yourself in the page, then click Done.")
-    await record(tool_name, before, "handoff", el)
-    return _blocks(f"A human entered the value for '{field}' themselves. Do NOT type it again. {report}", await surface.observe())
+async def _ask_for_value(ref: int, field: str, kind: str) -> list:
+    """The agent tried to enter a value the user never gave. Hand the browser to a human --
+    unless the field already has a value, in which case refuse and say so. This is a code
+    guarantee, not something left to the model's memory of what it already asked about."""
+    val = await current_value(ref)
+    if val:
+        return _blocks(
+            f"SKIP: '{field}' already has a value ({val!r}). Do not ask about it again; move to a different field.",
+            await surface.observe(),
+        )
+    report = await human_takeover(
+        f"I need a value for '{field}' and you did not give me one. Please {kind} it yourself in the page, then click Done.",
+        allow_refs=[ref],
+    )
+    return _blocks(
+        f"A human entered the value for '{field}' themselves. Do NOT type it again. {report}",
+        await surface.observe(),
+    )
 
 
 @tool(parse_docstring=True)
@@ -1177,10 +1582,52 @@ async def observe() -> list:
     Returns:
         A screenshot with red numbered boxes, plus a text list of the numbered elements.
     """
-    before = await page_state()
-    obs = await surface.observe()
-    await record("observe", before)
-    return _blocks("Current page.", obs)
+    return _blocks("Current page.", await surface.observe())
+
+
+SAFE_SUBMITS = {"log in", "find transactions"}   # buttons that do not change data
+AUTO_LIMIT = None                                # None = always ask a human. Later: 500.0 for small transfers
+DECLINED: set[str] = set()                       # buttons a human refused; never clicked again this run
+
+
+def _amount() -> float:
+    raw = TYPED.get("amount", "").replace("$", "").replace(",", "")
+    try:
+        return float(raw)
+    except ValueError:
+        return float("inf")                      # unknown amount counts as risky
+
+
+def needs_human(ref: int) -> bool:
+    """Every button except a short safe list needs a human. Links (navigation) run freely."""
+    el = next((e for e in surface.last_elements if e["ref"] == ref), None)
+    role = (el or {}).get("role")
+    name = ((el or {}).get("name") or "").strip().lower()
+    risky = bool(el) and (bool(el.get("submit")) or role == "button") and name not in SAFE_SUBMITS
+    if risky and "transfer" in name and AUTO_LIMIT is not None and _amount() <= AUTO_LIMIT:
+        risky = False
+    print(f"approval check -> role={role!r} name={name!r} risky={risky}")
+    return risky
+
+
+LOGIN_ATTEMPTS = {"count": 0}
+LOGIN_BLOCKED = {"blocked": False}
+# Best-guess wording for ParaBank's own login failure message; not verified against the live
+# site in this session. The 3-attempt hard cap below is the guaranteed backstop regardless of
+# whether this text matches -- it does not depend on guessing the wording right.
+LOGIN_FAILURE_TEXTS = ("could not be verified", "user does not exist", "invalid username or password")
+LOGIN_ATTEMPT_LIMIT = 3
+
+
+def login_check(attempts_so_far: int, page_text_after: str, limit: int = LOGIN_ATTEMPT_LIMIT):
+    """Pure decision: after a login click, should further attempts be blocked, and why."""
+    attempts = attempts_so_far + 1
+    failed_text = next((t for t in LOGIN_FAILURE_TEXTS if t in page_text_after.lower()), None)
+    if failed_text:
+        return attempts, True, f"the login page reported: '{failed_text}'"
+    if attempts >= limit:
+        return attempts, True, f"login was attempted {attempts} times with no success"
+    return attempts, False, None
 
 
 @tool(parse_docstring=True)
@@ -1196,36 +1643,42 @@ async def click(ref: int) -> list:
     Returns:
         The new page state. If a human declined, the result says DECLINED and you must stop.
     """
-    before, el = await page_state(), descriptor_of(ref)
     name = (surface.name_of(ref) or "").strip().lower()
     if any(w in name for w in DENY_LINKS):
-        await record("click", before, "denied", el)
         return _blocks(f"DENIED: '{name}' is not allowed.", await surface.observe())
     if name in DECLINED:
-        await record("click", before, "declined", el)
         return _blocks("DECLINED earlier by a human. Do not retry. Call finish with 'DECLINED:' and stop.", await surface.observe())
-    approved = False
+    if name == "log in" and LOGIN_BLOCKED["blocked"]:
+        return _blocks("BLOCKED: login already failed or hit its attempt limit. Do not try again. Call finish with a summary starting 'STUCK:' and stop.", await surface.observe())
     if needs_human(ref):
-        choice = await page.evaluate(DECISION_JS, approval_info(ref))   # Approve / Reject / Take over appear in the browser
+        # The page is already locked (STEP 2) whenever it is not an active takeover, so a
+        # human cannot click the real button while this decision is pending -- only our own
+        # decision bar (its own higher z-index) is interactive right now.
+        choice = await page.evaluate(DECISION_JS, approval_info({"ref": ref}))
         if choice == "r":
             DECLINED.add(name)
-            await record("click", before, "declined", el)
             return _blocks("DECLINED by a human. Do not retry or work around it. Call finish with 'DECLINED:' and stop.", await surface.observe())
         if choice == "t":
-            report = await human_takeover()
-            await record("click", before, "handoff", el)
+            report = await human_takeover(question="", auto_on_navigate=True, block_risky=False)   # this IS the approval step; the human may act on the button itself
             return _blocks(f"A human completed this step manually in the browser. {report} Do NOT click again. Check the result from the page text, then call finish.", await surface.observe())
-        approved = True                                                  # a human said yes: this click becomes risk: risky
+        # choice == "a": approved, fall through. Our own click below uses force=True (STEP 3),
+        # so the still-locked page does not stop it.
     try:
         await surface.click(ref)
     except Exception as exc:
-        await record("click", before, "failed", el)
         return _blocks(f"CLICK FAILED for [{ref}]: {type(exc).__name__}", await surface.observe())
     if not host_allowed(page.url):
         await page.go_back()
-        await record("click", before, "blocked", el)
         return _blocks("BLOCKED: left the allowed site. Went back.", await surface.observe())
-    await record("click", before, "ok", el, approved=approved)
+    if name == "log in":
+        page_text_after = await surface.page_text()
+        LOGIN_ATTEMPTS["count"], blocked, reason = login_check(LOGIN_ATTEMPTS["count"], page_text_after)
+        if blocked:
+            LOGIN_BLOCKED["blocked"] = True
+            return _blocks(
+                f"STOP: login failed ({reason}). Do not try again. Call finish with a summary starting 'STUCK:' explaining this.",
+                await surface.observe(),
+            )
     return _blocks(f"Clicked [{ref}].", await surface.observe())
 
 
@@ -1243,18 +1696,14 @@ async def type_text(ref: int, text: str) -> list:
     Returns:
         The new page state.
     """
-    before, el = await page_state(), descriptor_of(ref)
-    field = (surface.name_of(ref) or f"field {ref}").strip()
-    words = f"{field} {(el or {}).get('name') or ''}".lower()
-    if any(w in words for w in SENSITIVE_WORDS) or not is_given(text):
-        return await _ask_for_value(field, "type", "type_text", before, el)
+    field = _describe(ref)
+    if any(w in field.lower() for w in SENSITIVE_WORDS) or text.strip().lower() not in GIVEN["text"].lower():
+        return await _ask_for_value(ref, field, "type")
     try:
         await surface.type_text(ref, text)
     except Exception as exc:
-        await record("type_text", before, "failed", el, value=text)
         return _blocks(f"TYPE FAILED for [{ref}]: {type(exc).__name__}", await surface.observe())
     TYPED[field.lower()] = text
-    await record("type_text", before, "ok", el, value=text)
     return _blocks(f"Typed into [{ref}].", await surface.observe())
 
 
@@ -1272,19 +1721,14 @@ async def type_secret(ref: int, name: str) -> list:
     Returns:
         The new page state. The value is never included.
     """
-    before, el = await page_state(), descriptor_of(ref)
     if name not in SECRETS:
-        await record("type_secret", before, "failed", el, value=name)
         return _blocks(f"UNKNOWN SECRET '{name}'. Use one of: {list(SECRETS)}", await surface.observe())
     if not host_allowed(page.url):
-        await record("type_secret", before, "denied", el, value=name)
         return _blocks("REFUSED: this site is not on the allowlist.", await surface.observe())
     try:
-        await page.locator(f'[data-cua-ref="{ref}"]').fill(resolve_secret(name), timeout=5000)
+        await _unlocked(page.locator(f'[data-cua-ref="{ref}"]').fill(resolve_secret(name), timeout=5000, force=True))
     except Exception as exc:
-        await record("type_secret", before, "failed", el, value=name)
         return _blocks(f"FAILED for [{ref}]: {type(exc).__name__}", await surface.observe())
-    await record("type_secret", before, "ok", el, value=name)          # the NAME is recorded, never the value
     return _blocks(f"Typed secret '{name}' into [{ref}].", await surface.observe())
 
 
@@ -1302,17 +1746,14 @@ async def select_option(ref: int, option: str) -> list:
     Returns:
         The new page state.
     """
-    before, el = await page_state(), descriptor_of(ref)
-    field = (surface.name_of(ref) or f"dropdown {ref}").strip()
-    if not is_given(option):
-        return await _ask_for_value(field, "choose", "select_option", before, el)
+    field = _describe(ref)
+    if option.strip().lower() not in GIVEN["text"].lower():
+        return await _ask_for_value(ref, field, "choose")
     try:
-        await page.locator(f'[data-cua-ref="{ref}"]').select_option(label=option, timeout=5000)
+        await _unlocked(page.locator(f'[data-cua-ref="{ref}"]').select_option(label=option, timeout=5000, force=True))
     except Exception as exc:
-        await record("select_option", before, "failed", el, value=option)
         return _blocks(f"SELECT FAILED for [{ref}]: {type(exc).__name__}", await surface.observe())
     TYPED[field.lower()] = option
-    await record("select_option", before, "ok", el, value=option)
     return _blocks(f"Selected '{option}' in [{ref}].", await surface.observe())
 
 
@@ -1324,80 +1765,7 @@ async def page_text() -> str:
     Returns:
         The page text, up to 4000 characters.
     """
-    before = await page_state()
-    text = await surface.page_text()
-    await record("page_text", before)
-    return text
-
-
-@tool(parse_docstring=True)
-@one_at_a_time
-async def extract_value(label: str, save_as: str, value_type: str = "string", description: str = "") -> str:
-    """Read the value shown next to a label on the page, and record it as an output of the capability.
-
-    Use this for anything the user wants to know, like a balance. Balances are not clickable, so
-    you point at them by their label, for example 'Balance:'.
-
-    Args:
-        label: The label text as shown on the page, for example 'Balance:'.
-        save_as: Output name in lower_snake_case, for example 'balance'.
-        value_type: One of string, integer, number, currency, boolean.
-        description: One short sentence saying what the value is. Do not put the value in it.
-
-    Returns:
-        The value that was read.
-    """
-    before = await page_state()
-    if not re.fullmatch(r"[a-z][a-z0-9_]*", save_as):
-        return "save_as must be lower_snake_case, like 'balance'."
-    if value_type not in VALUE_TYPES:
-        return f"value_type must be one of {sorted(VALUE_TYPES)}."
-    try:
-        value = await read_labeled_value(page, label)
-    except LookupError as exc:
-        await record("extract_value", before, "failed", None, label=label, save_as=save_as)
-        return f"FAILED: {exc}. Check the label on the page (use page_text) and try again."
-    if not value_matches_type(value, value_type):
-        await record("extract_value", before, "failed", None, label=label, save_as=save_as)
-        return f"FAILED: the value next to {label!r} does not look like a {value_type}. Use another value_type or label."
-    await record("extract_value", before, "ok", None, label=label, save_as=save_as, value_type=value_type, description=description)
-    return f"{label} {value}"                                            # the value goes to the model, not into the event
-
-
-@tool(parse_docstring=True)
-@one_at_a_time
-async def open_path(path: str) -> list:
-    """Open a page of the banking site by its path, for example /overview.htm.
-
-    Use it only when the goal names the page or the id to look at. Any value in the path must come from the goal.
-
-    Args:
-        path: Path on the site, starting with '/'. May have a query, for example /activity.htm?id=12345.
-
-    Returns:
-        The new page state.
-    """
-    before = await page_state()
-    p = path.strip()
-    values = [v for _, v in parse_qsl(urlparse(p).query)]
-    if not p.startswith("/") or p.startswith("//") or any(w in p.lower() for w in DENY_LINKS):
-        await record("open_path", before, "denied", None, path=p)
-        return _blocks("DENIED: give a path on this site, starting with '/'.", await surface.observe())
-    if not all(is_given(v) for v in values):
-        await record("open_path", before, "denied", None, path=p)
-        return _blocks("DENIED: every value in the path must come from the goal. Never invent one.", await surface.observe())
-    try:
-        await page.goto(BASE + p)
-        await page.wait_for_load_state("load", timeout=5000)
-    except Exception as exc:
-        await record("open_path", before, "failed", None, path=p)
-        return _blocks(f"OPEN FAILED: {type(exc).__name__}", await surface.observe())
-    if not host_allowed(page.url):
-        await page.go_back()
-        await record("open_path", before, "blocked", None, path=p)
-        return _blocks("BLOCKED: left the allowed site. Went back.", await surface.observe())
-    await record("open_path", before, "ok", None, path=norm_url(BASE + p))
-    return _blocks(f"Opened {p}.", await surface.observe())
+    return await surface.page_text()
 
 
 @tool(parse_docstring=True)
@@ -1414,190 +1782,569 @@ async def ask_human(question: str) -> list:
     Returns:
         What the human did, and the new page state.
     """
-    before = await page_state()
     print(f"guard (ask_human) -> page={current_page()!r} start_page={current_page() in START_PAGES}")
     if current_page() in START_PAGES:
-        await record("ask_human", before, "blocked")
-        return _blocks("NOT YET: you are still on the start page. Open the page where this task is done first "
-                       "(use the menu). Then, with the form on screen, use request_value on each field you cannot fill.", await surface.observe())
+        return _blocks(
+            "NOT YET: you are still on the start page. Open the page where this task is done first "
+            "(use the menu). Then, with the form on screen, use request_value on each field you cannot fill.",
+            await surface.observe(),
+        )
     report = await human_takeover(question)
-    await record("ask_human", before, "handoff")
     return _blocks(f"A human took over and handed back. {report}", await surface.observe())
 
 
 @tool(parse_docstring=True)
 @one_at_a_time
-async def request_value(ref: int) -> list:
+async def request_value(ref: int, hint: str) -> list:
     """Ask the human to fill one field that you cannot fill, because the user did not give the value.
 
-    Open the page that has the field first. Then point at the field. The page scrolls to it,
-    the human types the value there and hands control back. Do not type into that field yourself afterwards.
+    Open the page that has the field first. Then point at the field, and say what you see: read
+    the label from the screenshot even if the element has no name in the code. This happens on
+    older pages where a label sits in a nearby table cell or heading, not attached to the input.
+    Your visual reading is what the human sees in the request, so give your best reading even if
+    you are not fully sure. The page scrolls to the field, the human types the value there and
+    hands control back. Do not type into that field yourself afterwards.
 
     Args:
         ref: Number of the field (input box or dropdown) in the latest screenshot and list.
+        hint: What you see as this field's label or purpose, read from the screenshot.
 
     Returns:
         The new page state, after the human is done.
     """
-    before, el = await page_state(), descriptor_of(ref)
     print(f"guard (request_value) -> page={current_page()!r} start_page={current_page() in START_PAGES}")
     if current_page() in START_PAGES:
-        await record("request_value", before, "blocked", el)
-        return _blocks("NOT YET: you are still on the start page. Open the page that has this form first.", await surface.observe())
-    field = (surface.name_of(ref) or f"field {ref}").strip()
+        return _blocks(
+            "NOT YET: you are still on the start page. Open the page that has this form first.",
+            await surface.observe(),
+        )
+    field = _describe(ref, hint)
     try:
         loc = page.locator(f'[data-cua-ref="{ref}"]')
         await loc.scroll_into_view_if_needed(timeout=3000)
         await loc.focus(timeout=3000)
     except Exception:
         pass                                     # the human can still find it; do not fail the request
-    return await _ask_for_value(field, "enter", "request_value", before, el)
+    return await _ask_for_value(ref, field, "enter")
+
+
+def missing_field_labels(elements: list[dict], hints: dict[str, str] | None = None) -> list[tuple[int, str]]:
+    """Empty, visible, fillable fields, in page order. Pure: no browser, no network call."""
+    hints = hints or {}
+    out = []
+    for e in elements:
+        if not e["inViewport"] or e["role"] not in ("textbox", "combobox") or e.get("value"):
+            continue
+        ref = e["ref"]
+        name = (e.get("name") or "").strip()
+        hint = hints.get(str(ref), "").strip()
+        label = f"{name} ({hint})" if name and hint else (name or hint or f"field {ref}")
+        out.append((ref, label))
+    return out
 
 
 @tool(parse_docstring=True)
-async def finish(summary: str, values: dict[str, str], outcome: str = "", proof_text: str = "") -> str:
+@one_at_a_time
+async def request_missing_values(hints: dict[str, str] = {}) -> list:
+    """Ask a human to fill every empty field on the current page in one go.
+
+    Use this once you have typed or chosen every value the user actually gave you, and the
+    form still has empty fields left. Call this ONCE for all of them, rather than calling
+    request_value field by field. If some fields are still empty after the human clicks Done,
+    call this again: only the fields still empty will be shown, not the ones already filled.
+
+    Args:
+        hints: Optional. Maps a field's ref number (as text, e.g. "17") to your own reading of
+            its label, for fields with no clear name in the code.
+
+    Returns:
+        The new page state, after the human is done.
+    """
+    if current_page() in START_PAGES:
+        return _blocks("NOT YET: open the page that has this form first.", await surface.observe())
+    missing = missing_field_labels(surface.last_elements, hints)
+    if not missing:
+        return _blocks("Nothing is missing right now.", await surface.observe())
+    labels = [label for _, label in missing]
+    question = "Please fill in these fields, then click Done: " + "; ".join(labels)
+    report = await human_takeover(question, allow_refs=[ref for ref, _ in missing])
+    return _blocks(f"A human filled in what they chose to. {report}", await surface.observe())
+
+
+@tool(parse_docstring=True)
+async def finish(summary: str, values: dict[str, str]) -> str:
     """Report the final result and stop.
 
     If you cannot make progress, start the summary with 'STUCK:'. If a human declined, start it with 'DECLINED:'.
-    If the site answered with a business outcome the goal told you to look for (for example the account does
-    not exist), give its name in outcome and copy the exact sentence from the page into proof_text.
 
     Args:
         summary: One-line summary of what you did or why you stopped.
-        values: The requested facts, for example {"balance": "$100.00"}.
-        outcome: Optional. UPPER_SNAKE name of the business outcome, for example ACCOUNT_NOT_FOUND. Leave empty otherwise.
-        proof_text: Required with outcome. The exact text on the page that proves it, copied from the page.
+        values: The requested facts, for example {"account_id": "13344", "balance": "$100.00"}.
 
     Returns:
         A confirmation. Stop after this.
     """
-    before = await page_state()
-    if outcome or proof_text:
-        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", outcome or ""):
-            return "outcome must be UPPER_SNAKE, like ACCOUNT_NOT_FOUND. Call finish again."
-        norm = lambda s: re.sub(r"\s+", " ", s).strip().lower()
-        if not proof_text.strip() or norm(proof_text) not in norm(await page.inner_text("body")):
-            return "proof_text must be text that is really on the current page, copied exactly. Use page_text, then call finish again."
     RESULT.clear()
-    RESULT.update({"summary": summary, "values": values, "outcome": outcome})
-    await record("finish", before, "ok", None, outcome=outcome or None, proof=proof_text or None)
+    RESULT.update({"summary": summary, "values": values})
     return "Recorded. Stop now."
 
 
-BROWSER_TOOLS = [observe, click, type_text, type_secret, select_option, extract_value, open_path, page_text, request_value, ask_human, finish]
+BROWSER_TOOLS = [observe, click, type_text, type_secret, select_option, page_text, request_value, request_missing_values, ask_human, finish]
 print("tools ready:", [t.name for t in BROWSER_TOOLS])
 
-# %% BROWSER 8: system prompt and agent
-from deepagents import create_deep_agent
+# %% [markdown]
+# ### Additive cells below (new, capture-only, never touching a tool's body copied above)
+# `DESCRIBE_JS`/`HEADING_JS`/`READ_LABELED_JS` give the recorder richer facts than the model ever
+# sees (label, container, nth, name/label duplicate counts, a page heading) -- computed only when
+# logging an event, from the same `data-cua-ref` attributes `OBSERVE_JS` already sets. `nameOf`/
+# `roleOf`/`labelOf` inside `DESCRIBE_JS` intentionally mirror agent.ipynb's own `OBSERVE_JS`
+# logic (small, documented duplication) so "name" means the same thing to the recorder as it does
+# to the model.
+
+# %% BROWSER 8: descriptor, heading, and labeled-value JS (new, additive)
+HEADING_JS = """
+() => {
+  const vis = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const pick = (q) => Array.from(document.querySelectorAll(q)).find(vis);
+  const el = pick('h1') || pick('.title') || pick('h2');
+  return ((el && el.innerText) || document.title || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
+}
+"""
+
+# The value shown next to a label: the cell after it, the input a <label> points at, or the next
+# sibling. `matches` (how many elements on the page carry this exact label text) is D68's
+# duplicate-label signal for extract steps.
+READ_LABELED_JS = """
+(label) => {
+  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+  const bare = (s) => norm(s).replace(/:$/, '').toLowerCase();
+  const want = bare(label);
+  const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
+  const all = Array.from(document.body.querySelectorAll('td, th, dt, label, b, strong, span, div, p, li')).filter(vis);
+  const hits = all.filter(e => bare(e.innerText || e.textContent) === want &&
+                               !Array.from(e.children).some(c => bare(c.innerText || c.textContent) === want));
+  const valueOf = (el) => {
+    const cell = el.closest('td, th, dt');
+    if (cell && cell.nextElementSibling) return norm(cell.nextElementSibling.innerText);
+    if (el.tagName === 'LABEL' && el.htmlFor) { const t = document.getElementById(el.htmlFor); if (t) return norm(t.value || t.innerText); }
+    if (el.nextElementSibling) return norm(el.nextElementSibling.innerText);
+    let n = el.nextSibling;
+    while (n) { const t = norm(n.textContent); if (t) return t; n = n.nextSibling; }
+    return '';
+  };
+  for (const h of hits) { const v = valueOf(h); if (v) return { value: v, matches: hits.length }; }
+  return { value: '', matches: hits.length };
+}
+"""
+
+# One element's RICH descriptor (role, name, name_source, label, container, nth, and duplicate
+# counts). Never shown to the model -- only used to build a capture event. Deliberately mirrors
+# agent.ipynb's OWN roleOf/nameOf (Setup 4/4) so 'name' means the same thing here as it does to
+# the model; labelOf/containerOf are new (the model never sees them; they exist only so the
+# recorder can produce a `label` or `structure` locator, D42).
+DESCRIBE_JS = """
+(ref) => {
+  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+  const roleOf = (el) => {
+    const r = el.getAttribute('role'); if (r) return r;
+    const t = el.tagName.toLowerCase();
+    if (t === 'a') return 'link';
+    if (t === 'button') return 'button';
+    if (t === 'select') return 'combobox';
+    if (t === 'textarea') return 'textbox';
+    if (t === 'input') {
+      const ty = (el.getAttribute('type') || 'text').toLowerCase();
+      if (['submit', 'button', 'reset', 'image'].includes(ty)) return 'button';
+      if (ty === 'checkbox') return 'checkbox';
+      if (ty === 'radio') return 'radio';
+      return 'textbox';
+    }
+    return 'generic';
+  };
+  const nameInfo = (el) => {
+    const aria = norm(el.getAttribute('aria-label')); if (aria) return [aria, 'aria'];
+    if (el.labels && el.labels.length) { const t = norm(el.labels[0].innerText); if (t) return [t, 'label']; }
+    const t = el.tagName.toLowerCase(), ty = (el.getAttribute('type') || '').toLowerCase();
+    if (t === 'input' && ['submit', 'button', 'reset'].includes(ty)) { const v = norm(el.value); if (v) return [v, 'value']; }
+    const txt = norm(el.innerText).slice(0, 80); if (txt) return [txt, 'text'];
+    for (const a of ['placeholder', 'title', 'alt']) { const v = norm(el.getAttribute(a)); if (v) return [v, 'attr_acc']; }
+    const nm = el.getAttribute('name') || el.id; if (nm) return [nm, 'attr'];
+    return ['', 'none'];
+  };
+  const formCtl = (el) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
+  const labelOf = (el, role) => {
+    if (!formCtl(el) || role === 'button') return '';
+    if (el.labels && el.labels.length) return norm(el.labels[0].innerText).slice(0, 60);
+    const cell = el.closest('td, th, dd');
+    const prev = cell && cell.previousElementSibling;
+    return prev ? norm(prev.innerText).slice(0, 60) : '';
+  };
+  const containerOf = (el) => {
+    const form = el.closest('form, [role=form]');
+    const tbl = el.closest('table, [role=table], [role=grid]');
+    const c = formCtl(el) || el.tagName === 'BUTTON' ? (form || tbl) : (tbl || form);
+    if (!c) return [null, null];
+    const isForm = c === form;
+    let name = norm(c.getAttribute('aria-label'));
+    if (!name && !isForm) { const cap = c.querySelector('caption'); if (cap) name = norm(cap.innerText); }
+    if (!name && isForm) { const lg = c.querySelector('legend'); if (lg) name = norm(lg.innerText); }
+    const tag = el.tagName.toLowerCase();
+    const nth = Array.from(c.querySelectorAll(tag)).indexOf(el) + 1;
+    return [{ role: isForm ? 'form' : 'table', name: name || null }, nth || null];
+  };
+  const all = Array.from(document.querySelectorAll('[data-cua-ref]'));
+  const target = all.find(el => el.getAttribute('data-cua-ref') === String(ref));
+  if (!target) return null;
+  const role = roleOf(target), ni = nameInfo(target), label = labelOf(target, role);
+  const name = ni[0], name_source = ni[1];
+  const nameCount = name ? all.filter(el => roleOf(el) === role && nameInfo(el)[0] === name).length : 1;
+  const labelCount = label ? all.filter(el => labelOf(el, roleOf(el)) === label).length : 1;
+  const cn = containerOf(target);
+  return {
+    role, name, name_source, label: label || null,
+    text: (!formCtl(target) ? (norm(target.innerText).slice(0, 80) || null) : null),
+    tag: target.tagName.toLowerCase(), type: (target.getAttribute('type') || '').toLowerCase() || null,
+    submit: (target.tagName === 'BUTTON' && target.type !== 'button') ||
+            (target.tagName === 'INPUT' && ['submit', 'image'].includes((target.getAttribute('type') || '').toLowerCase())),
+    options: target.tagName === 'SELECT' ? Array.from(target.options).map(o => o.text.trim()).slice(0, 15) : null,
+    container: cn[0], nth: cn[1], name_count: nameCount || 1, label_count: labelCount || 1,
+  };
+}
+"""
+
+
+async def current_heading() -> str:
+    try:
+        return await page.evaluate(HEADING_JS)
+    except Exception:
+        return ""
+
+
+async def describe_ref(ref: int) -> dict | None:
+    try:
+        return await page.evaluate(DESCRIBE_JS, ref)
+    except Exception:
+        return None
+
+
+async def read_labeled_value(page, label: str) -> str:
+    """The value shown next to `label` on the current page. Raises LookupError if there is none.
+    Written to be reused by Phase 4 replay, so record and replay read values the same way (D46)."""
+    res = await page.evaluate(READ_LABELED_JS, label)
+    if not res["value"]:
+        raise LookupError(f"no value found next to the label {label!r}")
+    return res["value"]
+
+
+print("descriptor/heading/labeled-value helpers ready")
+
+# %% BROWSER 9: three new tools the compiler needs (extract_value, open_path, finish_business_outcome)
+from urllib.parse import parse_qsl
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def extract_value(label: str, save_as: str, value_type: str, description: str) -> list:
+    """Read a value shown next to a label on the page (e.g. 'Balance:') and record it as an output.
+
+    Use this instead of page_text when the task needs to save one specific value by name.
+
+    Args:
+        label: The exact label text as shown on the page, e.g. 'Balance:'.
+        save_as: A short lower_snake_case name for this value, e.g. 'balance'.
+        value_type: One of string, integer, number, currency, boolean.
+        description: One sentence describing what this value is.
+
+    Returns:
+        The new page state.
+    """
+    res = await page.evaluate(READ_LABELED_JS, label)
+    if not res["value"]:
+        return _blocks(f"FAILED to read '{label}': no value found next to that label.", await surface.observe())
+    if not value_matches_type(res["value"], value_type):
+        return _blocks(f"FAILED to read '{label}': the value does not look like a {value_type}.", await surface.observe())
+    return _blocks(f"Read '{label}'.", await surface.observe())
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def open_path(path: str) -> list:
+    """Navigate directly to a page on this site by its path, when no link on the page goes there.
+
+    Only use this for a path whose query values come from the user's goal. Never invent a value.
+
+    Args:
+        path: A path starting with '/', e.g. '/activity.htm?id=13344'. Every value in it must
+            come from the goal.
+
+    Returns:
+        The new page state.
+    """
+    if any(w in path.lower() for w in DENY_LINKS):
+        return _blocks(f"DENIED: '{path}' is not allowed.", await surface.observe())
+    values = [v for _, v in parse_qsl(urlparse(path).query)]
+    if any(v.strip().lower() not in GIVEN["text"].lower() for v in values):
+        return _blocks(
+            f"REFUSED: '{path}' has a value not given in the goal. Only open a path whose values you were given.",
+            await surface.observe(),
+        )
+    url = f"{BASE}{path}"
+    if not host_allowed(url):
+        return _blocks("REFUSED: this path is not on the allowed site.", await surface.observe())
+    try:
+        await page.goto(url)
+    except Exception as exc:
+        return _blocks(f"FAILED to open '{path}': {type(exc).__name__}", await surface.observe())
+    return _blocks(f"Opened {path}.", await surface.observe())
+
+
+@tool(parse_docstring=True)
+async def finish_business_outcome(outcome: str, proof_text: str) -> str:
+    """Report that this run hit a known business outcome (e.g. a bad account id), not a normal
+    task result. Only call this INSTEAD of finish() when the page shows a message that proves a
+    declared bad-input scenario, such as 'could not find account'.
+
+    Args:
+        outcome: Short UPPER_SNAKE name for what happened, e.g. ACCOUNT_NOT_FOUND.
+        proof_text: The exact sentence from the page that proves this outcome. Copy it exactly
+            from the page text.
+
+    Returns:
+        A confirmation, or a refusal if proof_text is not really on the page. Stop after this.
+    """
+    text = await surface.page_text()
+    if proof_text not in text:
+        return "REFUSED: that exact text was not found on the current page. Re-read the page and copy it exactly."
+    RESULT.clear()
+    RESULT.update({"summary": f"PROBE: {outcome}", "values": {}, "outcome": outcome, "proof_text": proof_text})
+    return "Recorded as a business-outcome probe. Stop now."
+
+
+print("new tools ready:", [t.name for t in (extract_value, open_path, finish_business_outcome)])
+
+# %% BROWSER 10: event capture wrapper (new, additive -- wraps .coroutine, never a tool's own body)
+EVENTS: list[dict] = []   # the recording. One dict per REAL tool call. No secret VALUES, no extracted values.
+
+
+def _first_line(result) -> str:
+    """The tool's own status text: the first text block of a list result, or the plain string a
+    str-returning tool (page_text, finish, finish_business_outcome) gives back directly."""
+    if isinstance(result, list):
+        for block in result:
+            if isinstance(block, dict) and block.get("type") == "text":
+                return block["text"].split("\n", 1)[0]
+        return ""
+    return str(result).split("\n", 1)[0]
+
+
+def _capture(tool_obj, *, value_of=lambda kwargs: None) -> None:
+    """Replace tool_obj.coroutine with a wrapper that logs an event AROUND the ORIGINAL call --
+    calls it unchanged, returns its result unchanged. This is the whole mechanism: nothing about
+    click()'s approval gate, the lock, or the login guard (all copied verbatim above) is touched."""
+    original = tool_obj.coroutine
+
+    async def wrapped(**kwargs):
+        before_url, before_heading = page.url, await current_heading()
+        ref = kwargs.get("ref")
+        el = await describe_ref(ref) if ref is not None else None
+        was_risky = needs_human(ref) if (ref is not None and tool_obj.name == "click") else False
+        result = await original(**kwargs)
+        message = _first_line(result)
+        status = classify_status(message)
+        EVENTS.append({
+            "i": len(EVENTS), "tool": tool_obj.name, "args": dict(kwargs),
+            "message": message, "status": status,
+            "before": {"url": norm_url(before_url), "heading": before_heading},
+            "after": {"url": norm_url(page.url), "heading": await current_heading()},
+            "approved": bool(was_risky and status == "ok"),
+            "el": el, "value": value_of(kwargs),
+        })
+        return result
+
+    tool_obj.coroutine = wrapped
+
+
+_VALUE_OF = {
+    "type_text": lambda kw: kw.get("text"),
+    "type_secret": lambda kw: kw.get("name"),       # the secret NAME, never its value
+    "select_option": lambda kw: kw.get("option"),
+}
+for _t in (*BROWSER_TOOLS, open_path):
+    if _t.name == "finish":
+        continue   # finish gets its own wrapper below (captures summary/values, not a page action)
+    _capture(_t, value_of=_VALUE_OF.get(_t.name, lambda kw: None))
+
+
+_extract_value_original = extract_value.coroutine
+
+
+async def _extract_value_wrapped(label: str, save_as: str, value_type: str, description: str):
+    before_url, before_heading = page.url, await current_heading()
+    res = await page.evaluate(READ_LABELED_JS, label)   # only for label_count -- the VALUE itself is never logged (D46/D16)
+    result = await _extract_value_original(label=label, save_as=save_as, value_type=value_type, description=description)
+    message = _first_line(result)
+    EVENTS.append({
+        "i": len(EVENTS), "tool": "extract_value", "args": {"label": label, "save_as": save_as, "value_type": value_type},
+        "message": message, "status": classify_status(message),
+        "before": {"url": norm_url(before_url), "heading": before_heading},
+        "after": {"url": norm_url(page.url), "heading": await current_heading()},
+        "approved": False, "el": None,
+        "label": label, "save_as": save_as, "value_type": value_type, "description": description,
+        "label_count": res.get("matches", 1),
+    })
+    return result
+
+
+extract_value.coroutine = _extract_value_wrapped
+
+_finish_original = finish.coroutine
+
+
+async def _finish_wrapped(summary: str, values: dict[str, str]):
+    result = await _finish_original(summary=summary, values=values)
+    EVENTS.append({
+        "i": len(EVENTS), "tool": "finish", "args": {}, "message": result, "status": classify_status(result),
+        "before": {"url": norm_url(page.url), "heading": ""}, "after": {"url": norm_url(page.url), "heading": ""},
+        "approved": False, "el": None, "summary": summary, "values": values,
+    })
+    return result
+
+
+finish.coroutine = _finish_wrapped
+
+_probe_original = finish_business_outcome.coroutine
+
+
+async def _probe_wrapped(outcome: str, proof_text: str):
+    before_url, before_heading = page.url, await current_heading()
+    result = await _probe_original(outcome=outcome, proof_text=proof_text)
+    status = "ok" if result.startswith("Recorded") else "failed"
+    EVENTS.append({
+        "i": len(EVENTS), "tool": "finish_business_outcome", "args": {},
+        "message": result, "status": status,
+        "before": {"url": norm_url(before_url), "heading": before_heading},
+        "after": {"url": norm_url(page.url), "heading": await current_heading()},
+        "approved": False, "el": None,
+        "outcome": outcome if status == "ok" else None,
+        "proof": proof_text if status == "ok" else None,
+    })
+    return result
+
+
+finish_business_outcome.coroutine = _probe_wrapped
+
+ALL_TOOLS = [*BROWSER_TOOLS, extract_value, open_path, finish_business_outcome]
+print("capture ready:", [t.name for t in ALL_TOOLS])
+
+# %% BROWSER 11: system prompt and agent (no TypeSafe, no web_search -- see the markdown cell above)
 from langgraph.checkpoint.memory import MemorySaver
 
-SYSTEM_PROMPT = """You are an expert browser operator. You drive a real browser on a banking demo site.
+# Same numbered rules as agent.ipynb's SYSTEM_PROMPT (STEP 4), items 1-9 unchanged verbatim,
+# minus the web_search sentence (D48: not included in this notebook's tool list) and with three
+# new tool lines documented (extract_value, open_path, finish_business_outcome).
+RECORDER_SYSTEM_PROMPT = """You are an expert browser operator. You drive a real browser on a banking demo site.
 
 ## Browser tools
-Every tool result shows a screenshot with red numbered boxes plus a list of numbered elements (dropdowns list their options). Refer to elements only by number. Numbers change after every action, so use the latest list.
+Every tool result shows a screenshot with red numbered boxes plus a list of numbered elements. A field already filled shows its current value, e.g. [7] textbox "City" = '2'. Never ask about a field that already shows a value; move to one that does not. Dropdowns list their options. Refer to elements only by number. Numbers change after every action, so use the latest list.
 - observe: look at the page.
 - click(ref), type_text(ref, text), select_option(ref, option): act on elements.
 - type_secret(ref, name): type a stored secret ('username' or 'password'). You never see the value.
-- extract_value(label, save_as, value_type): read a value that is shown next to a label (for example 'Balance:'). This is how you report facts.
-- open_path(path): open a page by its path. Only when the goal names the page or the id to look at.
-- page_text: read the visible page text (to find the exact label or message).
-- request_value(ref): a field you cannot fill because the user did not give the value. The human fills it on the page.
+- page_text: read the visible page text (balances, messages).
+- extract_value(label, save_as, value_type, description): read one specific value shown next to a label (e.g. 'Balance:') and record it as an output. Use this, not page_text, when the task asks you to report a specific value by name.
+- open_path(path): go directly to a page on this site by its path, when no link on the page goes there. Every value in the path must come from the goal.
+- finish_business_outcome(outcome, proof_text): call this INSTEAD of finish when the page shows a message proving a bad-input outcome the goal asked you to find (e.g. an account that does not exist). proof_text must be copied exactly from the page.
+- request_value(ref, hint): ONE field you cannot fill. Prefer request_missing_values instead when several fields are empty.
+- request_missing_values(hints): every empty field on the current page, asked in ONE go, not one at a time. hints maps a ref number to your own label reading, for fields with no name in the code.
 - ask_human(question): only when you are unsure what to click. Not for missing values.
-- finish(summary, values, outcome, proof_text): report the result, then stop.
+- finish(summary, values): report the result, logout and then stop.
 
 ## How to work
 1. Call observe first. If you see a login form, log in with type_secret, then confirm the account overview appears.
-2. Do the task by the shortest path. Read every requested fact with extract_value, using the label exactly as shown on the page. Never invent a value.
-3. Use ONLY values the user gave you in the goal. If a value you need is missing: FIRST open the page where the task is done (use the menu links), THEN point at each missing field with request_value(ref). Never ask a human while you are still on the start page.
+2. Do the task by the shortest path. Read values with page_text and copy them exactly. Never invent a value.
+3. Use ONLY values the user gave you in the goal. Never make one up. If values you need (payee, amount, account, address) are missing: FIRST open the page where the task is done (use the menu links), THEN call request_missing_values ONCE to ask for everything still empty at the same time. Never ask a human while you are still on the start page.
 4. If a tool says a human entered a value, do not type it again. Continue with the next step.
 5. Buttons that change data (Send Payment, Transfer, Open New Account, and so on) need a human. Click the button when the form is ready; the system asks the human for approval by itself. If the result says DECLINED, never retry or work around it: call finish with 'DECLINED:'.
 6. Make ONE tool call at a time. Do not click into a field before typing.
-7. Business outcome: if the goal names an outcome (for example ACCOUNT_NOT_FOUND) and the page shows the matching message, call finish with outcome set to that name and proof_text set to the message copied exactly from the page. Otherwise leave outcome empty.
-8. Stay on the banking site. If you are lost or repeat the same action 3 times, call finish with 'STUCK:' and say why.
+7. Stay on the banking site. If you are lost or repeat the same action 3 times, call finish with 'STUCK:' and say why.
+8. Attempt login at most 3 times. If the page says the login could not be verified, stop immediately -- do not retry. Call finish with a summary starting 'STUCK:' explaining what happened.
 9. Do not use ls, read_file, write_file, edit_file, delete, glob, grep or task.
 """
 
-agent = create_deep_agent(model=MODEL, tools=BROWSER_TOOLS, system_prompt=SYSTEM_PROMPT, checkpointer=MemorySaver())
-print("agent ready | approval is enforced inside the click tool")
+recorder_agent = create_deep_agent(
+    model=MODEL,
+    tools=ALL_TOOLS,
+    system_prompt=RECORDER_SYSTEM_PROMPT,
+    checkpointer=MemorySaver(),
+)
+print("agent ready (capture) | tools:", [t.name for t in ALL_TOOLS])
 
-# %% BROWSER 9: your test values and the run helper
+# %% BROWSER 12: your test values and the run helper
 import uuid
 
-# CHANGE THESE to accounts that exist in YOUR ParaBank test user. Fake data only.
-ACCOUNT_ID = "14232"        # an account you own (for the balance run)
-BAD_ACCOUNT = "99999999"    # an account that does not exist (for the bad-input run)
-FROM_ACCOUNT = "14232"      # transfer: from
-TO_ACCOUNT = "14343"        # transfer: to (another account you own)
-AMOUNT = "1.00"             # transfer amount. Keep it tiny.
 
-BAL_LIVE = {**BAL_SPEC, "inputs": {"account_id": {**BAL_SPEC["inputs"]["account_id"], "value": ACCOUNT_ID}}}
-XFER_LIVE = {**XFER_SPEC, "inputs": {
-    "from_account": {**XFER_SPEC["inputs"]["from_account"], "value": FROM_ACCOUNT},
-    "to_account": {**XFER_SPEC["inputs"]["to_account"], "value": TO_ACCOUNT},
-    "amount": {**XFER_SPEC["inputs"]["amount"], "value": AMOUNT},
-}}
-RUNS: dict[str, list] = {}
-
-
-async def run_agent(name: str, goal: str, specs: dict, *, logged_out: bool = False, start: str = "/overview.htm"):
-    """Declare inputs, reset capture, run the agent, keep the events. Events go to notebooks/scratch/ (git-ignored)."""
-    DECLARED.clear()
-    DECLARED.update({n: s["value"] for n, s in specs.items()})
+async def run_capture(goal: str) -> None:
+    """Clear the event log and TYPED state, run the agent on one goal, print the result and the
+    captured events. Does not compile or save anything -- that is BROWSER 14."""
+    EVENTS.clear()
+    TYPED.clear()
     GIVEN["text"] = goal
-    TYPED.clear(); DECLINED.clear(); EVENTS.clear()
-    if logged_out:
-        await page.context.clear_cookies()       # so the login is part of the recording
-    await page.goto(f"{BASE}/index.htm" if logged_out else f"{BASE}{start}")
-    cfg = {"configurable": {"thread_id": f"{name}-{uuid.uuid4().hex[:6]}"}, "recursion_limit": 100}
-    out = await agent.ainvoke({"messages": [{"role": "user", "content": goal}]}, config=cfg)
-    RUNS[name] = list(EVENTS)
-    SCRATCH.mkdir(exist_ok=True)
-    (SCRATCH / f"events_{name}.json").write_text(json.dumps(RUNS[name], indent=1))
-    print("\nAGENT SAID:", out["messages"][-1].content)
-    print(f"RECORDED: {len(EVENTS)} events -> {SCRATCH / f'events_{name}.json'}")
+    cfg = {"configurable": {"thread_id": f"rec-{uuid.uuid4().hex[:6]}"}, "recursion_limit": 100}
+    out = await recorder_agent.ainvoke({"messages": [{"role": "user", "content": goal}]}, config=cfg)
+    print("AGENT SAID:", out["messages"][-1].content)
+    print(f"captured {len(EVENTS)} events")
+    for e in EVENTS:
+        print(f"  [{e['i']}] {e['tool']:22s} status={e['status']:8s} {e['before']['url']} -> {e['after']['url']}")
 
 
-def print_events(name: str):
-    for e in RUNS[name]:
-        el = e.get("el") or {}
-        what = f"{el.get('role')} {(el.get('name') or '')[:30]!r}" if el else (e.get("label") or e.get("path") or "")
-        print(f"{e['i']:>2} {e['tool']:<14} {e['status']:<8} {e['before']['url'][:28]:<28} -> {e['after']['url'][:28]:<28} {what}"
-              + ("  [APPROVED]" if e.get("approved") else ""))
+ACCOUNT_ID = "CHANGE_ME"       # <-- an account you own
+BAD_ACCOUNT_ID = "CHANGE_ME"   # <-- an account id that does NOT exist
+print("ready. account:", ACCOUNT_ID, "| bad account:", BAD_ACCOUNT_ID)
 
+# %% BROWSER 13: RUN 1, good balance flow (starting logged out -- this records the login too)
+GOAL_BALANCE = f"Log in and read the balance of account {ACCOUNT_ID}. Use extract_value to save it as 'balance'."
+await run_capture(GOAL_BALANCE)
+BALANCE_EVENTS = list(EVENTS)
 
-print("ready. accounts:", ACCOUNT_ID, "| bad:", BAD_ACCOUNT)
+# %% BROWSER 14: RUN 2, bad-input probe (needs run 1's login still active)
+GOAL_PROBE = (
+    f"Open account {BAD_ACCOUNT_ID}. If the page says the account could not be found, call "
+    "finish_business_outcome with outcome='ACCOUNT_NOT_FOUND' and proof_text copied exactly from the page."
+)
+await run_capture(GOAL_PROBE)
+PROBE_EVENTS = list(EVENTS)
 
-# %% BROWSER 10: RUN 1. Balance, starting logged out (this records the login too)
-GOAL_BAL = (f"Log in. Then open account {ACCOUNT_ID} from the accounts overview and read its balance with "
-            f"extract_value (use the label shown on the page, value_type currency, save_as balance). Then finish.")
-await run_agent("balance", GOAL_BAL, BAL_LIVE["inputs"], logged_out=True)
-print_events("balance")
+# %% BROWSER 15: compile RUN 1 (+ the outcome rule from RUN 2), show it, then save
+probe_rule = rule_from_probe(PROBE_EVENTS, {"account_id": BAD_ACCOUNT_ID})
+print("RULE the recorder made:", probe_rule.outcome, "| when the page shows:", repr(probe_rule.when.text_present))
 
-# %% BROWSER 11: RUN 2. Bad input probe (finds the business outcome text)
-GOAL_BAD = (f"Open the account details page for account {BAD_ACCOUNT} with open_path, using the path /activity.htm?id={BAD_ACCOUNT}. "
-            f"If the page says the account cannot be found or shows an error, call finish with outcome ACCOUNT_NOT_FOUND and "
-            f"proof_text set to the exact error sentence from the page. Do nothing else.")
-await run_agent("bad_account", GOAL_BAD, {"account_id": {"value": BAD_ACCOUNT}})
-print_events("bad_account")
-RULE = rule_from_probe(RUNS["bad_account"], {"account_id": BAD_ACCOUNT})
-print("\nRULE the recorder made:", RULE.outcome, "| when the page shows:", repr(RULE.when.text_present))
-
-# %% BROWSER 12: compile run 1 (+ the outcome rule), show it, then save
-result = compile_run(RUNS["balance"], BAL_LIVE, extra_rules=[RULE] if "RULE" in globals() else [])
+balance_spec = {
+    "name": "get_account_balance",
+    "description": "Read the current balance of one account, given its account id.",
+    "inputs": {"account_id": {"value": ACCOUNT_ID, "type": "string", "description": "The account number.", "pattern": r"^[0-9]{4,10}$"}},
+}
+result = compile_run(BALANCE_EVENTS, balance_spec, extra_rules=[probe_rule])
 show(result)
-SAVE = True    # set False to look without writing
-if SAVE:
-    forbidden = [resolve_secret(n) for n in SECRETS]      # refuse to write if a real secret value is in the file
-    for cap in (result["login"], result["task"]):
-        if cap:
-            print("saved:", save_capability(cap, forbidden=forbidden).relative_to(REPO))
+if result["login"]:
+    print("saved:", save_capability(result["login"]))
+print("saved:", save_capability(result["task"]))
 
-# %% BROWSER 13: RUN 3 (optional). Transfer. A human must click Approve in the browser
-GOAL_XFER = (f"Open Transfer Funds. Transfer {AMOUNT} from account {FROM_ACCOUNT} to account {TO_ACCOUNT}. "
-             f"Fill the amount and both dropdowns, then click the Transfer button when the form is ready. Then finish.")
-await run_agent("transfer", GOAL_XFER, XFER_LIVE["inputs"])
-print_events("transfer")
-result_x = compile_run(RUNS["transfer"], XFER_LIVE)
-show(result_x)
-if SAVE:
-    print("saved:", save_capability(result_x["task"], forbidden=[resolve_secret(n) for n in SECRETS]).relative_to(REPO))
+# %% BROWSER 16: RUN 3 (optional). Transfer. A human must click Approve in the browser
+FROM_ACCOUNT = "CHANGE_ME"
+TO_ACCOUNT = "CHANGE_ME"
+AMOUNT = "20.00"
+GOAL_TRANSFER = f"Transfer {AMOUNT} from account {FROM_ACCOUNT} to account {TO_ACCOUNT}."
+await run_capture(GOAL_TRANSFER)
+TRANSFER_EVENTS = list(EVENTS)
+
+transfer_spec = {
+    "name": "transfer_funds",
+    "description": "Move a stated amount from one account to another.",
+    "inputs": {
+        "from_account": {"value": FROM_ACCOUNT, "type": "string", "description": "Account to take the money from.", "pattern": r"^[0-9]{4,10}$"},
+        "to_account": {"value": TO_ACCOUNT, "type": "string", "description": "Account to put the money in.", "pattern": r"^[0-9]{4,10}$"},
+        "amount": {"value": AMOUNT, "type": "currency", "description": "Amount to move.", "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"},
+    },
+}
+transfer_result = compile_run(TRANSFER_EVENTS, transfer_spec)
+show(transfer_result)
+print("saved:", save_capability(transfer_result["task"]))
