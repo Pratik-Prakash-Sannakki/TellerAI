@@ -97,6 +97,65 @@ This file is the raw material for `REPORT.md` (7 required headings) and `README.
 
 **Brief ref:** 3.1, 3.7.
 
+**How the loop actually works, and what "reasoning" means here.**
+
+```
+flowchart LR
+    Start(["Real browser page"]) --> Scan
+
+    subgraph LOOK["① LOOK — one scan feeds two outputs"]
+        direction LR
+        Scan["Read the live DOM once<br/>(our code, not the agent)<br/>role, label, text, current value<br/>assign a NUMBER to each element"]
+        Scan --> DrawShot["Draw the numbered boxes<br/>→ take screenshot<br/>→ remove the boxes"]
+        Scan --> List["Write the text list<br/>from the SAME numbers<br/>e.g. '1 textbox Username'"]
+    end
+
+    DrawShot --> Reason
+    List --> Reason
+
+    subgraph THINK["② THINK — the agent, powered by the LLM"]
+        direction LR
+        Reason["Looks at: goal, picture + list,<br/>history so far, its own rules"]
+        Reason --> Decide["Decides to CALL ONE TOOL<br/>with a number<br/>e.g. type_text, ref = 1"]
+    end
+
+    Decide --> ToolRun
+
+    subgraph ACT["③ ACT — the agent's tool call runs"]
+        direction LR
+        ToolRun["Tool's OWN code runs<br/>not the LLM's judgment"]
+        ToolRun --> Safety["Safety checks:<br/>deny-list, approval gate,<br/>already declined?"]
+        Safety --> DoIt["Resolve the number,<br/>tell the browser<br/>to actually do it"]
+    end
+
+    DoIt --> Start
+```
+
+LOOK is one scan feeding two outputs (the picture and the list), not two separate perception channels.
+
+**What "scan the page once" actually does.** It is not reading the raw HTML source as text, and it is not the screenshot either — those are two different things people sometimes assume it is. It reads the browser's live **DOM** (the rendered structure the browser holds in memory, not the static HTML file): a small script run *inside* the already-loaded page, asking the browser directly for its live, rendered elements — every link, button, non-hidden input, dropdown, textarea, and anything explicitly marked as a button/link role. For each one it works out: its **role** (an `<input type="submit">` and a `<button>` both resolve to `"button"`), its **name** (tried in order: an `aria-label`, then a real `<label>` pointing at it, then its own text/value, then a placeholder/title/alt/name attribute — first one found wins), its **current value** (skipped for passwords and buttons), and its **on-screen position and visibility** (anything with zero size or `display: none` is skipped entirely). Only after all of that is numbered does drawing and the screenshot happen.
+
+**This whole scan is our own fixed code (`OBSERVE_JS`), not the agent.** The LLM is not invoked for this step at all, has no say in how a role or a name gets computed, and only ever sees the finished result — the numbered picture and the text list — once this has already run.
+
+The number is thrown away after every step; nothing about "box [1]" or its pixel position is ever saved. Only a *description* of the element (D8) gets saved, for replay later.
+
+"Reasoning" is not multi-step planning done once — at every single moment the agent looks fresh at the same four things (goal, current picture+list, history so far, its own rules) and decides to call one tool. That step repeats for the whole run.
+
+A distinction worth keeping explicit: **the agent decides *which* tool to call; the tool's own code decides *whether it is allowed to happen*.** The LLM can ask for anything — the deny-list, the approval gate (D33), and the locator resolution all run inside the tool's own code, unconditionally, whatever the LLM intended. This is why the system's safety does not depend on the model's judgment.
+
+**Worked example.** Goal: *"Log in and read the balance of account 14232."*
+
+| # | What the agent SEES | What the agent THINKS | Tool the agent calls (then the tool's own code executes it) |
+|---|---|---|---|
+| 1 | Login page. List: `[1] textbox "Username"`, `[2] textbox "Password"`, `[3] button "Log In"` | "This is a login form. My rule says: log in first, using the stored secret, never type a real password myself." | `type_secret(ref=1, name="username")` |
+| 2 | Same page, box [1] now shows filled dots | "Username's in. Password box is still empty." | `type_secret(ref=2, name="password")` |
+| 3 | Both boxes filled | "Both fields are filled. Time to submit." | `click(ref=3)` |
+| 4 | New page: Accounts Overview. List: `[1] link "13899"`, `[2] link "14232"`, `[3] link "Transfer Funds"` | "The page changed, so I'm logged in. My goal needs account 14232, and I see it right there as [2]." | `click(ref=2)` |
+| 5 | New page shows "Balance: $1,200.00" in the text | "The value I need is right here on the page. Nothing left to click." | `page_text()` |
+| 6 | Text back: "...Balance: $1,200.00..." | "Found what I needed. Goal's done." | `finish(values={"balance": "$1,200.00"})` |
+
+Every row is one full look→think→act moment. The model never sees raw code or pixel coordinates, only numbered pictures — and what gets written down afterward (for replay, D8) is never the number, only what the number *meant*, so it still works next time the page loads with different numbering.
+
 ---
 
 ### D3 — Language and runtime
@@ -836,6 +895,10 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D41 — Capture logs events; compile is pure Python
 
+> **Update:** superseded, see section P (D70+) below. The event-log / pure-function-compile
+> *design* is unchanged and carried forward as-is; what changed is the schema and tools it is
+> built against (D63-D68, D50-D69), so the concrete event fields and compile code were rebuilt.
+
 **Question:** Where does the recorder get its facts, and how do we test it without a browser?
 
 **Options:** (a) Rebuild locators after the run from a saved page snapshot. (b) Every tool logs an **event** at call time (tool, ok/failed, page before and after, a descriptor of the element). A pure function turns events into a `Capability`.
@@ -850,6 +913,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 **Brief ref:** 3.2, 3.4, code quality.
 
 ### D42 — How a descriptor becomes a ranked target
+
+> **Update:** superseded, see section P (D70+) below. `Target(locators=[...])`, a ranked list of
+> up to ~3, no longer exists (D63: `primary` + one optional `fallback`). The role-name-accessible-
+> only rule and the no-positional-fallback-for-data-dependent-elements rule are both kept
+> unchanged in spirit; D68's duplicate-name scoping is new.
 
 **Question:** Which locators do we build, and when do we refuse to?
 
@@ -866,6 +934,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D43 — What "worked and mattered" means (D23 made concrete)
 
+> **Update:** superseded, see section P (D70+) below. The rules themselves (drop non-actions,
+> failures, repeats, dead ends, a trailing safe click) are unchanged in spirit; the concrete
+> `status` values a real agent.ipynb tool call can produce today are re-derived from its current
+> code (D50-D69), not the old from-scratch tools this decision was originally written against.
+
 **Chosen:** drop non-actions, failed/denied/blocked/declined calls, and an identical repeat on the same page. Drop a **dead end**: a click that changed the page and a later click that returned to it, with nothing typed, chosen or read in between. Drop **link clicks after the last meaningful step** (typing, choosing, extracting, an approved click, or any submit button). Keep a navigate for the start page, and where the URL changed without a click. **Refuse** a run that used a human handoff (a hand-typed step cannot be recorded).
 
 **Reasoning:** each rule is a few lines and testable. A submit button counts as meaningful even without approval, so a safe `Find Transactions` at the end is not trimmed. Refusing handoffs is safer than saving a recipe with a silent gap; the fix is to declare the value in the goal (D29).
@@ -876,6 +949,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D44 — Parameterisation and the leftover check
 
+> **Update:** superseded, see section P (D70+) below. Unchanged in spirit and in mechanism
+> (word-boundary matching, refuse-not-warn on leftovers, constants reported); rebuilt against the
+> current `Capability` shape (`find_leftovers` walks the same fields, minus `app`/`routes`, which
+> no longer exist, D64-D65).
+
 **Chosen:** inputs are declared with the goal as `name -> {value, type, description, pattern}`. A whole typed or chosen value that equals a declared value (compared as text, or as a number so `$20.00` equals `20`) becomes `{{name}}`. Literals inside paths and locator strings are replaced with word-boundary matching (`5` is not found in `$50`, `id` is not found in `account_id`). Before saving, any declared literal still present anywhere except the `inputs` docs **refuses the save**, naming the input and the place, never the value. A typed value that matches no input is kept and **reported as a constant**.
 
 **Reasoning:** the boundary match fixes the Phase 1 `5`-in-`$50` bug. Refusing (not warning) on leftovers is the D29 promise. Constants are only reported because a fixed value (a payee, a memo) can be legitimate, but a reviewer must see it.
@@ -884,6 +962,10 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D45 — Login split and start page
 
+> **Update:** superseded, see section P (D70+) below. The split rule itself is unchanged; the
+> resulting login `Capability` can no longer be built as `Capability(app=App(**APP), ...)` (D64
+> removed `app` entirely) and is rebuilt with `base_url` only.
+
 **Chosen:** the kept events up to and including the first click after the last `type_secret` become `login_<app>`, with `{{secret:...}}` values and the secrets declared. The task capability contains no secret step and starts with a `navigate` to the page it began on. The login capability's checkpoint is the page after the click. The task gets a `relogin` recoverable rule when a login capability exists; the login-page text is config (`SESSION_EXPIRED_TEXT`).
 
 **Reasoning:** D32 says login is its own capability, reused on session expiry. A first `navigate` makes replay independent of where the browser happens to be.
@@ -891,6 +973,12 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 **Brief ref:** 3.3, 3.4.
 
 ### D46 — Extraction reads by label, and the value is never recorded
+
+> **Update:** superseded, see section P (D70+) below. `extract_value` and `read_labeled_value`
+> are rebuilt as new, additive tools in the CAPTURE half (agent.ipynb has neither), and the
+> compiled `Extract` step now builds `Target(primary=LabeledValueLocator(...))` (D63), not
+> `Target(locators=[LabeledValueLocator(...)])`. The reasoning (one shared reader, value never
+> recorded) is unchanged.
 
 **Chosen:** `extract_value(label, save_as, value_type, description)` calls `read_labeled_value(page, label)` (the cell after the label, the input a label points at, or the next sibling). The declared type is checked at capture. The event stores the label, name and type, **not the value**. Phase 4 replay reuses `read_labeled_value`.
 
@@ -902,6 +990,12 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D47 — Business outcome from a probe run, and `open_path`
 
+> **Update:** superseded, see section P (D70+) below. agent.ipynb's own `finish(summary, values)`
+> has neither `outcome` nor `proof_text`, and is never modified to add them (that would be
+> respelling a copied tool, not importing it). The rebuild adds a **separate** new tool,
+> `finish_business_outcome(outcome, proof_text)`, instead. `open_path`'s reasoning and safety
+> properties (GET-only, allowlisted, value-grounded) are unchanged.
+
 **Chosen:** `finish` takes `outcome` (UPPER_SNAKE) and `proof_text`. The tool checks the proof text really is on the page. The recorder cuts the bad input value out of the proof text and saves a `business` rule with `when.text_present`. A probe run is never compiled as a capability. To reach a page for a bad id, the agent gets `open_path(path)`: same site only, deny words as in `click`, and every query value must be given in the goal.
 
 **Reasoning:** D10 says discovery finds these by one deliberate bad-input probe. The agent had no way to reach a page for an id that no link points to. The proof check stops the model inventing text. Engine defaults for recoverable and hard failures stay out of scope.
@@ -912,6 +1006,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 ### D48 — Value grounding now uses declared inputs; `web_search` removed here
 
+> **Update:** superseded, see section P (D70+) below, in name only: the value-grounding check
+> this decision describes now lives in agent.ipynb's own `type_text`/`select_option` (copied
+> verbatim, D50-D69), not in a from-scratch recorder tool. `open_path`'s own grounding check
+> (new, D47) follows the identical rule. `web_search` is still left out, same reasoning.
+
 **Chosen:** a typed value, chosen option or path value is allowed if it equals a declared input value, or is a whole word or number in the goal (word-boundary, not substring). Otherwise the handoff to a human happens as before, and the compile refuses that run. `web_search` is left out of the recorder's agent.
 
 **Reasoning:** this is the D34 upgrade it promised. `web_search` sends text to a third party outside the allowlist (Phase 1 finding); discovery of a capability does not need it.
@@ -919,6 +1018,11 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 **Brief ref:** 3.4.
 
 ### D49 — Risk, checkpoint, save guards
+
+> **Update:** superseded, see section P (D70+) below. Unchanged in spirit (approval = risky
+> signal, last-kept-step checkpoint, save guards); "risky" is now read from an event's own
+> `approved` flag (set by comparing `needs_human(ref)`, copied verbatim from agent.ipynb, against
+> the tool's own result text) rather than a bespoke recorder-only approval mechanism.
 
 **Chosen:**
 - A click a human approved becomes `risk: risky`. `amount_input` is the declared `currency`/`number` input if there is exactly one (or one named `*amount*`). `risk_level` follows (D38).
@@ -1125,6 +1229,18 @@ Unit tests: schema rejects bad artifacts; redaction; allowlist; transfer thresho
 
 **Brief ref:** 3.6.
 
+### D69 — Login attempt limit: a prompt rule, plus a code-level hard cap
+
+**Question:** login could be retried indefinitely if it kept failing (wrong username, a genuinely nonexistent user, or a slow/flaky page). Limit it to a fixed number of tries, and stop cleanly if the login page reports the credentials are invalid.
+
+**Chosen:** both a prompt rule and code enforcement, not just one:
+- **Prompt:** "Attempt login at most 3 times. If the page says the login could not be verified, stop immediately... call finish with 'STUCK:'."
+- **Code (`login_check`, a pure function, tested offline before wiring in):** every click on the Log In button counts as an attempt. If the resulting page contains a known failure phrase (best-guess wording, not verified against the live site this session: "could not be verified," "user does not exist," "invalid username or password"), it blocks immediately, on attempt 1 if needed. Otherwise, a **hard cap of 3 attempts** blocks regardless of wording. Once blocked, `click` refuses to click "Log In" again at all — the same pattern already used for a human-declined risky button (`DECLINED`).
+
+**Reasoning:** a prompt-only rule has already been shown, more than once this session, not to reliably stop the model from retrying something it was told not to. The wording-based check is a best effort and may miss ParaBank's exact phrasing; the attempt-count cap is what actually guarantees the loop ends, regardless of whether the text match ever fires. Verified offline: a failure message blocks on attempt 1; a successful-looking page does not block; three attempts with no matching text still hits the hard cap on the third.
+
+**Brief ref:** 3.1 (stopping conditions: max steps, dead end), Section 9 (respect the target site — do not hammer a login endpoint indefinitely).
+
 ## H. Assumptions and defaults (to confirm)
 
 - ParaBank needs a registered **test user**; registration asks for an SSN. We use fake data, and registration is a one-time setup outside the artifacts.
@@ -1274,3 +1390,206 @@ a capability by name).
   nothing that could be said with two fields cannot be said in one paragraph.
 
 **Brief ref:** 3.2.
+
+### D67 — An element with no name at all: the scanner still finds it, but degrades gracefully
+
+**Question:** D2's scan gets an element's name by trying, in order: `aria-label`, a real `<label>`,
+its own button text/value, its visible text, then placeholder/title/alt/name. What happens when
+*none* of those exist — the exact "no clean DOM" case the brief centers on (Section 1)?
+
+**Checked against the actual code, not assumed:** `nameOf()` returns an empty string `''`. Nothing
+raises, nothing is skipped.
+
+**Chosen (this is a statement of existing, verified behaviour, not a new build):**
+- The element is still found by the selector, still gets a number, still gets a red box drawn on
+  it, still appears in the screenshot. Visibility and size are the only things that exclude an
+  element (`getBoundingClientRect`/`getComputedStyle`) — an empty name never does.
+- The text list shows it as `[7] textbox ""` — a number and a role, no name.
+- Anywhere that turns a ref into a human-facing message (`_describe`, D53) falls back to a generic
+  `"field N"` unless the model supplies its own `hint`, read visually from the screenshot.
+
+**Reasoning:** this is not hypothetical — it is the exact mechanism behind the "field 17" bug found
+and fixed in D53. The scanner's job (D2) was always to keep working with no clean markup; this
+confirms the *element* keeps working (findable, numbered, actionable) even when the *name* cannot.
+The visual channel (the picture) is what recovers the missing name, which is the entire argument
+for the hybrid over text-only perception in D2.
+
+**Brief ref:** 3.1 (bias toward approaches that work with no clean DOM), D2, D53.
+
+### D68 — Two elements with the identical name: how they are told apart, and where the schema falls short today
+
+**Question:** Two links both say "Edit" (one per row in a table). Numbering alone does not fix
+this — both still need to be found again correctly on replay.
+
+**Checked against the actual schema, not assumed:**
+
+| Locator strategy | Has a `within` (scope to a container) field? |
+|---|---|
+| `role` | Yes |
+| `text` | Yes |
+| `label` | **No** |
+| `labeled_value` | **No** |
+| `structure` | Yes, and required (D8) |
+
+**Chosen (a mix of what already works and an honestly stated gap):**
+- **At discovery time, this is already handled.** Two identically-named elements still get
+  different ref numbers and different on-screen positions (the picture shows *where* each one
+  sits, e.g. next to which row's data). The model can pick the right one using that surrounding
+  visual context even though the text list alone, read in isolation, would be ambiguous between
+  them. This is the hybrid perception design (D2) doing real work, not a coincidence.
+- **At replay time, it depends on which strategy was recorded.** A `role` or `text` locator can be
+  scoped with `within` to "the Edit link inside this row," resolving the ambiguity. A `label` or
+  `labeled_value` locator cannot be scoped at all today — if the recorded label text is genuinely
+  duplicated elsewhere on the page, it is not resolvable with the current schema.
+- **Not yet enforced:** nothing today requires a locator to be scoped just because its name might
+  be duplicated; an under-scoped `role`/`text` locator can still be saved without error.
+
+**Reasoning:** stating this precisely, rather than assuming duplicates are automatically handled,
+avoids a false sense of robustness. The fix is recorder-side, not schema-side: the recorder (not
+yet rebuilt) must check during discovery whether a candidate name/label is duplicated on the page
+and, if so, either add a `within` scope or pick a different strategy. Flagged here so the recorder
+rebuild plan treats "duplicate name on the page" as a required test case, not an afterthought; also
+belongs in REPORT.md's cuts section as a stated limitation if the recorder rebuild does not close
+the `label`/`labeled_value` scoping gap.
+
+**Brief ref:** 3.2 (robustness reasoning per locator), 3.7 (heterogeneous, legacy surfaces are
+exactly where duplicate or ambiguous labels are common).
+
+## P. Phase 3 v2 decisions (the recorder, rebuilt against D63-D69)
+
+The Phase 3 recorder (section M, D41-D49) targeted a schema and a set of agent tools that no
+longer exist by the time this rebuild started: `Target(locators=[...])` (a ranked list) instead of
+`primary`/`fallback` (D63); `Capability(app=..., when_to_use=..., routes=...)` instead of a single
+`base_url` (D64-D66); and browser tools from before every Phase 1 safety fix built through live
+testing (D50-D69: the whole-page lock, the approval gate inside `click()`, `request_missing_values`,
+the login attempt guard). Running the old recorder's compile step against the live schema raised a
+Pydantic error immediately, and the old capture half had never been run against a real browser (0
+of 33 cells with a nonzero `execution_count`). D41-D49 above are marked superseded individually,
+with the specific code-shape break named at each. This section records what was actually built.
+
+### D70 — Reuse the exec-cells-into-namespace technique for both halves
+
+**Question:** How does the compile half import the CURRENT Phase 2 models, and how is a genuine
+offline test run proven, given the CAPTURE half needs a real browser and this agent must not
+launch one?
+
+**Chosen:** `load_schema()` execs `02_artifact_schema.py`'s non-check cells into this notebook's
+namespace -- the exact technique `04_replay_engine.py` already uses, not a new one. To prove the
+COMPILE half offline, a harness (not part of the committed notebook) execs only the
+`OFFLINE`-prefixed cells of `03_recorder.py` by splitting on `# %%` and filtering by header, the
+same split-by-cell-header approach `load_schema()` itself uses one level up.
+
+**Reasoning:** consistency with the existing repo pattern beats inventing a second import
+mechanism. One sharp edge, found and fixed during this build: `exec(code, ns)` with a bare `ns`
+dict lacking a `__name__` key breaks Pydantic's discriminated-union validation for a model
+constructed from already-built instances (`Target(primary=RoleLocator(...))` raised
+`model_attributes_type` errors), because class `__module__` resolution during `exec` depends on
+`__name__` being present in the exec globals. `02_artifact_schema.py`'s own `load_schema()` never
+hits this (it execs into the real running script's `globals()`, which already has `__name__`);
+the offline test harness must set `ns = {"__name__": "__main__", ...}` explicitly, or the exact
+same construction pattern `04_replay_engine.py` uses (and passes) fails when isolated into a bare
+dict. Recorded here since it cost real debugging time and would bite anyone building a similar
+harness later.
+
+**Brief ref:** 3.2, 3.3, code quality.
+
+### D71 — Locator derivation against `primary`/`fallback`, with D68's gap tested for, not closed
+
+**Chosen:** `derive_target(el, inputs, warnings) -> Target` builds one ranked list of candidates
+(role > label/text > structure) and takes the first two as `primary`/`fallback` (D63's shape).
+Duplicate names (D68): a `role`/`text` locator whose name is not unique on the page is scoped with
+`within` when a container was captured; with no container, it is saved unscoped and the compiler
+appends a warning to the report rather than inventing a container that was never observed. A
+duplicated `label` (or, for `extract`, `labeled_value`) has no `within` slot on the schema at all
+(D68's own stated gap) and is refused outright with `CompileError`, never silently saved ambiguous.
+
+**Reasoning:** this is D42's original reasoning, rebuilt against the current `Target` shape, plus
+the concrete fix D68 asked for ("the recorder... must check during discovery whether a candidate
+name/label is duplicated... and, if so, either add a `within` scope or pick a different strategy").
+The unscoped-but-no-container case is a judgment call, made explicit here rather than left
+implicit: refusing outright would make an honest recording impossible whenever the capture half
+could not observe a container (a real limit of the DOM, not a recorder bug), so it is flagged
+instead. The `label`/`labeled_value` case has no such escape hatch (the schema has no field to put
+a scope in), so it is refused, matching D68's honestly-stated gap exactly -- this rebuild does not
+close that gap, only detects and reports it, as D68 itself says is the recorder's job.
+
+**Brief ref:** 3.2, 3.7, D68.
+
+### D72 — The event shape, and where each field actually comes from
+
+**Chosen:** one event dict per real tool call: `{i, tool, args, message, status, before, after,
+approved, el, value, label, save_as, value_type, description, outcome, proof, summary, values}`.
+`status` is computed by `classify_status(message)`, a pure function bucketing the EXACT prefixes
+read directly out of agent.ipynb's STEP 3 code (`DENIED:`, `DECLINED`, `BLOCKED:`, `SKIP:`,
+`NOT YET:`, `STOP:`, the `CLICK/TYPE/SELECT FAILED`/`UNKNOWN SECRET`/`REFUSED:` failure family, and
+an `"A human "`-prefixed success text for every handoff path -> `handoff`). `el`'s richer fields
+(`label`, `container`, `nth`, `name_count`, `label_count`) come from a new, additive
+`DESCRIBE_JS`, called only when logging an event, never shown to the model and never touching
+`OBSERVE_JS` (copied verbatim). `DESCRIBE_JS`'s own `roleOf`/`nameOf` intentionally duplicate
+agent.ipynb's `OBSERVE_JS` logic in a few lines, so "name" means the same thing to the recorder as
+it does to the model; this duplication is documented in the notebook, not accidental.
+
+**Reasoning:** classifying status from real, verified message prefixes (not guessed text) is what
+makes clean-up (D43) and the top-level refusals (D70's harness proved these against fixtures shaped
+from the real prefixes) trustworthy. Keeping the richer descriptor computation entirely separate
+from `OBSERVE_JS` is what makes the "never touching a tool's own body" claim literally true rather
+than aspirational.
+
+**Brief ref:** 3.2, 3.3, code quality.
+
+### D73 — Two new tools and a wrapper, not a rewrite: `extract_value`, `open_path`,
+`finish_business_outcome`, and the `.coroutine` capture wrapper
+
+**Chosen:** every tool in `BROWSER_TOOLS` (copied verbatim from agent.ipynb) plus `open_path` gets
+its `tool_obj.coroutine` replaced by a wrapper that logs `before`/`el`/`args`, calls the ORIGINAL
+coroutine unchanged, logs `after`/`message`/`status`, and returns the original result unmodified.
+`extract_value` (reads a value shown next to a label, checks its declared type, never logs the
+value itself, D46), `open_path` (GET-navigate within the allowed host, same deny-word and
+value-grounding checks as `click`/`type_text`, D47), and `finish_business_outcome` (refuses unless
+`proof_text` literally appears on the page, records `outcome`/`proof` for `rule_from_probe`, D47)
+are three small, separately-defined new tools -- `finish` itself is never modified to add
+`outcome`/`proof_text` fields, since that would be respelling a copied tool rather than adding
+alongside it.
+
+**Reasoning:** `.coroutine`-wrapping is the literal mechanism the task asked for ("wrap the
+relevant tools... without changing any tool's existing behavior or return value"): the agent
+framework calls each tool the same way whether or not it is wrapped, and unwrapping is a one-line
+revert (restore the saved `_original` reference) if this ever needs to be undone. A new tool next
+to `finish`, rather than a modified `finish`, keeps the "copied verbatim" claim about agent.ipynb's
+own tools literally true.
+
+**Brief ref:** 3.2, 3.4, D46, D47.
+
+### D74 — Top-level refusals run before any clean-up, and refuse the WHOLE run, not one step
+
+**Chosen:** `compile_run` checks, before touching clean-up at all: any event with `status ==
+"stop"` (D69's login attempt guard fired) refuses with a message naming D69 explicitly; any event
+with `status == "handoff"` refuses (a hand-typed step cannot be recorded, D43); a `finish` event
+whose `summary` starts with `STUCK:` or `DECLINED:` refuses; a run whose terminal event is
+`finish_business_outcome` refuses (it is a probe, use `rule_from_probe`, not `compile_run`). Each
+is a hard rule stated as its own hard requirement, not a review-warns to be worked around.
+
+**Reasoning:** the assignment's own hard rule ("a run blocked by the login attempt guard... must
+never be compiled into a capability at all -- refuse clearly") is unambiguous, and the cleanest way
+to guarantee it is to check it before any other logic runs, rather than hoping clean-up's ordinary
+drop rules happen to remove every trace of a bad run. Fixture 8 (offline, hand-made `STOP:` event)
+proves this refuses immediately, before clean-up, login-split, or step-building ever run.
+
+**Brief ref:** 3.4, 3.6, D69.
+
+### D75 — Offline fixtures are hand-built from real message prefixes, run via a cell-filtering harness
+
+**Chosen:** every offline fixture's events are built with a small `_e(...)` helper from the exact
+message strings agent.ipynb's tools return (e.g. `"STOP: login failed (login was attempted 3 times
+with no success)..."`, verbatim from STEP 3's own `click()` body), not invented text. All fixtures
+and their assertions live in `OFFLINE`-titled cells inside the committed notebook itself (not a
+separate test file); a temporary, uncommitted harness (matching D70) execs only those cells to run
+them with `uv run python`, proving the compile half end to end with zero browser code touched.
+
+**Reasoning:** the brief's own worry ("a run of hand-made fixtures that don't look like what a real
+tool actually returns") is closed by sourcing every fixture's text from the real tool code, not
+from what compile code is convenient to test. Keeping fixtures inside the shipped notebook (rather
+than a separate `tests/` file, which does not exist in this repo's layout) matches this project's
+existing convention (`02_artifact_schema.py`, `04_replay_engine.py` both do the same).
+
+**Brief ref:** Section 6 (README: how to run without live services), Section 7 (code quality).

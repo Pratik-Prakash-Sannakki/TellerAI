@@ -41,7 +41,14 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   steps; `when_to_use` folded into `description`. See DECISIONS.md section O (D63-D66).
 
 ## Phase 3 notebook
-- `03_recorder.py` — the recorder. Part A captures events from an agent run (browser). Part B compiles events into draft capabilities in `artifacts/` (pure Python, tested offline). Cells titled `OFFLINE` need no browser; `BROWSER` cells do.
+- `03_recorder.py` — the recorder, rebuilt 2026-09-25 against the current schema (D63-D68) and the
+  current `agent.ipynb` (D50-D69). Part A, COMPILE (`OFFLINE` cells): pure Python, `events +
+  declared inputs -> Capability`, tested entirely offline with hand-made fixtures shaped from
+  agent.ipynb's own tool-result prefixes. Part B, CAPTURE (`BROWSER` cells): copies agent.ipynb's
+  current setup/scanner/tools/safety cells verbatim (a deliberate, temporary duplication, Phase 9
+  consolidates), wraps each tool to log an event, and adds three small new tools the compiler
+  needs (`extract_value`, `open_path`, `finish_business_outcome`). See DECISIONS.md section P
+  (D70-D75); D41-D49 (original Phase 3) are marked superseded there.
 
 ## Phase 4 notebook
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback
