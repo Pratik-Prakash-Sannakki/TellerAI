@@ -52,6 +52,12 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   copied verbatim and off by default, with one additive extension (D76) so this notebook's own new
   tools always survive tool-selection. See DECISIONS.md section P (D70-D76); D41-D49 (original
   Phase 3) are marked superseded there.
+  **2026-09-26 fix:** a `request_value`/`request_missing_values` handoff (a KNOWN, specific field
+  opened for a human) is now recordable — `synthesize_human_entries` turns the field's live value,
+  read right after hand-back, into a proper `type_text`/`select_option` event with a reviewer-facing
+  `why` note, and `compile_run` only hard-refuses the genuinely unstructured handoffs (`ask_human`,
+  a take-over click). See DECISIONS.md section Q (D82-D84) and
+  `docs/superpowers/plans/2026-09-26-recorder-human-entry-fix.md`.
 
 ## Phase 4 notebooks
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback

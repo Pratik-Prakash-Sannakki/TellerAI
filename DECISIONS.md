@@ -1863,4 +1863,158 @@ notebook's two example artifacts exercise. A form control that is both empty AND
 text (unusual, but not impossible for a custom-styled input) could read incorrectly; not a case
 either bundled example hits, flagged rather than special-cased blindly.
 
+## Q. Phase 3 bugfix: a request_value/request_missing_values handoff is now recordable
+
+A real bill-pay discovery run filled 4 fields via `type_text`, then called
+`request_missing_values` because more fields were still empty. A human filled a text field
+("Nagarjuana", a payee name) and a dropdown ("12345", an account) by hand during the takeover. The
+run finished for real in the browser -- an actual $20 payment went through -- but `compile_run`
+refused to compile ANY capability from it: "a human entered a value by hand during this run. That
+step cannot be recorded." D70-D76's rebuild never distinguished a handoff with a KNOWN, specific
+target from one with none at all. See
+`docs/superpowers/plans/2026-09-26-recorder-human-entry-fix.md` for the full plan. (Note on
+numbering: D77-D81 were taken by concurrent Phase 4 work landed in this same repo while this fix
+was being written; these decisions continue from D82, the current highest number at commit time,
+confirmed against `git log` immediately before writing this section, not against an earlier read.)
+
+### D82 — `request_value`/`request_missing_values` handoffs are now recordable; `ask_human` and a take-over click are not
+
+**Question:** `_refuse_bad_run` treated every `status == "handoff"` event as an unrecoverable gap
+in the recording, with no exceptions (D74). Is that still the right rule now that CAPTURE can
+(task below) turn some handoffs into a proper synthetic step?
+
+**Options:**
+- (a) Keep the blanket refusal. Simple, but wrong: it throws away a run that finished for real,
+  over a step we can now fully reconstruct.
+- (b) Narrow the refusal to only the handoffs where we genuinely cannot know what a human did:
+  `ask_human` (free-form -- "figure out what's needed") and a take-over click (the `choice == "t"`
+  path inside `click()`, D56-D62 -- the human could have done anything to the page). Everything
+  else about a `request_value`/`request_missing_values` handoff is, by construction, NOT free-form:
+  both tools call `human_takeover(..., allow_refs=[...])` with a specific, already-known ref (or
+  list of refs) -- `request_value` passes exactly the one ref it's asking about; `request_missing_
+  values` computes its list itself via `missing_field_labels(surface.last_elements, hints)` before
+  handing off. `current_value(ref)` (agent.ipynb, copied verbatim) reads exactly what ended up in
+  that field, whoever put it there.
+
+**Chosen:** (b). `UNSTRUCTURED_HANDOFF_TOOLS = {"ask_human", "click"}`; `_refuse_bad_run` only
+refuses a `"handoff"` event whose `tool` is in that set.
+
+**Reasoning:**
+- The distinction is not "was a human involved" (both kinds involve a human) but "do we know,
+  independent of asking the model, exactly which element(s) they could have touched." A
+  `request_value`/`request_missing_values` handoff answers that question by construction (the
+  `allow_refs` list IS the answer); `ask_human` and a take-over click do not and structurally
+  cannot -- their entire reason to exist is that no specific target is known in advance.
+- This does not weaken D43's original promise ("a hand-typed step cannot be recorded"). It was
+  never actually true that a `request_value` step was "hand-typed with no record" -- the code
+  already knew precisely which ref was opened. The old rule was a blanket approximation that
+  happened to be safe (never recording something we couldn't verify) but also happened to be
+  needlessly destructive for the one case where verification IS possible.
+- Kept the audit event itself unchanged (the "handoff" event `request_value`/`request_missing_
+  values` produce is still appended, still classified `"handoff"` by `classify_status` -- nothing
+  about `classify_status` or the event's own `status` field changes). What changes is only which
+  `tool` names' handoff status is treated as fatal. This is a smaller, more precise change than
+  rewriting `classify_status` to distinguish the two cases by message text, which would be brittle
+  (both message families start with `"A human"` on purpose, D53).
+- `clean_events` needed no change: the audit event's `tool` (`request_value`/`request_missing_
+  values`) is not in `ACTION_TOOLS`, so it is already dropped as "not an action" during clean-up,
+  exactly as it always was -- only the synthetic event (D83) becomes a step.
+
+**Verified offline:** `ask_human`'s handoff still refuses, both at `_refuse_bad_run` directly (its
+own updated message, `"no specific field known"`) and end to end through `compile_run` (a fresh
+fixture, not only the pre-existing lower-level check). A take-over click's handoff refuses the
+same way (a case the original test never covered). A `request_value`/`request_missing_values`
+handoff does NOT refuse at `_refuse_bad_run`, checked directly.
+
+**Brief ref:** 3.6 (a well-reasoned handoff mechanism, not a blanket one), D43, D53, D56-D62.
+
+### D83 — How a synthetic event is built, and why the element's `role` decides `type_text` vs `select_option`
+
+**Question:** Once a handoff is known to target specific ref(s), how does "the human put a value
+in this field" become an event `compile_run` can turn into a step?
+
+**Chosen:** a new pure function, `synthesize_human_entries(i_start, before_url, before_heading,
+after_url, after_heading, entries)`, where `entries` is `[{"ref", "el", "value_after"}, ...]` --
+one per ref that was opened for the human. For each entry whose `value_after` is non-empty, it
+builds ONE event in the exact shape `_capture`'s generic wrapper already produces (`i, tool, args,
+message, status, before, after, approved, el, value`), plus two new keys: `human_entered: True` and
+`why` (D84). The `tool` is chosen by `el["role"]`: `combobox`/`select` -> `select_option`-shaped
+(`args: {ref, option}`, matching how a real `select_option` call is logged); anything else ->
+`type_text`-shaped (`args: {ref, text}`, matching a real `type_text` call). `status` is always
+`"ok"`: the value is now genuinely sitting in the field, exactly as if the agent itself had typed
+or chosen it. An entry whose `value_after` is still empty is SKIPPED entirely -- not synthesized,
+and does not consume an `i` -- because the human declined to fill that field, and there is nothing
+to record; a still-missing declared input surfaces normally at compile time (an unused input, or a
+capability that fails validation), not as a special case inside this function.
+
+**Reasoning:**
+- Reusing `el["role"]` (already computed by `DESCRIBE_JS`, D72) to decide the tool, rather than
+  adding a new signal, means the synthetic event is indistinguishable, at every point downstream
+  (`clean_events`, `drop_detours`, `build_steps`, `derive_target`), from an event the agent's own
+  `type_text`/`select_option` would have produced for the identical field. `build_steps`'s existing
+  `select_option` branch already validates `e["value"] in el["options"]` -- this check applies
+  unchanged to a synthetic event too, since `el` is the SAME descriptor `DESCRIBE_JS` would have
+  produced for that element regardless of who filled it in.
+- `i_start`/sequential numbering (not a fixed offset) lets the CAPTURE wrapper (D82's task 2) chain
+  these onto `EVENTS` with `len(EVENTS)` at call time, exactly like every other event append in the
+  file already does -- no new numbering scheme.
+- Kept genuinely pure (no `page`, no `await`, no import beyond what OFFLINE cells already have) so
+  it is testable with hand-built fixtures the same way every other COMPILE-half function is (D75).
+  All page access (`current_value(ref)`, `describe_ref(ref)`) stays in the CAPTURE-half wrapper,
+  which builds `entries` before calling this function.
+
+**Verified offline (OFFLINE 4d):** one text field; one dropdown; two of each in one call
+(sequential `i`, correct tool per entry); an entry left empty after handoff (skipped, no event, no
+`i` consumed); `i` numbering confirmed to continue correctly from `i_start` including across a
+skipped entry in the middle of the list.
+
+**Brief ref:** 3.2, 3.3 (a synthetic event must be indistinguishable, to the compiler, from a real
+one), D42, D63, D72.
+
+### D84 — A human-entered step carries a `why` note for reviewability; D29/D44 are unmodified
+
+**Question:** A reviewer reading a compiled capability's YAML should be able to tell that one
+specific step's value was entered by a human during discovery, not decided by the agent (3.2). And:
+does making these values recordable at all risk quietly weakening D29/D44's leftover-literal
+refusal or constant reporting for exactly the values that most need scrutiny (ones nobody typed
+into the goal)?
+
+**Chosen:**
+- `HUMAN_ENTRY_WHY = "Value entered by a human during discovery; the agent did not have this
+  value."`, set as `synthesize_human_entries`'s own `why` key (D83) and copied onto the compiled
+  `TypeText`/`Select` step by `build_steps` whenever `e.get("human_entered")` is true -- the exact
+  same `why` field a risky `Click` step already uses for its own reviewer-facing note ("Point of no
+  return..."), not a new mechanism.
+- D29/D44 (`find_leftovers`, `_params`'s constant reporting) are **not modified at all**. Both
+  already operate on the compiled `Capability`/a typed value alone, blind to which tool produced
+  the underlying event -- there was never a `human_entered` check to add one to.
+
+**Reasoning:**
+- Reviewability (3.2) is served by making the fact visible on the step itself, in the same place a
+  reviewer already looks for "why is this here" (the risky-click note), rather than a separate log
+  or comment a reviewer would have to know to go find.
+- The real risk this decision addresses is a DIFFERENT one: it would be easy, when making these
+  values recordable, to also (accidentally or "helpfully") skip D29/D44's checks for them, on the
+  theory that "a human already saw this value, so it's fine." That reasoning is wrong -- a
+  human-entered value that leaks into an unparameterized part of the capability, or that silently
+  becomes a hard-coded constant, is exactly as much of a replay-fragility risk as an agent-typed
+  one, arguably more so (nobody declared it as an input, so nobody is thinking about it as
+  variable). This decision is deliberately a non-change to those two checks, proven rather than
+  asserted.
+
+**Verified offline:**
+- A human-entered value matching NO declared input (a "Remarks" field, `"Thanks for your
+  business"`) is reported in `report["constants"]`, exactly as an agent-typed constant would be
+  (`OFFLINE 12d`).
+- A human-entered value that DOES match a declared input (`payee_name`, `"Nagarjuana"`), where the
+  capability spec's own `description` text also happens to contain that literal un-parameterized,
+  still triggers `find_leftovers`' refusal, naming the input and the location (`"description"`),
+  never the value (`OFFLINE 12e`) -- proving the human-entered path was not special-cased to skip
+  this check.
+- The full bill-pay-shaped fixture (`OFFLINE 12c`) shows both synthesized steps (`type`, `select`)
+  present in `task.steps` with `why == HUMAN_ENTRY_WHY`, alongside the agent's own un-annotated
+  steps (`why: None`) -- the note is additive, not something every step now carries.
+
+**Brief ref:** 3.2 (reviewability), 3.4 (parameterisation and the leftover check), D29, D44, D49.
+
 **Brief ref:** 3.2, D46, D78.
