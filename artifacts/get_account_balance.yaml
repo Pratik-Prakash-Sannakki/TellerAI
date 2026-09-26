@@ -1,0 +1,54 @@
+# DRAFT written by the recorder (Phase 3 v2). A reviewer must read it before it is verified.
+# HAND-EDITED 2026-09-26 (D89, Problem 3 of the live-replay overview.htm bugfix): the ORIGINAL
+# label ("Balance") matched only ParaBank's own #accountTable column HEADER ("Balance*"), whose
+# next sibling cell is the "Available Amount" header, not any account's real balance -- wrong
+# regardless of how many accounts the logged-in user has (confirmed from the real captured DOM,
+# not guessed). No declared input carried the described "given its account id" scoping either
+# (inputs was already empty), and the schema/engine here have no way to substitute a caller value
+# into a locator's `label` field, so a true per-account-id read (matching examples/
+# get_account_balance.yaml's activity.htm?id={{account_id}} approach) is not reachable without
+# changing 04_replay_engine.py -- out of scope for this fix. Repointed at the SAME page's own
+# footer "Total" row instead: it uses the exact existing labeled_value/READ_LABELED_JS mechanism
+# unchanged, resolves correctly today, and for the common single-account case is numerically the
+# same figure a person would call "the balance" anyway. See DECISIONS.md D89 for the full
+# reasoning and what the live main session should verify (how many accounts the real test user
+# actually has).
+schema_version: 1
+name: get_account_balance
+version: 1
+status: draft
+description: Read the total balance across all of the logged-in user's accounts, from the Accounts Overview page.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: safe
+inputs: []
+outputs:
+- name: balance
+  type: currency
+  description: Total balance across all accounts shown on the Accounts Overview page.
+secrets: []
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /overview.htm
+- action: extract
+  target:
+    primary:
+      strategy: labeled_value
+      label: Total
+      stability: medium
+      note: >-
+        The Accounts Overview table's own footer row ("Total"), appended by the same async call
+        that fills the table body, sums every account's balance. Chosen over the column header
+        "Balance*" (D89): that header's own next-sibling cell is "Available Amount", a second
+        header, not any account's value -- always wrong, not merely ambiguous. Label text is
+        stable across releases; a labeled-value read does not depend on page position.
+  save_as: balance
+checkpoint:
+  url_contains: overview.htm
+  text_present: Accounts Overview
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.
