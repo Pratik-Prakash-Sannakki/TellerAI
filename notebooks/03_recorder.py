@@ -742,20 +742,81 @@ assert {e["args"]["ref"] for e in out} == {10, 11}
 print("synthesize (declined field skipped, i numbering continues):", [(e["i"], e["args"]["ref"]) for e in out])
 print("synthesize_human_entries: all checks passed")
 
-# %% OFFLINE 5: parameterisation and per-step assembly (D8, D9, D10, D29, D33, D38)
+# %% OFFLINE 5: parameterisation and per-step assembly (D8, D9, D10, D29, D33, D38, D90)
 SENSITIVE_WORDS = ("ssn", "password", "social")
+HUMAN_INPUT_PATTERN = r"^.{1,80}$"   # D90: generic and permissive on purpose -- see D90's reasoning
 
 
-def _params(text: str, inputs: dict[str, str], constants: list[dict], where: str) -> str:
-    """A typed or chosen value. Whole-value match -> {{name}}. Otherwise substitute inside. No
-    match at all -> reported as a constant, never refused (D44)."""
+def _slugify_label(label: str | None) -> str:
+    """'Address:' -> 'address', 'Zip Code:' -> 'zip_code', 'Phone #:' -> 'phone'. Lowercase, runs
+    of non-alphanumeric characters collapsed to one underscore, leading/trailing underscores
+    stripped. Any label starting with a letter produces a slug matching the schema's `Name`
+    pattern (`^[a-z][a-z0-9_]*$`); a label with no letters at all yields '' (D90 refuses on that)."""
+    return re.sub(r"[^a-z0-9]+", "_", (label or "").lower()).strip("_")
+
+
+def _declare_human_input(label: str | None, value: str, specs: dict, used_names: set, where: str) -> str:
+    """D90: a human-entered value that matches no already-declared input gets its OWN new declared
+    input, named from the field's own label -- never from its value. Two different fields that
+    happen to share a throwaway discovery value (the real bug report: address='3', zip='4',
+    phone='4') must never collapse into one input just because the values match; naming by label
+    keeps each field's own input distinct regardless.
+
+    Collisions -- two labels producing the same slug, or a slug matching an already-declared input
+    name -- are disambiguated with a deterministic `_2`, `_3`, ... suffix. Never a silent
+    overwrite: `used_names` is checked and updated before `specs` is touched.
+
+    A field with no usable label at all (D67's known gap) refuses compilation naming the event,
+    rather than inventing an opaque name for something with no signal at all."""
+    slug = _slugify_label(label)
+    if not slug:
+        raise CompileError(
+            f"{where}: a human-entered value has no usable label to name a declared input after "
+            "(D67's known gap). Refusing to guess a name -- declare this value as an input up "
+            "front instead, or capture it from a labeled field."
+        )
+    name, n = slug, 2
+    while name in used_names:
+        name = f"{slug}_{n}"
+        n += 1
+    used_names.add(name)
+    clean_label = (label or slug).strip().rstrip(":").strip()
+    specs[name] = {
+        "value": value, "type": "string",
+        "description": f"{clean_label}, entered by a human during discovery -- provide the real value for each run.",
+        "pattern": HUMAN_INPUT_PATTERN,
+    }
+    return name
+
+
+def _params(text: str, inputs: dict[str, str], constants: list[dict], where: str, *,
+            human_entered: bool = False, label: str | None = None,
+            specs: dict | None = None, used_names: set | None = None) -> str:
+    """A typed or chosen value. Whole-value match -> {{name}}. Otherwise substitute inside.
+
+    No match at all: an AGENT's own value is kept and reported as a constant, unchanged from
+    before (D29/D44). A HUMAN-entered value (D82/D83) is different -- the agent never had this
+    value, so it must always become a declared input the caller supplies for real on every future
+    run, never a frozen literal (D90).
+
+    `inputs` here only ever holds the inputs already declared BEFORE this run started (a snapshot
+    `build_steps` takes once, at the top, from the caller's own `specs`) -- an input this function
+    itself auto-declares is deliberately never added back into `inputs`, only into `specs` (read
+    again by `_cap` once `build_steps` returns, for the final capability + the leftover check).
+    Otherwise two different human-entered fields that happen to share a throwaway value would
+    wrongly match each other by `same_value` on a later call, in exactly the case D90 exists to
+    prevent."""
     for name, lit in inputs.items():
         if same_value(text, lit):
             return "{{" + name + "}}"
     out = substitute(text, inputs)
-    if out == text:
-        constants.append({"where": where, "value": text})
-    return out
+    if out != text:
+        return out
+    if human_entered:
+        name = _declare_human_input(label, text, specs, used_names, where)
+        return "{{" + name + "}}"
+    constants.append({"where": where, "value": text})
+    return text
 
 
 def _amount_input(specs: dict) -> str | None:
@@ -768,8 +829,16 @@ def _amount_input(specs: dict) -> str | None:
 
 def build_steps(events: list[dict], specs: dict, warnings: list[str], constants: list):
     """Events -> (steps, outputs, secrets, paths). Adds a navigate for the start page, and where
-    the URL changed without a click."""
+    the URL changed without a click.
+
+    D90: `specs` is mutated in place whenever a human-entered value matches no already-declared
+    input -- a new one is appended, named from the field's own label. `_cap` reads `specs` again
+    after this returns, so the new input flows into the compiled `Capability.inputs` and into the
+    leftover-literal check exactly like an originally-declared one. `inputs` (the name->value
+    snapshot used for matching) is deliberately NOT updated as new inputs are declared -- see
+    `_params`'s own docstring for why."""
     inputs = {n: s["value"] for n, s in specs.items()}
+    used_names = set(specs.keys())
     steps, outputs, secrets, paths = [], [], [], []
     prev_after = None
     for e in events:
@@ -804,7 +873,9 @@ def build_steps(events: list[dict], specs: dict, warnings: list[str], constants:
                     secrets.append(name)
                 value = "{{secret:" + name + "}}"
             else:
-                value = _params(e["value"], inputs, constants, f"{where} into {el.get('label') or el.get('name')!r}")
+                value = _params(e["value"], inputs, constants, f"{where} into {el.get('label') or el.get('name')!r}",
+                                 human_entered=e.get("human_entered", False), label=el.get("label"),
+                                 specs=specs, used_names=used_names)
             # D84 (reviewability, 3.2): a value a human typed by hand during discovery, not one the
             # agent decided on, gets a `why` note saying so, exactly like a risky click's own note
             # above -- this is only ever set on a synthetic event from synthesize_human_entries
@@ -816,7 +887,9 @@ def build_steps(events: list[dict], specs: dict, warnings: list[str], constants:
                 raise CompileError(f"{where}: option {e['value']!r} is not in the dropdown's options")
             steps.append(Select(
                 target=derive_target(el, inputs, warnings),
-                option=_params(e["value"], inputs, constants, f"{where} in {el.get('label') or el.get('name')!r}"),
+                option=_params(e["value"], inputs, constants, f"{where} in {el.get('label') or el.get('name')!r}",
+                                human_entered=e.get("human_entered", False), label=el.get("label"),
+                                specs=specs, used_names=used_names),
                 why=HUMAN_ENTRY_WHY if e.get("human_entered") else None,
             ))
         elif tool == "extract_value":
@@ -922,7 +995,11 @@ def compile_run(events: list[dict], spec: dict, *, extra_rules=(), base_url: str
     """The whole pipeline. Returns {"login": Capability|None, "task": Capability, "report": {...}}.
     spec = {name, description, inputs: {name: {value, type, description, pattern?}}}"""
     _refuse_bad_run(events)
-    specs = spec["inputs"]
+    # D90: a shallow copy, not the caller's own dict -- `build_steps` may append newly
+    # auto-declared inputs into `specs`, and this must never leak back into the caller's `spec`
+    # object (several OFFLINE fixtures below deliberately reuse the same `spec` dict across more
+    # than one `compile_run` call; each call's auto-declared inputs must stay local to that call).
+    specs = dict(spec["inputs"])
     _check_specs(specs)
 
     kept, dropped = clean_events(events)
@@ -1230,9 +1307,21 @@ assert {i.name for i in billpay_task.inputs} == {"amount", "payee_name", "from_a
 print("fixture 10 (request_missing_values handoff, backed by 2 synthetic entries, compiles WITH both steps + why note):")
 for s in synth_steps:
     print(f"  {s.action}: why={s.why!r}")
+# This fixture also doubles as D90's task-5(b) proof: both human-entered values here DO match an
+# already-declared input (payee_name, from_account) -- they parameterize to those, and the
+# `{"amount", "payee_name", "from_account"}` assertion above confirms no extra input was created
+# for either one. D90 only changes what happens when NO declared input matches (OFFLINE 12d, next).
 
-# %% OFFLINE 12d: fixture 11 -- D29/D44 constant reporting still applies to a human-entered value
-# that matches NO declared input: reported as a constant, never silently accepted (task 5)
+# %% OFFLINE 12d: fixture 11 -- a human-entered value matching NO declared input is now
+# AUTO-DECLARED as a new input (D90), never kept as a literal or reported as a constant.
+#
+# D84 originally asserted the opposite for exactly this sub-case ("reported as a constant, exactly
+# as an agent-typed constant would be") -- that was itself the bug this fix addresses: a value a
+# human had to type in live, because the agent had no way to know it, was being permanently baked
+# into the capability as a literal (the real `pay_bill.yaml` bug report). D90 corrects this one
+# claim of D84; see the "Update: corrected, see D90" note added to D84 in DECISIONS.md. Task 5's
+# OTHER claim in D84/D29/D44 -- that an AGENT's own unmatched literal is unaffected -- is very much
+# still true; see OFFLINE 13j below for a direct regression fixture proving that.
 REMARKS_FIELD_EL = {"role": "textbox", "name": "remarks", "name_source": "attr", "label": "Remarks",
                     "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
                     "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 5,
@@ -1254,13 +1343,17 @@ constant_events = [
        values={"confirmation": "Bill Payment Complete!"}, message="Recorded. Stop now."),
 ]
 constant_result = compile_run(constant_events, BILLPAY_SPEC)
-constants_reported = constant_result["report"]["constants"]
-assert any(c["value"] == "Thanks for your business" for c in constants_reported), constants_reported
-remarks_steps = [s for s in constant_result["task"].steps
-                 if s.action == "type" and s.why == HUMAN_ENTRY_WHY and s.value == "Thanks for your business"]
-assert len(remarks_steps) == 1
-print("fixture 11 (human-entered value matching no input -> reported as a constant, not silently accepted):",
-      constants_reported)
+assert constant_result["report"]["constants"] == [], constant_result["report"]["constants"]
+remarks_step = next(s for s in constant_result["task"].steps
+                     if s.action == "type" and s.why == HUMAN_ENTRY_WHY and s.value == "{{remarks}}")
+remarks_input = next(i for i in constant_result["task"].inputs if i.name == "remarks")
+assert remarks_input.type == "string" and remarks_input.pattern == HUMAN_INPUT_PATTERN
+assert remarks_input.description == "Remarks, entered by a human during discovery -- provide the real value for each run."
+assert "amount" in {i.name for i in constant_result["task"].inputs}   # originally-declared inputs untouched
+print("fixture 11 (human-entered value matching no input -> auto-declared as new input 'remarks', not a constant):",
+      remarks_step.value, "|", remarks_input.description)
+assert BILLPAY_SPEC["inputs"].keys() == {"amount", "payee_name", "from_account"}, BILLPAY_SPEC["inputs"]
+print("fixture 11b (compile_run never mutates the caller's own spec dict, D90):", list(BILLPAY_SPEC["inputs"]))
 
 # %% OFFLINE 12e: fixture 12 -- D29/D44 leftover-literal refusal still applies to a human-entered
 # value that matches a declared input, if it leaks somewhere it was never substituted (task 5)
@@ -1582,6 +1675,111 @@ pb_dead_ends = [d for d in pay_bill_result["report"]["dropped"] if d[2].startswi
 assert pb_dead_ends == [(9, "click", "dead end: risky click had no effect and the same target was clicked again later")], pb_dead_ends
 print("fixture 14 (reconstructed pay_bill bug, fixed): exactly one risky Send Payment click, last among",
       len(type_steps_before_click), "type steps. dropped:", pb_dead_ends)
+
+# D90: the 5 fields a human had to fill in by hand (Address/City/State/Zip Code/Phone #) are
+# exactly the ones this fix targets -- three of them (city, zip, phone) share the identical
+# throwaway value '4', which is precisely the collision `_params`/`_declare_human_input` must not
+# let collapse into one input (see their docstrings). Each must become its OWN declared input,
+# named from its own label, with the real values ('3', '4', '34', '4', '4') never surviving as
+# literals anywhere in the compiled capability.
+pb_human_inputs = {i.name: i for i in pay_bill_task.inputs
+                    if i.name in {"address", "city", "state", "zip_code", "phone"}}
+assert set(pb_human_inputs) == {"address", "city", "state", "zip_code", "phone"}, set(pb_human_inputs)
+for n in pb_human_inputs:
+    assert pb_human_inputs[n].type == "string" and pb_human_inputs[n].pattern == HUMAN_INPUT_PATTERN
+assert pay_bill_result["report"]["constants"] == [], pay_bill_result["report"]["constants"]
+human_type_steps = {s.target.primary.label: s.value for s in pay_bill_task.steps
+                     if s.action == "type" and s.why == HUMAN_ENTRY_WHY}
+assert human_type_steps == {
+    "Address:": "{{address}}", "City:": "{{city}}", "State:": "{{state}}",
+    "Zip Code:": "{{zip_code}}", "Phone #:": "{{phone}}",
+}, human_type_steps
+print("fixture 14b (D90): all 5 human-entered fields auto-declared as their own inputs, no raw literals left:",
+      human_type_steps)
+
+# %% OFFLINE 13h: fixture 15 -- input-name collisions (two derived labels, and a derived name
+# colliding with an already-declared input) are disambiguated deterministically, never silently
+# overwritten (task 5(c)). Two fields are given the SAME label ("Note:") purely to isolate the
+# NAME-collision logic in `_declare_human_input` -- a real page with two simultaneously-visible
+# identically-labeled fields would separately be refused by D68's `_refuse_if_duplicate_label` for
+# its OWN reason (an ambiguous `label` locator); `label_count` is kept at 1 here on purpose so this
+# fixture tests exactly one thing, not two unrelated refusals at once.
+NOTE_FIELD_EL_1 = {"role": "textbox", "name": "note1", "name_source": "attr", "label": "Note:",
+                   "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                   "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 5,
+                   "name_count": 1, "label_count": 1}
+NOTE_FIELD_EL_2 = {**NOTE_FIELD_EL_1, "name": "note2", "nth": 6}
+# Different value from the declared 'amount' input (20.00), so it does NOT match by same_value --
+# it falls through to auto-declare, where its derived name ('amount') collides with the ALREADY
+# DECLARED input of that exact name.
+AMOUNT_LABEL_FIELD_EL = {"role": "textbox", "name": "amount2", "name_source": "attr", "label": "Amount:",
+                         "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                         "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 7,
+                         "name_count": 1, "label_count": 1}
+
+collision_events = [
+    *billpay_handoff_events[:5],
+    _e(5, "request_missing_values", "/billpay.htm", "/billpay.htm", args={"hints": {}},
+       message="A human filled in what they chose to. Pages the human visited: none. Page now: .../billpay.htm.",
+       before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    *synthesize_human_entries(6, "/billpay.htm", "Bill Payment Service", "/billpay.htm", "Bill Payment Service", [
+        {"ref": 8, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"},
+        {"ref": 9, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"},
+        {"ref": 15, "el": NOTE_FIELD_EL_1, "value_after": "first note"},
+        {"ref": 16, "el": NOTE_FIELD_EL_2, "value_after": "second note"},
+        {"ref": 17, "el": AMOUNT_LABEL_FIELD_EL, "value_after": "99.99"},
+    ]),
+    _e(11, "click", "/billpay.htm", "/billpay.htm", el=SEND_PAYMENT_BUTTON_EL, approved=True,
+       message="Clicked [10].", before_heading="Bill Payment Service", after_heading="Bill Payment Complete!"),
+    _e(12, "finish", "/billpay.htm", "/billpay.htm", summary="Paid the bill.",
+       values={"confirmation": "Bill Payment Complete!"}, message="Recorded. Stop now."),
+]
+collision_result = compile_run(collision_events, BILLPAY_SPEC)
+collision_task = collision_result["task"]
+synth_steps = [s for s in collision_task.steps if s.why == HUMAN_ENTRY_WHY]
+assert [s.action for s in synth_steps] == ["type", "select", "type", "type", "type"], [s.action for s in synth_steps]
+assert synth_steps[0].value == "{{payee_name}}"
+assert synth_steps[1].option == "{{from_account}}"
+assert synth_steps[2].value == "{{note}}"          # first 'Note:' field: the plain slug, free
+assert synth_steps[3].value == "{{note_2}}"        # second 'Note:' field: 'note' taken, disambiguated
+assert synth_steps[4].value == "{{amount_2}}"      # 'Amount:' collides with the DECLARED 'amount'
+by_name = {i.name: i for i in collision_task.inputs}
+assert {"note", "note_2", "amount_2"} <= set(by_name)
+assert by_name["note"].description == "Note, entered by a human during discovery -- provide the real value for each run."
+assert by_name["note_2"].description == by_name["note"].description
+assert by_name["amount_2"].description == "Amount, entered by a human during discovery -- provide the real value for each run."
+# the ORIGINAL 'amount' input's own declaration is untouched -- never silently overwritten
+assert by_name["amount"].type == "currency" and by_name["amount"].description == "Amount to pay."
+print("fixture 15 (name collisions disambiguated, original declaration untouched):",
+      [(s.action, getattr(s, 'value', None) or getattr(s, 'option', None)) for s in synth_steps])
+
+# %% OFFLINE 13i: fixture 16 -- regression: an ordinary AGENT-typed literal matching no declared
+# input is STILL kept as a literal and reported as a constant, completely unaffected by D90 (task
+# 5(d)). Adapted from the balance-lookup fixture (OFFLINE 7) with one extra, ordinary (not
+# human-entered) type_text into an unmatched 'Note:' field.
+NOTE_AGENT_EL = {"role": "textbox", "name": "note", "name_source": "attr", "label": "Note:",
+                 "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                 "container": {"role": "form", "name": None}, "nth": 5, "name_count": 1, "label_count": 1}
+
+
+def _balance_events_with_agent_note() -> list[dict]:
+    ev = _balance_events()
+    note_event = _e(50, "type_text", "/activity.htm?id=13344", "/activity.htm?id=13344",
+                     el=NOTE_AGENT_EL, value="Ref-77", message="Typed into [9].",
+                     before_heading="Account Details", after_heading="Account Details")
+    return ev[:5] + [note_event] + ev[5:]
+
+
+agent_literal_result = compile_run(_balance_events_with_agent_note(), BAL_SPEC)
+agent_literal_task = agent_literal_result["task"]
+assert agent_literal_result["report"]["constants"] == [
+    {"where": "event 50 (type_text) into 'Note:'", "value": "Ref-77"}
+], agent_literal_result["report"]["constants"]
+note_step = next(s for s in agent_literal_task.steps if s.action == "type" and s.value == "Ref-77")
+assert note_step.why is None                                   # never annotated -- the agent typed it, not a human
+assert "note" not in {i.name for i in agent_literal_task.inputs}   # never auto-declared
+print("fixture 16 (agent-typed literal matching no input -> still a plain literal constant, unaffected by D90):",
+      agent_literal_result["report"]["constants"])
 
 # %% OFFLINE 14: summary
 print("\nALL OFFLINE CHECKS PASSED")
