@@ -765,13 +765,19 @@ class PlaywrightReplaySurface:
             raise PermissionError(f"host not allowed by ALLOWED_HOSTS: {url}")
         await self.page.goto(url)
 
-    async def resolve(self, locator):
-        """D78: for `labeled_value`, go straight to READ_LABELED_JS (no numbered scan at all --
-        matches how the recorder itself reads a labeled value). For every other strategy, run the
-        SAME numbered scan `PlaywrightSurface.observe()` does (this also keeps `surface.last_elements`
-        in sync for `approval_info`/`needs_human`), then match each candidate's DESCRIBE_JS
-        descriptor against the locator. Returns the first match, or None -- a miss is never
-        swallowed here; resolve_target_async's own primary-then-fallback logic does the rest."""
+    # D88 (Problem 2 fix): a bounded poll budget for `resolve()`'s own real-page timing, separate
+    # from and unrelated to 04_replay_engine.py's step-level TransientFailure retry (D26) -- that
+    # one retries a whole step after a raised exception; this one is `resolve()` re-checking the
+    # live DOM a few times before it ever reports a miss at all. ParaBank's own Accounts Overview
+    # page (confirmed from its real <script>) renders its table body via a jQuery AJAX call that
+    # runs AFTER the page's `load` event -- `page.goto`/`wait_for_load_state("load")` (this file's
+    # `navigate`, above) can return well before that data exists, so a single immediate `resolve()`
+    # attempt can race it.
+    _RESOLVE_POLL_INTERVAL_S = 0.4
+    _RESOLVE_POLL_BUDGET_S = 5.0
+
+    async def _resolve_once(self, locator):
+        """One resolution attempt, no retry -- the exact logic `resolve()` used before D88."""
         if locator.strategy == "labeled_value":
             res = await self.page.evaluate(READ_LABELED_JS, locator.label)
             return LabeledValueRef(label=locator.label) if res["value"] else None
@@ -782,6 +788,32 @@ class PlaywrightReplaySurface:
             if desc is not None and self._matches(locator, desc):
                 return el["ref"]
         return None
+
+    async def resolve(self, locator):
+        """D78: for `labeled_value`, go straight to READ_LABELED_JS (no numbered scan at all --
+        matches how the recorder itself reads a labeled value). For every other strategy, run the
+        SAME numbered scan `PlaywrightSurface.observe()` does (this also keeps `surface.last_elements`
+        in sync for `approval_info`/`needs_human`), then match each candidate's DESCRIBE_JS
+        descriptor against the locator. Returns the first match, or None -- a miss is never
+        swallowed here; resolve_target_async's own primary-then-fallback logic does the rest.
+
+        D88: applied to BOTH branches above via `_resolve_once` -- not just `labeled_value`. The
+        general numbered-scan branch is judged equally exposed: any page's interactive controls
+        (not only a `labeled_value` target) can just as easily be inserted by a late-running script,
+        and this poll is cheap (bounded, self-contained, no new dependency) relative to the cost of
+        a wrongly-early FAILED on a page that was still loading. On a miss, wait
+        `_RESOLVE_POLL_INTERVAL_S` and re-check, up to `_RESOLVE_POLL_BUDGET_S` total (wall-clock,
+        so slow individual attempts count against the same budget rather than being retried
+        unboundedly); once the budget is exhausted, return None -- today's behavior, unchanged."""
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + self._RESOLVE_POLL_BUDGET_S
+        while True:
+            found = await self._resolve_once(locator)
+            if found is not None:
+                return found
+            if loop.time() >= deadline:
+                return None
+            await asyncio.sleep(self._RESOLVE_POLL_INTERVAL_S)
 
     @staticmethod
     def _container_matches(within, container: dict | None) -> bool:
@@ -940,3 +972,17 @@ async def replay_live(cap_path, inputs: dict[str, str], *, auto_approve_limit: f
 
 
 print("replay_live ready. Example: await replay_live(EX / 'get_account_balance.yaml', {'account_id': '<YOUR ACCOUNT ID>'})")
+
+# %% Run pay_bill.yaml (example)
+login_result = await replay_live(REPO / "artifacts" / "examples" / "login_parabank.yaml", {})
+print("login status:", login_result.status)
+
+result = await replay_live(
+    REPO / "artifacts" / "pay_bill.yaml",
+    {
+        "payee_name": "Nagarjuana",
+        "payee_account": "12345",
+        "amount": "20.00",
+    },
+)
+result
