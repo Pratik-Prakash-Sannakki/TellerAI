@@ -2572,3 +2572,120 @@ no correctness cost, only a small readability one.
 **Brief ref:** 3.2 (reviewability), 3.4 (safety, parameterisation, never silently accept an
 unexplained literal), 3.6 (a well-reasoned mechanism, not a blanket one), D8, D9, D10, D29, D33, D38,
 D44, D49, D82, D83, D84, D86.
+
+## V. Phase 4 live bugfix: `replay_live()` gets a pre-flight gate for missing required inputs
+
+### D91 — A pre-flight `input()` gate in `replay_live()` prompts for missing required inputs before anything starts; `validate_inputs`/`run_capability_async` are untouched
+
+**Question:** the owner, running `notebooks/05_replay_live.py` live against `artifacts/pay_bill.yaml`
+(D90 had already turned `address`/`city`/`state`/`zip_code`/`phone` from baked-in literals into real
+required inputs), hit:
+```
+InputValidationError: missing required input 'address'; missing required input 'city'; ...
+```
+as a raw traceback from `run_capability_async`'s own `validate_inputs` (04_replay_engine.py Section
+3) -- exactly correct behavior (D29: a missing required input must refuse, never silently proceed),
+but with no chance to notice and fix it before the whole run dies. The owner's own words, verbatim,
+are the spec for what replaces the traceback:
+
+1. "for a replay, the replay has to automatically understand what all fields it will require based
+   on the replay [i.e. from the capability YAML's own declared inputs -- this is already figured
+   out, by the agent, at discovery/compile time]. What all fields are supposed to be entered? That
+   should be prompted to the user if he has not entered it. Tell him to enter it, and only then will
+   things proceed."
+2. "this has to be a safe step, so before anything starts, based on the YAML, you should ask the
+   user, 'You have not entered these fields. Please enter these fields.'"
+
+**Options:**
+- (a) Catch `InputValidationError` around the `run_capability_async` call and print a nicer message.
+  Rejected: the browser/login/step loop has already started running by the time `validate_inputs`
+  raises (it is `run_capability_async`'s own first line, Section 9) -- a human filling in the
+  missing fields at that point cannot "restart" the run from where it left off; the owner's own
+  wording ("before anything starts... only then will things proceed") asks for the check to happen
+  BEFORE any of that, not for a prettier error after some of it already ran.
+- (b) A genuinely new pre-flight gate in `replay_live()` itself: compute which of `cap.inputs` are
+  required and missing from the caller's own `inputs` dict, and if any are, prompt for each one
+  (via `input()`) and merge the answers in, all before `run_capability_async` is ever called.
+
+**Chosen:** (b), added as three new functions in `notebooks/05_replay_live.py`'s new "Pre-flight
+input gate" cell (`missing_required_inputs`, `_prompt_for_missing_input`, `gather_missing_inputs`),
+called from `replay_live()` itself, right after `from_yaml` and before `run_capability_async`.
+
+**Why this lives in `replay_live()` only, never in `04_replay_engine.py`:** `run_capability`/
+`run_capability_async` are the shared engine used by every caller, live or otherwise -- a real
+production/scheduled/API-triggered replay has no human present, and must keep failing fast and
+loudly on a missing required input, exactly as today. `validate_inputs` and the whole existing test
+suite around it (sync + async, 8 + 3 + integration each, Sections 3b/4b/9b/10) are untouched, byte-
+identical: `run_capability_async` still calls the real `validate_inputs` as its own first line, so a
+value that somehow slips past this gate's own check still gets the engine's full type/pattern
+validation regardless. `replay_live()` is different: it is always driven by a person sitting at this
+Jupyter kernel (CLAUDE.md: "the user runs it"), so unlike a scheduled job, there is somewhere to ask.
+This gate is purely additive and opt-in-by-construction -- it only ever activates when something is
+actually missing, so it cannot change behavior for a capability that already has every required
+input supplied (an already-fully-specified `pay_bill` call) or one with no required inputs at all
+(`get_account_balance.yaml`, `inputs: []`).
+
+**Why a plain `input()`, not a browser handoff:** discovery's `ask_human`/`request_value`
+(agent.ipynb STEP 3, D82) exist because the LLM agent has no other channel to a human except the
+page it is already showing them. Replay has no LLM and no discovery-time agent loop -- the "human"
+here is simply whoever typed `await replay_live(...)` into the cell below, already looking at this
+notebook's own terminal-style output, not necessarily at the ParaBank page at that instant. A
+blocking `input()` (which runs fine inside a Jupyter cell -- Jupyter's own kernel handles stdin for
+exactly this case) is the plainest, most direct channel to that person. Building lock/decision-bar
+machinery for this would repurpose a mechanism designed for a mid-run human takeover of the PAGE to
+solve a pre-run problem of missing call arguments -- a needless, riskier detour (it would need a
+`page`/`surface` to exist and a browser tab to already be open, neither of which this gate should
+require: it must be checkable, and useful, even before Setup 2's browser launches, in principle).
+
+**The bounded-retry choice (`_PREFLIGHT_MAX_ATTEMPTS = 5`):** matches this file's own established
+style for a bounded loop (`PlaywrightReplaySurface.resolve()`'s D88 poll budget is also a small,
+explicit constant, not "retry forever" or "retry once"). A human can mistype a value; one attempt is
+too unforgiving for an interactive prompt, but an unbounded retry loop could hang a notebook cell
+indefinitely on a genuinely malformed value (or a scripted/non-interactive `input_fn` that always
+returns garbage). 5 gives real room for a typo without ever looping forever; exhausting it raises
+`InputValidationError` (the same exception `validate_inputs` itself raises for a missing/invalid
+input, reused rather than inventing a second failure type for what is, from the caller's outside
+view, the identical class of problem) naming the exact field, so the failure is as clear as the
+traceback this replaces was, minus the surprise.
+
+**Reuses, never reimplements, `validate_inputs`'s own pattern check:** `_prompt_for_missing_input`
+calls the exact same `re.fullmatch(param.pattern, value)` `validate_inputs`
+(`04_replay_engine.py` Section 3, line `elif param.pattern and not re.fullmatch(param.pattern,
+value):`) already uses -- not a second regex-checking implementation living in this file.
+
+**Never touches secrets (D32):** `missing_required_inputs`/`gather_missing_inputs` only ever look at
+`cap.inputs`; `cap.secrets` (names only, resolved via `resolve_secret`) is never read, never
+prompted for, never affected by any part of this change. A secret's value must still come only from
+`.env`, exactly as before.
+
+**Ambiguity, decided explicitly:** does a caller-supplied input given as `""` (or whitespace-only)
+count as "missing", the same as a name absent from the `inputs` dict entirely? **Yes, both count as
+missing.** A caller who passes `address=""` has not, in any way that matters to a real ParaBank bill
+payment, supplied a real address -- treating an empty string as "present" would let the gate silently
+skip exactly the case D90 exists to prevent (a throwaway/blank value sailing through untouched).
+`missing_required_inputs` therefore checks `value is None or not str(value).strip()`, not just
+`param.name not in inputs`. (`validate_inputs` itself, unmodified per the scoping above, still only
+checks `name not in raw_inputs` for "missing" -- an empty string it receives directly, bypassing this
+gate, would still pass its own `required` check and only fail `matches_value_type`/`pattern` if the
+type/pattern reject it; that is `04_replay_engine.py`'s own existing, unchanged behavior, not
+something this gate alters.)
+
+**Verified offline** (`notebooks/scratch/test_preflight_gate.py`, git-ignored, `uv run python
+notebooks/scratch/test_preflight_gate.py`; see that file/the task report for the full output) against
+the REAL committed `artifacts/pay_bill.yaml` (the bug report's own capability) and
+`artifacts/get_account_balance.yaml` (`inputs: []`):
+- Several required inputs, some supplied, some not (including a gap-in-the-middle case) -> exactly
+  the missing ones are identified, in `cap.inputs`' own declared order.
+- A whitespace-only supplied value is treated as missing, same as an absent key.
+- All inputs already supplied, and the `inputs: []` capability -> nothing flagged, and
+  `gather_missing_inputs` never calls `input_fn` even once (true no-op), returns a NEW dict equal to,
+  but not identical to, the caller's own.
+- A monkeypatched `input()` feeding one bad-pattern answer then a good one -> rejected, retried,
+  accepted, in exactly 2 calls.
+- A monkeypatched `input()` feeding all-bad answers -> `InputValidationError` naming the exact field,
+  after exactly `max_attempts` (5) calls, never more.
+`input()` itself and the full `replay_live()` wiring were exercised only through this monkeypatched,
+offline harness -- never a live Jupyter session; the main session performs the live check.
+
+**Brief ref:** 3.2 (reviewability/usability of a safety refusal), 3.4 (safe, never silently proceed
+without a real value), D26, D29, D32, D88, D90.

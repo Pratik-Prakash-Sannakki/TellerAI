@@ -87,3 +87,9 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   real `escalate` implementation wired to agent.ipynb's own Approve/Reject/Take-over decision bar
   (D79). Imports Playwright and needs a real browser + `.env` — never run by an agent, only the
   user runs it; only a syntax check (`ast.parse`) is ever performed on it.
+  **2026-09-26 fix:** `replay_live()` now runs a pre-flight gate (`gather_missing_inputs`) before
+  `run_capability_async` is ever called — any required input missing from the caller's own dict is
+  now interactively prompted for (via `input()`, with `.pattern` retry, bounded), instead of the
+  whole run dying on a raw `InputValidationError` traceback. `04_replay_engine.py`'s own
+  `validate_inputs` is completely unchanged; a no-human production replay still fails fast and
+  loudly. See DECISIONS.md D91.
