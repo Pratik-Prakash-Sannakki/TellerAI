@@ -65,6 +65,14 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   change) to be a dead end, refusing outright rather than guessing when two same-target risky
   clicks both look real. `artifacts/pay_bill.yaml` was regenerated from the fixed compiler. See
   DECISIONS.md section S (D86).
+  **2026-09-26 fix (3):** a human-entered value that matches no already-declared input is no longer
+  kept as a hardcoded literal — `_declare_human_input` auto-declares a new `string` input for it,
+  named from the field's own label (never its value, so fields that coincidentally share a
+  throwaway discovery value never collapse into one input), and the step's value becomes
+  `{{that_name}}`. An agent's own unmatched literal is completely unaffected (still a reported
+  constant). `artifacts/pay_bill.yaml` was regenerated again: its 5 human-entered fields
+  (address/city/state/zip_code/phone) are now declared inputs, not literals. See DECISIONS.md
+  section U (D90).
 
 ## Phase 4 notebooks
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback

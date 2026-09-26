@@ -2031,6 +2031,16 @@ into the goal)?
 
 **Brief ref:** 3.2 (reviewability), 3.4 (parameterisation and the leftover check), D29, D44, D49.
 
+> **Update: corrected, see D90.** The first bullet above -- "a human-entered value matching NO
+> declared input is reported in `report["constants"]`, exactly as an agent-typed constant would
+> be" -- was itself the bug found in the real `pay_bill.yaml` artifact: a value a human had to type
+> in live, because the agent had no way to know it, was being permanently baked into the compiled
+> capability as a frozen literal (`'3'`, `'4'`, `'34'`, `'4'`, `'4'` for Address/City/State/Zip
+> Code/Phone #, every future replay silently submitting those same throwaway discovery values
+> forever). D90 auto-declares a new input instead, for exactly this one case; an AGENT's own
+> unmatched literal is completely unaffected and still becomes a reported constant, unchanged. The
+> `OFFLINE 12d` fixture cited above was updated in place to assert the corrected behavior; see D90.
+
 ## R. Phase 4 bugfix: escalate's return value gates the risky click, not a side effect inside it
 
 (Note on numbering: D82-D84 were taken by concurrent Phase 3 work landed in this same repo while
@@ -2405,3 +2415,160 @@ scope should be renegotiated with a real schema/engine change (out of scope here
 guessed at. This was not verifiable from static evidence alone; flagged rather than assumed.
 
 **Brief ref:** 3.2 (locator robustness), D46, D63, D68, D78, D87, D88.
+
+## U. Phase 3 bugfix: a human-entered value matching no declared input is auto-promoted to a new input, never baked in as a literal
+
+(Numbering confirmed against `git log`/`grep "^### D"` immediately before writing this: D89 is the
+current highest number. This section continues from D90.)
+
+### D90 — An unmatched human-entered value is auto-declared as a new input, named from its field's label, never kept as a literal
+
+**Question:** the real `artifacts/pay_bill.yaml` (a real recorder capture run, already fixed once
+for D86) compiled with five `type` steps carrying hardcoded literal values (`'3'`, `'4'`, `'34'`,
+`'4'`, `'4'`, for Address/City/State/Zip Code/Phone #) -- values a human had to type in live, during
+a `request_missing_values` handoff, because ParaBank required them and the agent never had them
+(D82/D83's `synthesize_human_entries`). Every future replay of `pay_bill` would silently submit
+those same throwaway discovery values forever, with no way for a caller to supply the payee's real
+address, city, state, zip, or phone. `build_steps`/`_params` (D8/D9/D10/D29/D33/D38/D44) already had
+a rule for "a typed value matches no declared input": keep it as a literal and report it in
+`report["constants"]` for a reviewer to see. That rule is correct for an AGENT's own unmatched
+literal (nobody asked for it to be variable; flagging it is enough). It is exactly backwards for a
+HUMAN-entered one: the agent had no way to know this value, which is the one category of value that
+should always require a real one from the caller on every future run.
+
+**Options:**
+- (a) Leave the existing rule alone and rely on a reviewer noticing the constant and manually
+  promoting it to a declared input before verifying the capability. Rejected: this is precisely what
+  happened in the real bug report -- the constant WAS reported, and it was still shipped as
+  `artifacts/pay_bill.yaml` with the literals baked in. A rule that depends on a human catching its
+  own honestly-reported warning, every time, is not a fix.
+- (b) Auto-declare a new input for exactly this one case (human-entered, matches nothing declared),
+  named from the field's own label, and substitute `{{that_name}}` for the step's value. An agent's
+  own unmatched literal is completely untouched by this -- still kept and reported as a constant,
+  exactly as before.
+
+**Chosen:** (b), implemented in `notebooks/03_recorder.py`'s `OFFLINE 5` cell (`_params`,
+`_declare_human_input`, `_slugify_label`, and `build_steps`'s call sites), plus a defensive change to
+`compile_run` (below).
+
+**Design, one decision at a time:**
+
+1. **Name derivation (`_slugify_label`):** the field's own label -- the same text already used for
+   that field's `label` locator strategy (e.g. `'Address:'`, `'Zip Code:'`, `'Phone #:'`) -- is
+   lowercased, runs of non-alphanumeric characters collapsed to one underscore, and leading/trailing
+   underscores stripped: `'Address:'` -> `address`, `'Zip Code:'` -> `zip_code`, `'Phone #:'` ->
+   `phone`. Never derived from the field's VALUE -- see point 2 below for why that distinction is
+   load-bearing, not stylistic. A field with no usable label at all (D67's known gap -- the slug
+   comes out empty) refuses compilation, naming the event, rather than inventing an opaque name for
+   something with no real signal.
+2. **Naming by label, not by value, and never re-matching a newly auto-declared input by value:**
+   the real bug report has THREE separate human-entered fields (City, Zip Code, Phone #) that all
+   happen to carry the identical throwaway discovery value `'4'` (`same_value`'s own numeric
+   canonicalization makes `'4' == '4'` trivially true). If a newly auto-declared input were added
+   back into the `inputs` name->value map `_params` matches against, City's `'4'` would auto-declare
+   `city`, and then Zip's `'4'` would then WRONGLY match `city` by value (same bug this decision
+   exists to prevent, just moved one field over) -- and Phone's `'4'` would match it too. The fix:
+   `_params`'s value-matching loop (`same_value`/`substitute`) only ever consults `inputs`, a
+   snapshot taken ONCE at the top of `build_steps`, from the specs the CALLER originally declared.
+   An input this function itself auto-declares is written into `specs` (read again by `_cap` after
+   `build_steps` returns, so it reaches `Capability.inputs` and the leftover check) but deliberately
+   NEVER back into `inputs` -- so every human-entered field is named, and only named, from its own
+   label, regardless of what any other field's value happens to be.
+3. **Type and pattern:** a generic `type: string` with pattern `^.{1,80}$` -- wide enough not to
+   reject a real value the recorder never saw an example of, bounded only to stop something absurd
+   (matching the style of this schema's other free-text inputs, e.g. `payee_name`'s `^.{2,80}$`).
+   Deliberately NOT a stricter guess (e.g. 5-digit zip, digits-only phone): the recorder saw exactly
+   ONE throwaway example per field (`'4'`, a single character) and has no basis to infer a real
+   value's shape. A stricter pattern invented from a single unrepresentative discovery sample risks
+   rejecting a real, valid value on the very first real run -- worse than accepting a too-wide one.
+4. **Description:** built from the label, e.g. `"Address:"` -> `"Address, entered by a human during
+   discovery -- provide the real value for each run."` -- matching this file's existing style for an
+   auto/derived description (compare `build_steps`'s own default extract-output description, `f"The
+   value shown next to '{e['label']}'."`).
+5. **Collision handling:** two different labels producing the same slug, or a slug that matches an
+   ALREADY-declared input's name (from the original spec, or an earlier auto-declare in the same
+   run), is disambiguated with a deterministic `_2`, `_3`, ... suffix, checked and reserved via a
+   `used_names` set BEFORE `specs` is touched -- never a silent overwrite of one input's own
+   declaration with another's.
+6. **The step's `why` note:** unchanged from D84 (`HUMAN_ENTRY_WHY`) -- a human-entered step already
+   carries a reviewer-facing note; this decision does not need a second one saying "and it's now an
+   input" as well, since the compiled YAML's own `inputs:` list already shows that plainly.
+7. **Order of declared inputs:** `specs` is a plain dict, mutated in place by appending new entries
+   as their events are processed, in run order -- Python dicts preserve insertion order, so the
+   compiled `Capability.inputs` list is deterministically: every originally-declared input (in the
+   caller's own order), then every auto-declared one, in the order its event occurred in the run. No
+   extra bookkeeping needed for this.
+8. **`compile_run` copies `spec["inputs"]` before compiling (defensive, found while implementing
+   this):** `specs` is now mutated during `build_steps`. Left as the caller's own dict object, this
+   would leak newly auto-declared inputs back into a `spec` object the caller might reuse across more
+   than one `compile_run` call -- exactly what several `OFFLINE` fixtures below deliberately do
+   (`BILLPAY_SPEC` is compiled against more than once). `compile_run` now does `specs =
+   dict(spec["inputs"])` (a shallow copy -- the inner per-input dicts are never mutated, only new
+   keys added, so a shallow copy is sufficient) before any auto-declare can happen, so each
+   `compile_run` call's auto-declared inputs stay local to that call, proven directly (`OFFLINE 12d`'s
+   own fixture asserts `BILLPAY_SPEC["inputs"]` is untouched after a call that auto-declares
+   `remarks`).
+
+**This must NOT, and does NOT, change how an agent's own unmatched literal is handled:** `_params`
+only takes the auto-declare branch when `human_entered` is true; without it, the exact prior
+behavior runs unchanged (kept as a literal, appended to `constants`). Proven by `OFFLINE 13i` (new):
+an ordinary agent `type_text` into an unmatched field is still a plain literal constant, `why: None`,
+no input created for it -- byte-identical to what this exact scenario would have produced before
+this decision.
+
+**D84 is corrected, not just extended:** D84 asserted the OLD behavior for exactly this sub-case
+("a human-entered value matching no declared input is reported in `report["constants"]`, exactly as
+an agent-typed constant would be") as its own verified claim -- that claim was the bug. See the
+"Update: corrected, see D90" note added directly to D84, above. `OFFLINE 12d`'s fixture (D84's own)
+was updated in place to assert the corrected behavior, not left asserting the superseded one.
+
+**Verified offline (all in `notebooks/03_recorder.py`):**
+- `OFFLINE 12d` (updated): a human-entered "Remarks" value matching no declared input is now
+  auto-declared as input `remarks` (type `string`, pattern `^.{1,80}$`, the exact description text
+  above), the step's value becomes `{{remarks}}`, and `report["constants"]` is empty -- also proves
+  `compile_run` never mutates the caller's own `spec["inputs"]` dict (point 8 above).
+- `OFFLINE 12c` (unchanged, re-confirmed): a human-entered value that DOES match an already-declared
+  input (`payee_name`, `from_account`) still parameterizes to that existing input; `task.inputs`
+  names are exactly `{"amount", "payee_name", "from_account"}` -- no duplicate, unaffected by this
+  decision, exactly as it worked before it.
+- `OFFLINE 13h` (new): two human-entered fields sharing the label `"Note:"` disambiguate to `note`/
+  `note_2`; a third, labeled `"Amount:"` with a value that does NOT match the already-declared
+  `amount` input, disambiguates to `amount_2` -- and the ORIGINAL `amount` input's own declaration
+  (`type: currency`, `description: "Amount to pay."`) is confirmed untouched.
+- `OFFLINE 13i` (new): an ordinary agent-typed literal matching no input is still a plain literal
+  constant, `why: None`, never auto-declared -- the regression fixture for the "must not change"
+  requirement above.
+- The reconstructed real bug report (`OFFLINE 13g`, extended): all 5 human-entered fields
+  (Address/City/State/Zip Code/Phone #) -- three of which (City, Zip, Phone) share the identical
+  throwaway value `'4'` -- each become their OWN declared input (`address`, `city`, `state`,
+  `zip_code`, `phone`), no raw literal survives anywhere in the compiled capability, and
+  `report["constants"]` is empty.
+- The full `OFFLINE`-cell suite (32 cells as of this decision) re-run top to bottom: every
+  pre-existing fixture (including D82-D86's) still passes, unchanged, alongside the new ones.
+
+**`artifacts/pay_bill.yaml` regenerated for real** (never hand-edited) by running the reconstructed
+`OFFLINE 13g` fixture through the fixed `compile_run`, then `save_capability` on its actual output --
+the same procedure D86 used for its own regeneration of this file. Its `inputs:` list now has
+`payee_name`, `payee_account`, `amount` (unchanged) plus the five new `address`, `city`, `state`,
+`zip_code`, `phone` inputs; its five human-entered `type` steps now read `{{address}}`, `{{city}}`,
+`{{state}}`, `{{zip_code}}`, `{{phone}}` in place of the literals `'3'`, `'4'`, `'34'`, `'4'`, `'4'`.
+Every other line (locators, the other 4 steps, checkpoint, `outcome_rules`) is byte-identical to the
+version D86 produced.
+
+**Cost, honestly stated:** the pattern (`^.{1,80}$`) is deliberately as weak as this schema's own
+generic string inputs get -- it will accept a real value that would fail a stricter, hand-written
+pattern a reviewer might later want (e.g. a real zip-code format check), and this decision does not
+attempt to guess one from a single discovery sample. A `draft` capability with auto-declared inputs
+still needs a human reviewer to read their descriptions and decide whether a stricter pattern is
+worth hand-adding before promoting the capability to `verified` -- this decision makes the VALUES
+safe (never frozen), not the validation strict; tightening validation remains an explicit, separate,
+reviewed choice, never guessed by the compiler. Two human-entered fields that are genuinely the same
+real-world value (e.g. a payee's account number typed twice, once to confirm) will still get two
+separate auto-declared inputs if neither matches an originally-declared input -- naming by label, not
+value, deliberately never tries to deduplicate across fields by coincidental value equality (see
+point 2); a caller supplying that capability's real values simply supplies the same value twice, at
+no correctness cost, only a small readability one.
+
+**Brief ref:** 3.2 (reviewability), 3.4 (safety, parameterisation, never silently accept an
+unexplained literal), 3.6 (a well-reasoned mechanism, not a blanket one), D8, D9, D10, D29, D33, D38,
+D44, D49, D82, D83, D84, D86.
