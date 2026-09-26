@@ -2543,10 +2543,18 @@ HEADING_JS = """
 # The value shown next to a label: the cell after it, the input a <label> points at, or the next
 # sibling. `matches` (how many elements on the page carry this exact label text) is D68's
 # duplicate-label signal for extract steps.
+# D87 (Problem 1 fix): `bare()` used to strip only a trailing colon (`/:$/`), so a declared label
+# like "Balance" never matched a real page's "Balance*" (a footnote-marker asterisk -- confirmed
+# real, ParaBank's own Accounts Overview column header). Generalized to strip ONE trailing
+# non-alphanumeric "decoration" character (colon included, a strict superset of the old rule), on
+# BOTH the wanted label and the live page's text -- narrow on purpose: only the LAST character, and
+# only when it is not a letter/digit, so two genuinely different labels (e.g. "Balance" vs
+# "Available Amount") can never be conflated by this change; see OFFLINE proxy check right after
+# BROWSER 8 below.
 READ_LABELED_JS = """
 (label) => {
   const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
-  const bare = (s) => norm(s).replace(/:$/, '').toLowerCase();
+  const bare = (s) => norm(s).replace(/[^a-zA-Z0-9]$/, '').toLowerCase();
   const want = bare(label);
   const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
   const all = Array.from(document.body.querySelectorAll('td, th, dt, label, b, strong, span, div, p, li')).filter(vis);
@@ -2666,6 +2674,34 @@ async def read_labeled_value(page, label: str) -> str:
 
 
 print("descriptor/heading/labeled-value helpers ready")
+
+# %% OFFLINE proxy check (D87, Problem 1 fix): READ_LABELED_JS's `bare()` regex, tested via a
+# pure-Python mirror. `bare()` runs inside a browser (`page.evaluate`), so it cannot be exercised
+# directly without a real page -- this notebook's own hard rule is that nothing here launches a
+# browser. JS and Python regex behave identically for this simple case (a `$`-anchored single-char
+# class match on a plain string, no lookaround/unicode edge cases), so this is a faithful offline
+# proxy for the exact fix above, not a live verification of it -- said plainly, not claimed as more
+# than it is.
+import re as _re_bare_check
+
+
+def _bare_proxy(s: str) -> str:
+    """Mirrors READ_LABELED_JS's bare(): collapse whitespace + trim, strip ONE trailing
+    non-alphanumeric character (colon included -- a strict superset of the old `/:$/`-only rule),
+    lowercase."""
+    s = _re_bare_check.sub(r"\s+", " ", s or "").strip()
+    s = _re_bare_check.sub(r"[^a-zA-Z0-9]$", "", s)
+    return s.lower()
+
+
+# The real bug: the declared locator says "Balance", the real page's header says "Balance*" (a
+# footnote asterisk, confirmed from the real captured DOM). The fix must make these equal.
+assert _bare_proxy("Balance") == _bare_proxy("Balance*") == "balance"
+# Must not overloosen: "Balance" must still NOT match a genuinely different label on the same page.
+assert _bare_proxy("Balance") != _bare_proxy("Available Amount")
+# The colon-stripping behavior this replaces must still hold (D46, unchanged in effect).
+assert _bare_proxy("Name:") == _bare_proxy("Name") == "name"
+print("OFFLINE proxy check passed (D87): 'Balance' now matches 'Balance*'; 'Available Amount' is still rejected")
 
 # %% BROWSER 9: three new tools the compiler needs (extract_value, open_path, finish_business_outcome)
 from urllib.parse import parse_qsl

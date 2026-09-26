@@ -563,10 +563,15 @@ HEADING_JS = """
 # The value shown next to a label: the cell after it, the input a <label> points at, or the next
 # sibling. `matches` (how many elements on the page carry this exact label text) is D68's
 # duplicate-label signal for extract steps.
+# D87 (Problem 1 fix): mirrors 03_recorder.py BROWSER 8's READ_LABELED_JS exactly -- `bare()` now
+# strips ONE trailing non-alphanumeric "decoration" character (a strict superset of the old
+# colon-only rule), so a declared label like "Balance" matches the real page's "Balance*". This
+# copy must stay byte-identical to the recorder's (per this file's own comment above); keep both
+# in sync if either changes again.
 READ_LABELED_JS = """
 (label) => {
   const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
-  const bare = (s) => norm(s).replace(/:$/, '').toLowerCase();
+  const bare = (s) => norm(s).replace(/[^a-zA-Z0-9]$/, '').toLowerCase();
   const want = bare(label);
   const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
   const all = Array.from(document.body.querySelectorAll('td, th, dt, label, b, strong, span, div, p, li')).filter(vis);
