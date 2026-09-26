@@ -1643,3 +1643,57 @@ it, it['s] a major part of the agent." Should the recorder's capture agent match
 
 **Brief ref:** 3.1 (agent loop correctness), 3.4 (the D50/D52 redaction caveat applies here
 unchanged: step text and page state leave the process to `api.typesafe.ai` whenever this is on).
+
+## Q. Phase 4 live wiring (async mirror + real browser, D77-D80)
+
+### D77 — A parallel async engine, not a converted one, plus two factored pure helpers
+
+**Question:** `04_replay_engine.py`'s `run_capability`/`ReplaySurface` are entirely sync (11+
+tests passing). `agent.ipynb`'s real browser control is entirely `async` (Playwright's Python API
+has no sync mode usable inside a Jupyter kernel, which already runs its own asyncio event loop --
+bridging with `asyncio.get_event_loop().run_until_complete(...)` breaks with "this event loop is
+already running"). How does replay reach a real browser without breaking the already-verified sync
+path?
+
+**Options:**
+- (a) Convert `run_capability`/`ReplaySurface` to async in place.
+- (b) Add a parallel `run_capability_async`/`AsyncReplaySurface`, leaving the sync engine
+  untouched.
+
+**Chosen:** (b).
+
+**Reasoning:**
+- (a) would touch every existing test (8 required scenarios + 3 bonus + the Section 5 integration
+  check against both real example artifacts) for no functional gain to the sync path, which has
+  no async caller and does not need one -- only the live notebook does.
+- `run_capability_async` is a genuine mirror, not new business logic: same input validation, same
+  primary-then-fallback resolution order, same risky-click gate checked BEFORE the click, same
+  outcome-rule order (first match wins), same bounded retries (never for a risky click), same
+  checkpoint/output checks, same four `ReplayResult` statuses. Verified by running the whole file
+  (`uv run python notebooks/04_replay_engine.py`) after every edit: all prior sync output lines
+  are unchanged, immediately followed by their async twins.
+- Two PURE (no surface call, no escalate call) helpers were factored out of the sync cells rather
+  than hand-copied into the async ones, so the two engines cannot silently disagree:
+  `_target_locators(target)` (which locator to try, in which order -- used by both
+  `resolve_target` and `resolve_target_async`) and `_find_outcome_rule(cap, url, text)` (which
+  outcome rule matches first -- used by both `_check_outcomes` and `_check_outcomes_async`). Both
+  refactors are behavior-preserving: confirmed by re-running the full sync suite immediately after
+  each change, before adding anything new.
+- **The one genuine behavioral asymmetry:** `run_capability_async` awaits `escalate(reason, ctx)`'s
+  return value if it is awaitable (`inspect.isawaitable`, via a small `_call_escalate` helper). A
+  plain sync fake (every existing/offline test) returns `None`, which is not awaitable, so this is
+  a complete no-op for every prior test. This is not treated as a "business logic" change because
+  it changes nothing about *what decision* the engine makes or *when* -- it only lets a real,
+  inherently-awaitable human decision (showing a decision bar and waiting for Approve/Reject/Take
+  over) finish before the function returns, which is the entire reason this mirror exists for
+  `notebooks/05_replay_live.py` to be useful at all. Without it, `escalate` would have to be
+  fire-and-forget (`asyncio.create_task(...)`), and `run_capability_async` could return
+  `NEEDS_APPROVAL` to a notebook cell before the human had even seen the decision bar.
+- Offline tests for the async mirror stay entirely offline (`AsyncFakeSurface`, an async twin of
+  `FakeSurface`; no `import playwright`), run with `uv run python` via a small
+  `asyncio.run(main())`-style wrapper per test group, matching the repo's existing script-cell
+  convention.
+
+**Brief ref:** 3.3 (replay, no LLM in the loop), 3.7 (the Surface seam scales to a second
+implementation), code quality (no drift between two copies of the same decision logic).
+

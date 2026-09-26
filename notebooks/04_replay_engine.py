@@ -131,17 +131,27 @@ except ResolutionError as exc:
 print("protocol + exceptions: all checks passed")
 
 # %% Section 3: resolve_target, template substitution, input validation
+def _target_locators(target: "Target") -> list[tuple[str, "Any"]]:
+    """Pure: the try-order for a target -- primary, then fallback if present (D63). No surface
+    call, no logging. Shared by resolve_target (sync, right below) and resolve_target_async
+    (Section 8) so the sync and async engines can never disagree about which locator is tried, or
+    in which order (D77)."""
+    locs = [("primary", target.primary)]
+    if target.fallback is not None:
+        locs.append(("fallback", target.fallback))
+    return locs
+
+
 def resolve_target(surface: ReplaySurface, target: "Target", *, logger: Callable[[str], None] = lambda m: None):
     """Try the primary locator, then the fallback if there is one and the primary did not
     resolve. Raises ResolutionError, naming what was expected, if neither resolves."""
-    ref = surface.resolve(target.primary)
-    if ref is not None:
-        logger(f"resolved via primary ({target.primary.strategy})")
-        return ref
-    if target.fallback is not None:
-        ref = surface.resolve(target.fallback)
+    for which, loc in _target_locators(target):
+        ref = surface.resolve(loc)
         if ref is not None:
-            logger(f"primary failed, resolved via fallback ({target.fallback.strategy})")
+            if which == "primary":
+                logger(f"resolved via primary ({loc.strategy})")
+            else:
+                logger(f"primary failed, resolved via fallback ({loc.strategy})")
             return ref
     raise ResolutionError(target)
 
@@ -289,25 +299,35 @@ def _fail(step_index: int, step_action: str, expected: str, observed: str) -> "F
     return Failure(step_index=step_index, step_action=step_action, expected=expected, observed=observed)
 
 
+def _find_outcome_rule(cap: "Capability", url: str, text: str):
+    """Pure: the first outcome rule (in declared order) whose condition matches (D10 -- first
+    match wins). No escalate call, no logging. Shared by _check_outcomes (sync, right below) and
+    _check_outcomes_async (Section 9) so the sync and async engines can never pick a different
+    rule (D77)."""
+    for rule in cap.outcome_rules:
+        if condition_matches(rule.when, url, text):
+            return rule
+    return None
+
+
 def _check_outcomes(cap, step_index, url, text, escalate, base, logger):
     """First matching rule wins, in declared order (D10's documented order rule)."""
-    for rule in cap.outcome_rules:
-        if not condition_matches(rule.when, url, text):
-            continue
-        if rule.kind == "business":
-            logger(f"step {step_index}: business outcome {rule.outcome}")
-            return ReplayResult(**base(status="BUSINESS_OUTCOME", outcome=rule.outcome))
-        if rule.kind == "hard":
-            failure = _fail(step_index, "outcome_rule", "no hard-failure text on the page", text[:200])
-            if escalate is not None:
-                escalate(rule.message, {"capability": cap.name, "step_index": step_index})
-            return ReplayResult(**base(status="FAILED", failure=failure))
-        # recoverable: logged, then replay continues to the next step. Known limit: actually
-        # performing the action (dismiss a popup, wait, re-run a login capability) needs a live
-        # surface and, for relogin, capability composition -- both are Phase 9 work. Neither
-        # example artifact's outcome rules exercise this path mid-run.
-        logger(f"step {step_index}: recoverable condition matched (action={rule.action}): {rule.message}")
+    rule = _find_outcome_rule(cap, url, text)
+    if rule is None:
         return None
+    if rule.kind == "business":
+        logger(f"step {step_index}: business outcome {rule.outcome}")
+        return ReplayResult(**base(status="BUSINESS_OUTCOME", outcome=rule.outcome))
+    if rule.kind == "hard":
+        failure = _fail(step_index, "outcome_rule", "no hard-failure text on the page", text[:200])
+        if escalate is not None:
+            escalate(rule.message, {"capability": cap.name, "step_index": step_index})
+        return ReplayResult(**base(status="FAILED", failure=failure))
+    # recoverable: logged, then replay continues to the next step. Known limit: actually
+    # performing the action (dismiss a popup, wait, re-run a login capability) needs a live
+    # surface and, for relogin, capability composition -- both are Phase 9 work. Neither
+    # example artifact's outcome rules exercise this path mid-run.
+    logger(f"step {step_index}: recoverable condition matched (action={rule.action}): {rule.message}")
     return None
 
 
@@ -720,3 +740,551 @@ assert len(approvals) == 1
 print("integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
 
 print("\nINTEGRATION CHECKS PASSED")
+
+# %% [markdown]
+# ## Section 6 -- the async mirror, and why it exists
+#
+# Everything from here down (Sections 7-10) is a **parallel async engine**, not a rewrite of the
+# sync one above. It exists for one reason: `notebooks/agent.ipynb`'s real browser control is
+# entirely `async` -- Playwright's Python API has no sync mode usable inside a Jupyter kernel, and
+# the kernel already runs its own asyncio event loop. Bridging a sync engine that needs to call
+# into that async browser layer (something like
+# `asyncio.get_event_loop().run_until_complete(...)`) breaks with "this event loop is already
+# running" the moment it is tried from inside a kernel that is already running one. So
+# `run_capability` (Sections 1-5, above) is left exactly as it is -- unmodified, its 11+ tests
+# still passing unchanged (confirmed by running this whole file top to bottom after every edit
+# below), still the real, already-verified cross-phase integration with Phase 3's saved YAML
+# output -- and `run_capability_async` is added ALONGSIDE it for `notebooks/05_replay_live.py` to
+# call against a real Playwright-backed surface.
+#
+# **This is not new business logic.** `run_capability_async` makes the same decisions, in the
+# same order, for the same reasons, as `run_capability`: same input validation before anything
+# touches the page, same primary-then-fallback target resolution, same risky-click gate checked
+# BEFORE the click (never after), same outcome-rule order (first declared match wins), same
+# bounded retries (never for a risky click), same checkpoint/output checks, same four
+# `ReplayResult` statuses. Two small, PURE (no surface call, no escalate call) helpers --
+# `_target_locators` (which locator to try, in which order -- Section 3) and `_find_outcome_rule`
+# (which outcome rule matches first -- Section 4) -- were factored out of the existing sync cells
+# so the sync and async engines call the exact same decision logic instead of two copies that
+# could silently drift apart. The one genuine difference is `escalate`: `run_capability_async`
+# awaits it if it returns something awaitable (Section 8's `_call_escalate`), since handing
+# control to a real person is inherently an awaitable action in a real browser, and the entire
+# point of this mirror existing is to let that finish before the function returns. See D77 in
+# DECISIONS.md for the full reasoning, including why this one asymmetry does not count as a
+# business-logic change.
+#
+# **Any future change to `run_capability`'s business logic must also be made to
+# `run_capability_async`** (or, if the two are drifting apart in ways that are hard to keep in
+# sync by hand, the shared pure logic should be factored out further at that time, the same way
+# `_target_locators`/`_find_outcome_rule` were factored out now).
+
+# %% Section 7: AsyncReplaySurface protocol (mirrors Section 2, all methods async)
+@runtime_checkable
+class AsyncReplaySurface(Protocol):
+    """The async twin of ReplaySurface (Section 2). Same method names, same meanings -- every
+    method is `async def` instead, because the real implementation
+    (`notebooks/05_replay_live.py`) wraps Playwright, which has no usable sync API inside a
+    Jupyter kernel that already runs its own asyncio event loop (see the markdown cell above).
+    This is not a new contract: a class satisfying ReplaySurface and a class satisfying
+    AsyncReplaySurface are asked to do exactly the same eight things, awaited instead of called
+    directly."""
+    async def navigate(self, path: str) -> None: ...
+    async def resolve(self, locator) -> Any | None: ...
+    async def click(self, ref) -> None: ...
+    async def type_text(self, ref, value: str) -> None: ...
+    async def select_option(self, ref, value: str) -> None: ...
+    async def read_value(self, ref) -> str: ...
+    async def current_url(self) -> str: ...
+    async def page_text(self) -> str: ...
+
+
+# %% Section 7b: checks for AsyncReplaySurface
+class _MinimalAsyncSurface:
+    """The smallest object that satisfies AsyncReplaySurface -- the async twin of _MinimalSurface
+    (Section 2b)."""
+    async def navigate(self, path): pass
+    async def resolve(self, locator): return None
+    async def click(self, ref): pass
+    async def type_text(self, ref, value): pass
+    async def select_option(self, ref, value): pass
+    async def read_value(self, ref): return ""
+    async def current_url(self): return "/"
+    async def page_text(self): return ""
+
+
+# Note: like Section 2b's isinstance check, a runtime_checkable Protocol only checks that the
+# NAMES exist, not that they are async -- so a plain sync _MinimalSurface would also pass this
+# isinstance check. This is a known Python limitation (Protocol does not inspect coroutine-ness),
+# not something either notebook works around, and it is the same in both places for consistency.
+assert isinstance(_MinimalAsyncSurface(), AsyncReplaySurface)
+print("async protocol: all checks passed")
+
+# %% Section 8: resolve_target_async, and the escalate-awaiting helper
+import inspect
+
+
+async def resolve_target_async(surface: AsyncReplaySurface, target: "Target", *,
+                                logger: Callable[[str], None] = lambda m: None):
+    """Async twin of resolve_target (Section 3). Same try-order (`_target_locators`, Section 3 --
+    a PURE function with no surface calls, shared by both engines so they can never disagree
+    about which locator is tried first), same log wording -- only the resolve call itself is
+    awaited."""
+    for which, loc in _target_locators(target):
+        ref = await surface.resolve(loc)
+        if ref is not None:
+            if which == "primary":
+                logger(f"resolved via primary ({loc.strategy})")
+            else:
+                logger(f"primary failed, resolved via fallback ({loc.strategy})")
+            return ref
+    raise ResolutionError(target)
+
+
+async def _call_escalate(escalate: Callable[[str, dict], Any] | None, reason: str, ctx: dict) -> None:
+    """Call `escalate` and, if it returns something awaitable (a real live implementation that
+    shows a decision bar and waits for a human is exactly this), await it before continuing. A
+    plain sync escalate -- every offline test's fake, unchanged from the sync engine -- returns
+    None or a plain value, which is not awaitable, so this is a complete no-op difference for
+    every existing test (D77). This is the ONE place run_capability_async's behavior genuinely
+    differs from run_capability's: escalate here may be an async callable, because handing
+    control to a real person is an inherently awaitable action, and the whole reason this mirror
+    exists is to let that finish before run_capability_async returns."""
+    if escalate is None:
+        return
+    result = escalate(reason, ctx)
+    if inspect.isawaitable(result):
+        await result
+
+
+# %% Section 8b: checks for resolve_target_async and _call_escalate
+import asyncio
+
+
+class _AsyncDictSurface:
+    """Async twin of _DictSurface (Section 3b)."""
+    def __init__(self, hits: dict[tuple, Any]):
+        self.hits = hits
+
+    async def resolve(self, locator):
+        if locator.strategy == "role":
+            return self.hits.get(("role", locator.role, locator.name))
+        if locator.strategy == "text":
+            return self.hits.get(("text", locator.text))
+        return None
+
+
+def _run(coro):
+    return asyncio.run(coro)
+
+
+# primary resolves -> used directly, logged (reuses `target` built in Section 3b)
+_alog: list[str] = []
+assert _run(resolve_target_async(_AsyncDictSurface({("role", "button", "Log In"): 1}), target, logger=_alog.append)) == 1
+assert any("primary" in line for line in _alog)
+
+# primary misses, fallback resolves -> still works, logged as a fallback
+_alog.clear()
+assert _run(resolve_target_async(_AsyncDictSurface({("text", "Log In"): 2}), target, logger=_alog.append)) == 2
+assert any("fallback" in line for line in _alog)
+
+# both miss -> ResolutionError naming both
+try:
+    _run(resolve_target_async(_AsyncDictSurface({}), target))
+    raise AssertionError("was NOT rejected")
+except ResolutionError as exc:
+    assert "primary" in str(exc) and "fallback" in str(exc)
+
+# _call_escalate: a sync fake's un-awaitable return is a no-op difference from calling it directly
+_sync_calls: list = []
+_run(_call_escalate(lambda r, c: _sync_calls.append((r, c)), "why", {"k": 1}))
+assert _sync_calls == [("why", {"k": 1})]
+
+
+# _call_escalate: an async fake IS awaited before _call_escalate returns
+_async_calls: list = []
+
+
+async def _fake_async_escalate(reason, ctx):
+    await asyncio.sleep(0)
+    _async_calls.append((reason, ctx))
+
+
+_run(_call_escalate(_fake_async_escalate, "why2", {"k": 2}))
+assert _async_calls == [("why2", {"k": 2})]
+
+print("resolve_target_async + _call_escalate: all checks passed")
+
+# %% Section 9: run_capability_async -- the async engine loop
+async def _check_outcomes_async(cap, step_index, url, text, escalate, base, logger):
+    """Async twin of _check_outcomes (Section 4). Uses the SAME `_find_outcome_rule` (Section 4,
+    a pure function with no surface or escalate calls) to decide which rule matches, so the sync
+    and async engines can never disagree about which rule fires first. Only the escalate call for
+    a hard rule is awaited (via `_call_escalate`)."""
+    rule = _find_outcome_rule(cap, url, text)
+    if rule is None:
+        return None
+    if rule.kind == "business":
+        logger(f"step {step_index}: business outcome {rule.outcome}")
+        return ReplayResult(**base(status="BUSINESS_OUTCOME", outcome=rule.outcome))
+    if rule.kind == "hard":
+        failure = _fail(step_index, "outcome_rule", "no hard-failure text on the page", text[:200])
+        await _call_escalate(escalate, rule.message, {"capability": cap.name, "step_index": step_index})
+        return ReplayResult(**base(status="FAILED", failure=failure))
+    logger(f"step {step_index}: recoverable condition matched (action={rule.action}): {rule.message}")
+    return None
+
+
+async def run_capability_async(
+    cap: "Capability",
+    surface: AsyncReplaySurface,
+    inputs: dict[str, str],
+    secrets: SecretResolver,
+    *,
+    run_id: str = "run",
+    auto_approve_limit: float = 500.0,
+    escalate: Callable[[str, dict], Any] | None = None,
+    max_retries: int = 2,
+    logger: Callable[[str], None] = lambda m: None,
+) -> "ReplayResult":
+    """Async twin of run_capability (Section 4). IDENTICAL behavior -- every surface call is
+    awaited, and `escalate` is awaited too if it returns something awaitable (Section 8's
+    `_call_escalate`, D77). No business logic differs: same input validation, same per-step
+    resolution order, same risky-click gate BEFORE the click, same outcome-rule order, same retry
+    bound (never for a risky click), same checkpoint/output checks, same four statuses. See the
+    markdown cell at the top of Section 6."""
+    values = validate_inputs(cap, inputs)
+    outputs: dict[str, str] = {}
+
+    def base(**kw):
+        return dict(run_id=run_id, capability=cap.name, capability_version=cap.version, **kw)
+
+    for i, step in enumerate(cap.steps):
+        action = step.action
+        retryable = not (action == "click" and step.risk == "risky")   # D26: never retry a risky click
+        attempts = 0
+        while True:
+            try:
+                if action == "navigate":
+                    await surface.navigate(render(step.path, values, secrets))
+                elif action == "click":
+                    if step.risk == "risky":
+                        amount = parse_amount(values.get(step.amount_input, "")) if step.amount_input else float("inf")
+                        if amount >= auto_approve_limit:
+                            reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
+                            await _call_escalate(escalate, reason, {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit})
+                            return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                    ref = await resolve_target_async(surface, step.target, logger=logger)
+                    await surface.click(ref)
+                elif action == "type":
+                    ref = await resolve_target_async(surface, step.target, logger=logger)
+                    await surface.type_text(ref, render(step.value, values, secrets))
+                elif action == "select":
+                    ref = await resolve_target_async(surface, step.target, logger=logger)
+                    await surface.select_option(ref, render(step.option, values, secrets))
+                elif action == "extract":
+                    ref = await resolve_target_async(surface, step.target, logger=logger)
+                    raw_value = await surface.read_value(ref)
+                    out_param = next(o for o in cap.outputs if o.name == step.save_as)
+                    if not matches_value_type(raw_value, out_param.type):
+                        failure = _fail(i, action, f"a value matching type {out_param.type!r}", repr(raw_value))
+                        await _call_escalate(escalate, "extracted value failed its declared type", {"capability": cap.name, "step_index": i})
+                        return ReplayResult(**base(status="FAILED", failure=failure))
+                    outputs[step.save_as] = raw_value
+                else:
+                    raise AssertionError(f"unknown action {action!r}")
+                break   # step succeeded, no transient failure
+            except ResolutionError as exc:
+                failure = _fail(i, action, str(exc), "neither primary nor fallback resolved")
+                await _call_escalate(escalate, "could not resolve the target element", {"capability": cap.name, "step_index": i})
+                return ReplayResult(**base(status="FAILED", failure=failure))
+            except TransientFailure as exc:
+                attempts += 1
+                logger(f"step {i} ({action}): transient failure ({exc}), attempt {attempts}")
+                if not retryable or attempts > max_retries:
+                    failure = _fail(i, action, "the step to succeed", f"transient failure after {attempts} attempt(s): {exc}")
+                    await _call_escalate(escalate, "step failed after retries", {"capability": cap.name, "step_index": i})
+                    return ReplayResult(**base(status="FAILED", failure=failure))
+                continue   # retry the same step
+
+        url, text = await surface.current_url(), await surface.page_text()
+        if step.expect is not None and not condition_matches(step.expect, url, text):
+            failure = _fail(i, action, f"url_contains={step.expect.url_contains!r} text_present={step.expect.text_present!r}",
+                             f"url={url!r} text={text[:200]!r}")
+            await _call_escalate(escalate, "a step's own expect condition did not hold", {"capability": cap.name, "step_index": i})
+            return ReplayResult(**base(status="FAILED", failure=failure))
+
+        outcome_result = await _check_outcomes_async(cap, i, url, text, escalate, base, logger)
+        if outcome_result is not None:
+            return outcome_result
+
+    url, text = await surface.current_url(), await surface.page_text()
+    if not condition_matches(cap.checkpoint, url, text):
+        failure = _fail(len(cap.steps) - 1, "checkpoint",
+                         f"url_contains={cap.checkpoint.url_contains!r} text_present={cap.checkpoint.text_present!r}",
+                         f"url={url!r} text={text[:200]!r}")
+        await _call_escalate(escalate, "checkpoint did not match after all steps ran", {"capability": cap.name})
+        return ReplayResult(**base(status="FAILED", failure=failure))
+
+    declared = {o.name for o in cap.outputs}
+    if set(outputs) != declared:
+        failure = _fail(len(cap.steps) - 1, "extract", f"outputs {sorted(declared)}", f"got {sorted(outputs)}")
+        return ReplayResult(**base(status="FAILED", failure=failure))
+
+    return ReplayResult(**base(status="SUCCESS", outputs=outputs))
+
+
+# %% Section 9b: checks for run_capability_async -- the 8 required scenarios, plus 3 extra (async)
+class AsyncFakeSurface:
+    """Async twin of FakeSurface (Section 4b). Identical state and behavior -- every method is
+    `async def`. `click_effects` callables stay plain sync functions: they only mutate the fake's
+    own dict state, so there is nothing inside them that needs to be awaited."""
+
+    def __init__(self):
+        self.url = "/start"
+        self.pages: dict[str, str] = {}
+        self.registry: dict[str, dict[tuple, int]] = {}
+        self.values: dict[int, str] = {}
+        self.click_effects: dict[int, Callable[["AsyncFakeSurface"], None]] = {}
+        self.clicked: list[int] = []
+        self.typed: dict[int, str] = {}
+        self.selected: dict[int, str] = {}
+        self.navigated: list[str] = []
+        self.transient: dict[tuple, int] = {}
+
+    def set_page(self, url: str, text: str) -> None:
+        self.pages[url] = text
+
+    def register(self, url: str, locator, ref: int) -> None:
+        self.registry.setdefault(url, {})[_locator_key(locator)] = ref
+
+    def set_value(self, ref: int, value: str) -> None:
+        self.values[ref] = value
+
+    def fail_next(self, action: str, key, times: int) -> None:
+        self.transient[(action, key)] = times
+
+    def _maybe_fail(self, action: str, key) -> None:
+        left = self.transient.get((action, key), 0)
+        if left > 0:
+            self.transient[(action, key)] = left - 1
+            raise TransientFailure(f"{action} not ready yet ({key!r})")
+
+    async def navigate(self, path: str) -> None:
+        self._maybe_fail("navigate", path)
+        self.navigated.append(path)
+        self.url = path
+
+    async def resolve(self, locator):
+        return self.registry.get(self.url, {}).get(_locator_key(locator))
+
+    async def click(self, ref: int) -> None:
+        self._maybe_fail("click", ref)
+        self.clicked.append(ref)
+        effect = self.click_effects.get(ref)
+        if effect:
+            effect(self)
+
+    async def type_text(self, ref: int, value: str) -> None:
+        self._maybe_fail("type", ref)
+        self.typed[ref] = value
+
+    async def select_option(self, ref: int, value: str) -> None:
+        self._maybe_fail("select", ref)
+        self.selected[ref] = value
+
+    async def read_value(self, ref: int) -> str:
+        return self.values.get(ref, "")
+
+    async def current_url(self) -> str:
+        return self.url
+
+    async def page_text(self) -> str:
+        return self.pages.get(self.url, "")
+
+
+def new_happy_async_surface() -> AsyncFakeSurface:
+    s = AsyncFakeSurface()
+    url = "/item.htm?id=42"
+    s.set_page(url, "Item page. Value: 99")
+    s.register(url, TEST_CAP.steps[1].target.primary, 1)
+    s.register(url, TEST_CAP.steps[1].target.fallback, 1)
+    s.register(url, TEST_CAP.steps[2].target.primary, 2)
+    s.set_value(2, "99")
+    return s
+
+
+async def _run_async_checks() -> None:
+    # (1) happy path -> SUCCESS with correct outputs
+    result = await run_capability_async(TEST_CAP, new_happy_async_surface(), {"item_id": "42"}, no_secrets)
+    assert result.status == "SUCCESS" and result.outputs == {"value": "99"}, result
+    print("async test 1 (happy path): ok")
+
+    # (2) a business-outcome page state -> BUSINESS_OUTCOME with the declared outcome name
+    surface = AsyncFakeSurface()
+    url = "/item.htm?id=99"
+    surface.set_page(url, "Not Found: no such item")
+    surface.register(url, TEST_CAP.steps[1].target.primary, 1)
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "99"}, no_secrets)
+    assert result.status == "BUSINESS_OUTCOME" and result.outcome == "ITEM_NOT_FOUND", result
+    print("async test 2 (business outcome): ok")
+
+    # (3) primary locator fails, fallback succeeds -> still SUCCESS, observable/logged
+    surface = new_happy_async_surface()
+    url = "/item.htm?id=42"
+    del surface.registry[url][_locator_key(TEST_CAP.steps[1].target.primary)]
+    log: list[str] = []
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "42"}, no_secrets, logger=log.append)
+    assert result.status == "SUCCESS", result
+    assert any("fallback" in line for line in log), log
+    print("async test 3 (fallback observed):", [l for l in log if "fallback" in l][0])
+
+    # (4) both locators fail -> FAILED with step/expected/observed detail
+    surface = AsyncFakeSurface()
+    url = "/item.htm?id=1"
+    surface.set_page(url, "Item page. Value: 1")
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "1"}, no_secrets)
+    assert result.status == "FAILED", result
+    assert result.failure.step_index == 1 and result.failure.step_action == "click"
+    assert "primary" in result.failure.expected and "fallback" in result.failure.expected
+    print("async test 4 (both locators fail):", result.failure.expected, "|", result.failure.observed)
+
+    # (5) risky step with amount below the limit -> proceeds automatically, SUCCESS
+    surface = AsyncFakeSurface()
+    surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+    surface.click_effects[7] = lambda s: s.set_page("/pay.htm", "Paid. Thank you.")
+    result = await run_capability_async(RISKY_CAP, surface, {"amount": "100.00"}, no_secrets, auto_approve_limit=500.0)
+    assert result.status == "SUCCESS", result
+    assert surface.clicked == [7]
+    print("async test 5 (risky under limit, auto-approved): ok")
+
+    # (6) risky step with amount at/above the limit -> NEEDS_APPROVAL, escalate awaited, no click
+    surface = AsyncFakeSurface()
+    surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+    calls: list = []
+
+    async def _fake_escalate(reason, ctx):
+        calls.append((reason, ctx))
+
+    result = await run_capability_async(RISKY_CAP, surface, {"amount": "600.00"}, no_secrets,
+                                         auto_approve_limit=500.0, escalate=_fake_escalate)
+    assert result.status == "NEEDS_APPROVAL" and result.pending_step == 1, result
+    assert len(calls) == 1 and "500" in calls[0][0]
+    assert 7 not in surface.clicked
+    print("async test 6 (risky at limit, escalated [async fake], not clicked): ok")
+
+    # (7) checkpoint fails after all steps ran -> FAILED
+    surface = new_happy_async_surface()
+    surface.set_page("/item.htm?id=42", "Item page, no value shown here")
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+    assert result.status == "FAILED" and result.failure.step_action == "checkpoint", result
+    print("async test 7 (checkpoint fails):", result.failure.observed)
+
+    # (8) a declared output whose extracted value fails its declared type/format -> FAILED
+    surface = new_happy_async_surface()
+    surface.set_value(2, "not-a-number")
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+    assert result.status == "FAILED" and result.failure.step_action == "extract", result
+    print("async test 8 (bad output type/format):", result.failure.observed)
+
+    # bonus: transient failure, then it recovers
+    surface = new_happy_async_surface()
+    surface.fail_next("click", 1, times=2)
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "42"}, no_secrets)
+    assert result.status == "SUCCESS", result
+    print("async bonus (retried transient failure): ok")
+
+    # bonus: transient failure past the retry limit
+    surface = new_happy_async_surface()
+    surface.fail_next("click", 1, times=5)
+    result = await run_capability_async(TEST_CAP, surface, {"item_id": "42"}, no_secrets, max_retries=2)
+    assert result.status == "FAILED" and "transient failure" in result.failure.observed, result
+    print("async bonus (retries exhausted): ok")
+
+    # bonus: risky click never retried
+    surface = AsyncFakeSurface()
+    surface.register("/pay.htm", RISKY_CAP.steps[1].target.primary, 7)
+    surface.fail_next("click", 7, times=1)
+    result = await run_capability_async(RISKY_CAP, surface, {"amount": "10.00"}, no_secrets)
+    assert result.status == "FAILED", result
+    print("async bonus (risky click never retried): ok")
+
+
+asyncio.run(_run_async_checks())
+print("async replay engine: all offline checks passed")
+
+# %% Section 10: async integration check -- both REAL example artifacts through the async engine
+async def _run_async_integration() -> None:
+    bal2 = from_yaml((EX / "get_account_balance.yaml").read_text())
+    xfer2 = from_yaml((EX / "transfer_funds.yaml").read_text())
+
+    # ---- get_account_balance ----
+    bal_surface = AsyncFakeSurface()
+    bal_url = "/activity.htm?id=13344"
+    bal_surface.set_page(bal_url, "Account Details\nBalance: $1,200.00")
+    bal_extract = next(s for s in bal2.steps if s.action == "extract")
+    bal_surface.register(bal_url, bal_extract.target.primary, 1)
+    bal_surface.set_value(1, "$1,200.00")
+
+    bal_result = await run_capability_async(bal2, bal_surface, {"account_id": "13344"}, resolve_secret, run_id="async-evidence-1")
+    assert bal_result.status == "SUCCESS", bal_result
+    assert bal_result.outputs == {"balance": "$1,200.00"}
+    check_result(bal2, bal_result)
+    print("async integration (get_account_balance):", bal_result.status, bal_result.outputs)
+
+    # same artifact, bad account id -> the business outcome declared in its own outcome_rules
+    bad_surface = AsyncFakeSurface()
+    bad_url = "/activity.htm?id=00000"
+    bad_surface.set_page(bad_url, "Could not find account 00000")
+    bad_result = await run_capability_async(bal2, bad_surface, {"account_id": "00000"}, resolve_secret, run_id="async-evidence-1b")
+    assert bad_result.status == "BUSINESS_OUTCOME" and bad_result.outcome == "ACCOUNT_NOT_FOUND", bad_result
+    check_result(bal2, bad_result)
+    print("async integration (get_account_balance, bad id):", bad_result.status, bad_result.outcome)
+
+    # ---- transfer_funds ----
+    xfer_surface = AsyncFakeSurface()
+    xurl = "/transfer.htm"
+    xfer_surface.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+    xfer_type, xfer_sel1, xfer_sel2, xfer_click, xfer_extract = (s for s in xfer2.steps if s.action != "navigate")
+    xfer_surface.register(xurl, xfer_type.target.primary, 10)
+    xfer_surface.register(xurl, xfer_type.target.fallback, 10)
+    xfer_surface.register(xurl, xfer_sel1.target.primary, 11)
+    xfer_surface.register(xurl, xfer_sel2.target.primary, 12)
+    xfer_surface.register(xurl, xfer_click.target.primary, 13)
+    xfer_surface.register(xurl, xfer_extract.target.primary, 14)
+    xfer_surface.set_value(14, "Transfer Complete!")
+    xfer_surface.click_effects[13] = lambda s: s.set_page(xurl, "Transfer Complete! $20.00 has moved.")
+
+    xfer_inputs = {"from_account": "13344", "to_account": "13355", "amount": "20.00"}
+    xfer_result = await run_capability_async(xfer2, xfer_surface, xfer_inputs, resolve_secret, run_id="async-evidence-2", auto_approve_limit=500.0)
+    assert xfer_result.status == "SUCCESS", xfer_result
+    assert xfer_result.outputs == {"confirmation": "Transfer Complete!"}
+    assert xfer_surface.typed[10] == "20.00" and xfer_surface.selected[11] == "13344" and xfer_surface.selected[12] == "13355"
+    assert xfer_surface.clicked == [13]
+    check_result(xfer2, xfer_result)
+    print("async integration (transfer_funds, under limit):", xfer_result.status, xfer_result.outputs)
+
+    # same artifact, amount at/above the limit -> NEEDS_APPROVAL, the Transfer button never clicked
+    xfer_surface2 = AsyncFakeSurface()
+    xfer_surface2.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+    xfer_surface2.register(xurl, xfer_type.target.primary, 10)
+    xfer_surface2.register(xurl, xfer_sel1.target.primary, 11)
+    xfer_surface2.register(xurl, xfer_sel2.target.primary, 12)
+    xfer_surface2.register(xurl, xfer_click.target.primary, 13)
+    approvals: list = []
+
+    async def _fake_escalate2(reason, ctx):
+        approvals.append((reason, ctx))
+
+    xfer_result2 = await run_capability_async(
+        xfer2, xfer_surface2, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+        resolve_secret, run_id="async-evidence-3", auto_approve_limit=500.0,
+        escalate=_fake_escalate2,
+    )
+    assert xfer_result2.status == "NEEDS_APPROVAL" and xfer_result2.pending_step == 4, xfer_result2
+    assert 13 not in xfer_surface2.clicked
+    assert len(approvals) == 1
+    print("async integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
+
+
+asyncio.run(_run_async_integration())
+print("\nASYNC INTEGRATION CHECKS PASSED")
