@@ -1697,3 +1697,170 @@ path?
 **Brief ref:** 3.3 (replay, no LLM in the loop), 3.7 (the Surface seam scales to a second
 implementation), code quality (no drift between two copies of the same decision logic).
 
+
+### D78 — Live locator resolution for all 5 strategies, reusing the recorder's own descriptor JS
+
+**Question:** `PlaywrightReplaySurface.resolve(locator)` must turn a saved `Target`'s `role` /
+`label` / `text` / `structure` / `labeled_value` locator back into a real, clickable/readable
+element on a live page. What live-page mechanism does each strategy use?
+
+**Chosen:** reuse, not reinvent, what `03_recorder.py` already built and tested for the same
+purpose (D71/D72): run `OBSERVE_JS` (`agent.ipynb`'s own numbered scanner, unmodified) to number
+every visible element and set `data-cua-ref`, then call `DESCRIBE_JS` (`03_recorder.py` BROWSER 8,
+copied verbatim) per candidate ref to get its role, name, label, container, nth, and visible text.
+Matching per strategy:
+- `role`: `descriptor.role == locator.role and descriptor.name == locator.name`; if `locator.within`
+  is set, also require `descriptor.container.role == within.role` and (`within.name is None or
+  descriptor.container.name == within.name`) -- the same container-matching D71 already reasoned
+  about for the recorder's own duplicate-name scoping.
+- `label`: `descriptor.label == locator.label`. No `within` slot exists on this strategy (D68's
+  own stated gap), so this cannot be scoped; the first matching descriptor wins, same ambiguity
+  the recorder already documents and refuses to silently paper over at record time (not
+  newly introduced, not closed, here either).
+- `text`: `descriptor.text == locator.text` (only set on non-form-control elements), with the same
+  optional `within` container check as `role`.
+- `structure`: container match (role + optional name) AND `descriptor.tag == locator.tag` AND
+  `descriptor.nth == locator.nth`.
+- `labeled_value`: NOT resolved via the numbered scan at all -- `READ_LABELED_JS`
+  (`03_recorder.py` BROWSER 8, copied verbatim, the exact function `read_labeled_value` already
+  uses) is called directly with the locator's label. If it finds a value, `resolve` returns a
+  `LabeledValueRef(label=...)` marker (not a numbered ref) rather than inventing a fake ref number,
+  since D46 already decided a labeled-value read should never depend on page position.
+- No match on any strategy: `resolve` returns `None`, exactly like `FakeSurface.resolve` does for
+  an unregistered locator -- `resolve_target_async`'s own primary-then-fallback loop and
+  `ResolutionError`-with-both-locators-named behavior (Section 8/9, D77) does the rest, unchanged.
+
+**Reasoning:** `DESCRIBE_JS`/`READ_LABELED_JS` were built in the Phase 3 v2 rebuild specifically so
+"name"/"label"/"container" mean the same thing to the recorder as they do to a locator saved by
+it; using anything else here (e.g. a fresh, second implementation of "find the container") would
+risk the live replay side disagreeing with what the recording side meant when it saved the
+locator. This is the task's own instruction ("reuse or closely mirror... do not invent a third
+way") applied literally, not just in spirit.
+
+**Cost / honestly-stated limits:**
+- `resolve` calls `DESCRIBE_JS` once per numbered candidate element (O(n) round trips to the page
+  per `resolve` call, each itself O(n) internally for `DESCRIBE_JS`'s own duplicate-count
+  computation). Fine for a real login/form page (tens of elements), not scaled for a page with
+  hundreds. Not optimized here; flagged for whoever revisits this once a real page is measured.
+- `OBSERVE_JS`'s own selector (D2, unmodified) only numbers interactive-ish elements (`a[href]`,
+  `button`, `input`, `select`, `textarea`, `[role=button]`, `[role=link]`, `[onclick]`) -- by
+  design, since its job is finding things a person can act on, not general text extraction. A
+  `text`-strategy locator whose recorded target is plain, non-interactive page text (e.g. a bare
+  `<h1>`/`<span>` confirmation heading with no surrounding link/button/onclick, which is exactly
+  what `transfer_funds.yaml`'s own `confirmation` extract step declares) will not be found by this
+  scan-based `resolve`, because it was never numbered in the first place. This was not discovered
+  by running a real page (never done here, by the hard rules) -- it follows directly from reading
+  `OBSERVE_JS`'s selector string, and is stated honestly rather than assumed away. The task's own
+  instruction was to match `text` locators "against the freshly-scanned elements," so this is
+  implemented exactly as directed; whoever next runs this notebook against a real
+  `transfer_funds` replay should treat this as the first thing to check if that one extract step
+  reports `FAILED` with both locators unresolved, and, if so, either widen `OBSERVE_JS`'s selector
+  (a schema-neutral fix) or give `resolve` a second, non-scan-based path for a bare `text` search
+  of the whole page (closer to how `READ_LABELED_JS` already searches broadly for `labeled_value`).
+
+**Brief ref:** 3.2 (locator robustness reasoning), 3.7 (heterogeneous surfaces), D2, D46, D68, D71.
+
+### D79 — Wiring `escalate` to the real decision bar, and what a `NEEDS_APPROVAL` result can mean now
+
+**Question:** `run_capability_async`'s risky-click branch calls `escalate(reason, ctx)` then
+unconditionally returns `NEEDS_APPROVAL` -- it never resolves the target first, and never consults
+`escalate`'s return value (D77: this is the sync engine's existing, untouched behavior, not
+something this task may change). How does a live `escalate` let an approved click actually happen,
+consistent with D28's design intent ("hold the browser open in the same session, hand back so the
+run resumes")?
+
+**Chosen:** `make_escalate(cap)` returns an async `escalate(reason, ctx)` that, for the risky-click
+case (`ctx["step_index"]` names the pending step), resolves that step's target itself (via
+`resolve_target_async` against the same live surface) and shows the identical Approve/Reject/Take
+over bar `agent.ipynb`'s own `click()` tool already shows (`DECISION_JS`, `approval_info`'s
+`{title, details}` shape, copied verbatim). On the human's choice:
+- **Approve:** `await live_surface.click(ref)` -- the click happens for real, through the surface,
+  the same call path any other click uses.
+- **Reject:** no action. Nothing further happens on the page.
+- **Take over:** `await human_takeover(question="", auto_on_navigate=True, block_risky=False)`,
+  identical to `agent.ipynb`'s own take-over-to-submit call site.
+
+`run_capability_async` itself still returns `NEEDS_APPROVAL` in every one of these cases (its own
+logic is unchanged, per D77's hard rule) -- the resolve-and-click happens as a side effect inside
+`escalate`, not by the engine resuming its own step loop.
+
+**Reasoning:** D28 already chose "hold the browser open in the same session, human acts, hands
+back" over a resumable cross-process flow, and explicitly deferred the actual wiring to this
+phase. Making `run_capability_async` itself consult `escalate`'s return value and continue its own
+loop would be a real, non-reversible business-logic change to an engine this task's hard rules say
+must stay identical to the sync one. Letting `escalate` act directly keeps that promise: the
+session genuinely stays open and the click genuinely happens in it (satisfying 3.6's "same live
+session, not a fresh one"), while the *returned status* stays an honest description of what the
+engine's own step loop did (it stopped before the click), not of what a side channel did
+afterward.
+
+**Honestly-stated limitation:** a caller reading only `result.status == "NEEDS_APPROVAL"` cannot
+tell, from the `ReplayResult` alone, whether the human approved (and the click already fired) or
+rejected. Distinguishing the two requires reading `escalate`'s own side effects (the live page, or
+whatever the notebook prints), not the typed result. Closing this properly needs a fifth status or
+a resumable engine loop -- a real schema/engine change, out of scope here, and named as a concrete
+next step rather than hidden.
+
+**Brief ref:** 3.4, 3.6, D20, D27, D28, D33, D58.
+
+### D80 — `navigate`'s off-allowlist check raises a plain exception, not a `ReplayResult`
+
+**Question:** D15 says off-allowlist navigation must be "a hard failure, never silently ignored,"
+re-checked in replay. `run_capability`/`run_capability_async`'s step loop only catches
+`ResolutionError` and `TransientFailure` (D77: unchanged, by this task's own hard rule) -- every
+other exception propagates uncaught. Should `PlaywrightReplaySurface.navigate` raise one of those
+two, or something new?
+
+**Chosen:** raise a plain, clearly-named exception (not `ResolutionError` or `TransientFailure`,
+since neither means "policy blocked") when `host_allowed(...)` is false, and let it propagate
+uncaught out of `run_capability_async`, exactly as any other unexpected exception would today.
+
+**Reasoning:** the engine's own exception contract has no third bucket for "hard-stop-but-not-a-
+step-failure" today; adding one (a new caught exception type, plus a `ReplayResult` shape for it)
+would be a real, non-reversible change to the shared engine's business logic, which this task's
+hard rules forbid making as a side effect of live-wiring one surface. A `Capability`'s `base_url`
+is already schema-checked (D64) and every `navigate` step's path is fixed at record time, so this
+should never actually trigger against a well-formed artifact; if it ever does (a tampered or
+hand-edited artifact), failing loudly with an uncaught exception is still strictly better than
+silently navigating off-host, which is the one thing D15 forbids outright.
+
+**Cost, honestly stated:** unlike every other kind of hard failure in this engine, an off-host
+navigation does not currently produce a `FAILED` `ReplayResult` with step/expected/observed detail
+-- it crashes the calling process. Flagged as a real gap, not fixed here; the fix (a new caught
+exception + a documented fifth reason string, or folding it into `ResolutionError`'s family) is a
+schema/engine decision for whoever next touches `run_capability`'s shared exception contract.
+
+**Brief ref:** 3.4, D15, D77.
+
+### D81 — `read_value`'s form-value-then-visible-text fallback
+
+**Question:** `Extract` steps resolve to two different kinds of live targets: a form control read
+via `role`/`label`/`structure` (none of the two example artifacts actually do this, but the schema
+allows it), or a non-form element read via `text` (`transfer_funds`'s confirmation heading) or via
+`labeled_value` (`get_account_balance`'s balance). `read_value(ref)` has to return the right kind
+of live value for whichever one actually resolved, without the caller telling it which strategy
+was used to find `ref` (the `AsyncReplaySurface` contract only passes a `ref`, not the locator that
+produced it).
+
+**Chosen:** for a `LabeledValueRef` marker (D78), call `read_labeled_value` again -- the exact
+mechanism the recorder already uses. For a plain numbered `ref`, read the live form value first
+(`current_value`, agent.ipynb's own function, copied verbatim); if that comes back empty (the
+element is not a form control, or genuinely has no value), fall back to the element's own live
+`innerText`.
+
+**Reasoning:** `current_value` already handles the only two live form-control cases that matter
+(`<select>`'s selected option text, `<input>`/`<textarea>`'s `value`) and is the exact function
+`agent.ipynb` itself relies on elsewhere for the same idea ("what does this field currently show").
+Reusing it here rather than re-deriving the same two branches keeps one source of truth for "how do
+we read a form control's live value." The `innerText` fallback is new (agent.ipynb never needed it,
+since it only ever reads whole-page text via `page_text`, never one element's text by ref) but is a
+single, obvious line, not a second parallel value-reading system.
+
+**Cost, honestly stated:** an empty form value (a genuinely blank input) and "not a form control"
+are indistinguishable to this fallback -- both fall through to `innerText`, which for a real empty
+`<input>` returns `''` anyway, so the two cases happen to coincide harmlessly for every case this
+notebook's two example artifacts exercise. A form control that is both empty AND has visible child
+text (unusual, but not impossible for a custom-styled input) could read incorrectly; not a case
+either bundled example hits, flagged rather than special-cased blindly.
+
+**Brief ref:** 3.2, D46, D78.

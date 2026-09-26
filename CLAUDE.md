@@ -53,9 +53,16 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   tools always survive tool-selection. See DECISIONS.md section P (D70-D76); D41-D49 (original
   Phase 3) are marked superseded there.
 
-## Phase 4 notebook
+## Phase 4 notebooks
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback
   locators, substitutes `{{input}}`/`{{secret:name}}`, walks a capability's steps with no LLM, and
   gates risky clicks on a configurable auto-approve limit. Pure Python, tested against a hand-built
-  `FakeSurface`; no browser, no Playwright import. The real `ReplaySurface` (Phase 9) wraps
-  agent.ipynb's own `PlaywrightSurface` and `human_takeover`/decision-bar mechanism.
+  `FakeSurface`; no browser, no Playwright import. Also carries an async mirror
+  (`AsyncReplaySurface`/`run_capability_async`, D77), added because Playwright is async-only and
+  cannot be bridged into a sync call from inside a Jupyter kernel that already runs its own event
+  loop. Identical business logic to the sync engine, tested offline the same way (`AsyncFakeSurface`).
+- `05_replay_live.py` — wires `run_capability_async` to the REAL browser: a `PlaywrightReplaySurface`
+  that wraps agent.ipynb's own numbered scanner and lock/force-bypass mechanism (D78, D81), and a
+  real `escalate` implementation wired to agent.ipynb's own Approve/Reject/Take-over decision bar
+  (D79). Imports Playwright and needs a real browser + `.env` — never run by an agent, only the
+  user runs it; only a syntax check (`ast.parse`) is ever performed on it.
