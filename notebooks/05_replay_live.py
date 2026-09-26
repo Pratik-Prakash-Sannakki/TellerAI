@@ -957,12 +957,126 @@ def make_escalate(cap: "Capability"):
 
 print("make_escalate ready")
 
+# %% [markdown]
+# ## Pre-flight input gate (2026-09-26 fix)
+#
+# The owner, live, hit `InputValidationError: missing required input 'address'; ...` as a raw
+# traceback from `run_capability_async`'s own `validate_inputs` (04_replay_engine.py Section 3) --
+# correct behavior (D29: a missing required input must refuse, never silently proceed), but with
+# no chance to notice and fix it before the whole run dies. Their own words, verbatim, are the spec
+# for what replaces that traceback here:
+#
+# 1. "for a replay, the replay has to automatically understand what all fields it will require
+#    based on the replay. What all fields are supposed to be entered? That should be prompted to
+#    the user if he has not entered it. Tell him to enter it, and only then will things proceed."
+# 2. "this has to be a safe step, so before anything starts, based on the YAML, you should ask the
+#    user, 'You have not entered these fields. Please enter these fields.'"
+#
+# **Why this lives here, not in `04_replay_engine.py`:** `run_capability_async`/`run_capability`
+# and their own `validate_inputs` call must keep failing fast and loudly on a missing required
+# input, byte-identical to today (a scheduled/API-triggered replay has no human present to ask --
+# see CLAUDE.md's "Do not change 04_replay_engine.py" scoping and DECISIONS.md's newest entry for
+# the full reasoning). `replay_live()` is different: it is always driven by a person sitting at
+# this Jupyter kernel, so there is somewhere to ask.
+#
+# **Why a plain `input()`, not a browser handoff:** discovery's `ask_human`/`request_value` exist
+# because the LLM agent has no other channel to a human except the page it is already showing them
+# (D82). Replay has no LLM and no discovery-time agent loop -- the "human" here is simply whoever
+# typed `await replay_live(...)` into the cell below, and they are already looking at a terminal-
+# style Jupyter output, not the ParaBank page. A blocking `input()` prompt is the plainest, most
+# direct channel to exactly that person; inventing browser/lock/decision-bar machinery for this
+# would reuse mechanisms built for a completely different problem (a mid-run human takeover of the
+# PAGE) to solve a pre-run problem (missing call arguments).
+#
+# **Reuses, never reimplements, `validate_inputs`'s own pattern check:** `_prompt_for_missing_input`
+# below calls the exact same `re.fullmatch(param.pattern, value)` `validate_inputs`
+# (04_replay_engine.py Section 3) already uses -- not a second regex-checking implementation.
+# `run_capability_async` still calls the real `validate_inputs` on the merged dict as its own first
+# line (Section 9) regardless, so a value that passes this gate's pattern check but somehow still
+# fails full validation (e.g. its `type`) is caught there exactly as before -- this gate does not
+# replace that check, only fills in what would otherwise be missing from it.
+_PREFLIGHT_MAX_ATTEMPTS = 5   # bounded -- never loops forever; see DECISIONS.md for why 5
+
+
+def missing_required_inputs(cap: "Capability", inputs: dict[str, str]) -> list:
+    """Pure, standalone, offline-testable: which of `cap.inputs` (the Phase 2 schema's own
+    declared list, already figured out at discovery/compile time) are `.required` and have no
+    real value in `inputs`, in `cap.inputs`' own declared order.
+
+    "No real value" covers BOTH a name absent from `inputs` entirely AND one present but empty or
+    whitespace-only -- a caller passing `address=""` has, in every way that matters here, not
+    supplied an address either. See DECISIONS.md's newest entry for this explicit call. Never
+    looks at `cap.secrets` -- secrets are a separate mechanism (D32) this function does not touch."""
+    missing = []
+    for param in cap.inputs:
+        if not param.required:
+            continue
+        value = inputs.get(param.name)
+        if value is None or not str(value).strip():
+            missing.append(param)
+    return missing
+
+
+def _prompt_for_missing_input(param: "InputParam", *, input_fn=input,
+                               max_attempts: int = _PREFLIGHT_MAX_ATTEMPTS) -> str:
+    """Prompt for exactly one missing required input, showing its own `.description` as the
+    prompt text (D90's auto-declared inputs already carry a good one, e.g. "Address, entered by a
+    human during discovery -- provide the real value for each run."). Validates each answer
+    against the input's own `.pattern` with the SAME `re.fullmatch` call `validate_inputs`
+    (04_replay_engine.py Section 3) already uses. Up to `max_attempts` tries, never unbounded;
+    raises InputValidationError, naming the field, once the budget is exhausted."""
+    for attempt in range(1, max_attempts + 1):
+        raw = input_fn(f"{param.name} -- {param.description}\n> ")
+        value = (raw or "").strip()
+        if not value:
+            print(f"  '{param.name}' cannot be empty. ({attempt}/{max_attempts})")
+            continue
+        if param.pattern and not re.fullmatch(param.pattern, value):
+            print(f"  {value!r} does not match the required pattern for {param.name!r} "
+                  f"({param.pattern!r}). ({attempt}/{max_attempts})")
+            continue
+        return value
+    raise InputValidationError(f"gave up after {max_attempts} attempts for required input {param.name!r}")
+
+
+def gather_missing_inputs(cap: "Capability", inputs: dict[str, str], *, input_fn=input,
+                           max_attempts: int = _PREFLIGHT_MAX_ATTEMPTS) -> dict[str, str]:
+    """The pre-flight gate itself. Runs BEFORE anything else in `replay_live` -- no browser
+    action, no login, no step, has happened yet when this is called. Always returns a NEW dict
+    (the caller's own `inputs` is never mutated -- same defensive-copy discipline 03_recorder.py's
+    `compile_run` already established for an analogous reason, D90 point 8).
+
+    A true no-op -- no printing, no prompting, `input_fn` never called even once -- when nothing
+    is missing, so a capability that already has every required input (a fully-specified
+    `pay_bill` call, or `get_account_balance.yaml`'s `inputs: []`) behaves exactly as before this
+    fix. Only when something is actually missing does it print the owner's own phrasing once,
+    naming every missing field up front, then prompt for each in turn."""
+    missing = missing_required_inputs(cap, inputs)
+    gathered = dict(inputs)
+    if not missing:
+        return gathered
+    print("You have not entered these fields. Please enter these fields.")
+    for param in missing:
+        print(f"  - {param.name}")
+    for param in missing:
+        gathered[param.name] = _prompt_for_missing_input(param, input_fn=input_fn, max_attempts=max_attempts)
+    return gathered
+
+
+print("pre-flight input gate ready (missing_required_inputs / gather_missing_inputs)")
+
 # %% Run helper: replay a saved capability against the real browser
 async def replay_live(cap_path, inputs: dict[str, str], *, auto_approve_limit: float = 500.0) -> "ReplayResult":
     """Load a capability YAML and replay it for real, printing the result. `secrets` is always
     `resolve_secret` (D32): a secret VALUE is never printed, logged, or placed in anything this
-    function returns or prints -- only its NAME ever appears, if at all."""
+    function returns or prints -- only its NAME ever appears, if at all.
+
+    2026-09-26 fix: before anything else -- before `run_capability_async`, before any browser
+    action, before login, before any step runs -- `gather_missing_inputs` checks `cap.inputs`
+    against the caller's own `inputs` and interactively prompts for anything required that is
+    missing. A no-op when nothing is missing; see the markdown cell above for the full design."""
     cap = from_yaml(pathlib.Path(cap_path).read_text())
+    inputs = gather_missing_inputs(cap, inputs)
     result = await run_capability_async(
         cap, live_surface, inputs, resolve_secret,
         auto_approve_limit=auto_approve_limit, escalate=make_escalate(cap), logger=print,
