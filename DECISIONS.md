@@ -1801,6 +1801,18 @@ whatever the notebook prints), not the typed result. Closing this properly needs
 a resumable engine loop -- a real schema/engine change, out of scope here, and named as a concrete
 next step rather than hidden.
 
+> **Update: corrected, see D85.** The design above let `escalate` perform the click itself as a
+> side effect on Approve, while `run_capability_async` unconditionally kept returning
+> `NEEDS_APPROVAL` regardless of Approve or Reject -- meaning a real payment could go through with
+> no distinguishing signal in the typed result at all (worse than the "honestly-stated limitation"
+> above states: Approve and Reject were not just hard to tell apart, they were byte-identical in
+> the returned `ReplayResult`), and the capability's own remaining steps (an `extract` reading the
+> confirmation, the final `checkpoint`) were never reached even on a genuine Approve. D85 has the
+> engine itself perform the click and continue, once `escalate`'s return value says `"approve"`;
+> `escalate` no longer touches the page for this branch at all. (Note on numbering: D82-D84 were
+> taken by concurrent Phase 3 work landed in this same repo while this fix was being written; this
+> decision continues from D84, the highest number at commit time.)
+
 **Brief ref:** 3.4, 3.6, D20, D27, D28, D33, D58.
 
 ### D80 — `navigate`'s off-allowlist check raises a plain exception, not a `ReplayResult`
@@ -2018,3 +2030,98 @@ into the goal)?
 **Brief ref:** 3.2 (reviewability), 3.4 (parameterisation and the leftover check), D29, D44, D49.
 
 **Brief ref:** 3.2, D46, D78.
+
+## R. Phase 4 bugfix: escalate's return value gates the risky click, not a side effect inside it
+
+(Note on numbering: D82-D84 were taken by concurrent Phase 3 work landed in this same repo while
+this fix was being written; this section continues from D84, the current highest number,
+confirmed against `git log`/`grep "^### D"` immediately before writing it, not against an earlier
+read.)
+
+### D85 — `escalate`'s return value, not a side effect inside it, decides whether a risky click happens
+
+**Question:** `run_capability`/`run_capability_async`'s risky-click branch (D38, D79) called
+`escalate(reason, ctx)` and then unconditionally returned `NEEDS_APPROVAL`, ignoring whatever
+`escalate` returned. `notebooks/05_replay_live.py`'s `make_escalate` worked around this by having
+`escalate` itself resolve the target and call `surface.click(ref)` as a side effect on Approve --
+but the engine still always returned `NEEDS_APPROVAL` afterward, so a real payment could go
+through with no way to tell, from the typed `ReplayResult`, whether it had (Approve) or had not
+(Reject) -- both left `status == "NEEDS_APPROVAL"`, byte-identical. Worse, the capability's own
+remaining steps -- an `extract` reading the real confirmation, the final `checkpoint` -- were never
+reached even on a genuine Approve, because the engine returned before them regardless. How should
+approving a risky click actually take effect?
+
+**Options:**
+- (a) Keep `escalate` performing the click as a side effect (the status quo above). Rejected: it
+  is not `escalate`'s job to act on the page -- every other step type's acting is the engine's job
+  -- and it can never make the returned result honestly distinguish approved-and-paid from
+  rejected-and-nothing-happened without inventing a fifth status (out of scope, D79 already named
+  this as the real fix and deferred it).
+- (b) Have `run_capability`/`run_capability_async` consult `escalate`'s return value: a specific
+  sentinel means "proceed," anything else means "stay `NEEDS_APPROVAL`," exactly as today. The
+  engine performs the click itself, via the exact same resolve-then-click code an ordinary click
+  step already uses, and continues the loop into the capability's remaining steps.
+- (c) Add a fifth `ReplayResult` status (e.g. `APPROVED_AND_CONTINUED`) so callers can tell
+  Approve apart from Reject without changing what happens after either. Rejected as a bigger,
+  separate schema/contract change than this task asked for (D27's four-status contract is
+  load-bearing elsewhere); D79 already named this as a legitimate future direction, not this fix.
+
+**Chosen:** (b). The contract: `escalate(reason, ctx)` may return the string `"approve"` to mean
+"proceed with this click"; anything else (including `None`, the default for every existing fake
+escalate in every offline test) means "no decision -- stay `NEEDS_APPROVAL`," the exact current
+behavior. `escalate` itself must never perform the click any more -- that is the engine's job now,
+like every other step type. On `"approve"`, the engine resolves the step's target (primary then
+fallback, via the SAME `resolve_target`/`resolve_target_async` an ordinary click already calls --
+not a second implementation) and calls `surface.click(ref)`, then lets the step loop continue past
+it exactly as an under-the-limit risky click already does. If the target cannot be resolved even
+after approval, the SAME `ResolutionError` handling an ordinary unresolvable target already goes
+through applies unchanged, returning `FAILED` -- not a silent success, not `NEEDS_APPROVAL`. A
+small pure helper, `_is_approved(decision) -> bool` (`decision == "approve"`), is shared by both
+engines' risky-click branches, the same "factor out the shared pure decision, don't hand-copy it"
+pattern D77 already used for `_target_locators`/`_find_outcome_rule` -- so the sync and async
+engines can never disagree about what counts as approval.
+
+**Reasoning:**
+- This is the smallest change that actually closes D79's own honestly-stated gap: the returned
+  `ReplayResult` now genuinely reflects what happened (an approved risky click that goes on to
+  `SUCCESS` with the real confirmation and a verified checkpoint looks nothing like a rejected one
+  that stays `NEEDS_APPROVAL`), without inventing a new status or touching the four-status
+  contract (D27) at all.
+- Reusing the existing resolve-then-click and `ResolutionError` paths, rather than writing a
+  second one for "the approved case," is exactly the "reuse or closely mirror... do not invent a
+  third way" principle this codebase already applies elsewhere (D22, D78); it also means the
+  approved-but-unresolvable case gets `FAILED` for free, with no new code to get wrong.
+- `_call_escalate` (D77's async helper) already existed to await `escalate`'s return value for a
+  different reason (letting a real human finish deciding before the function returns); it now also
+  returns that value instead of discarding it -- a strict widening, not a behavior change, since
+  every existing caller of `_call_escalate` already ignored its (previously always-`None`) return.
+- **Byte-for-byte compatibility, verified by running `uv run python notebooks/04_replay_engine.py`
+  after the change:** every prior sync and async test's output line is unchanged, because every
+  existing fake `escalate` (including every lambda that appends to a list and returns `None`
+  implicitly) still produces a decision of `None`, which `_is_approved` still treats as "not
+  approved" -- the exact same `NEEDS_APPROVAL` outcome as before this fix, for every prior test.
+- `notebooks/05_replay_live.py`'s `make_escalate` was updated to match: it now only shows the
+  decision bar and reports the human's choice (`"approve"` / `None` / `None` for Approve / Reject
+  / Take-over respectively) and never touches the page itself for this branch -- only `make_escalate`
+  and its surrounding markdown were touched, per this task's own scope limit; the file was never
+  executed, only `ast.parse`d, per this repo's standing hard rule for that notebook.
+- Take-over deliberately still returns a non-`"approve"` value (not `"approve"`): a human taking
+  over the browser directly is a separate, already-handled path (D14, D79), and the engine cannot
+  safely infer that the click happened just because control changed hands -- returning anything
+  else here would be a new, unverified assumption, not something this fix's scope asked for.
+
+**Cost, honestly stated:** `escalate` is called with the SAME reason string and step context
+whether or not the step ends up approved; a caller reading only the `escalate` call count (rather
+than its return value) still cannot tell approval from rejection -- this was never the signal to
+read for that distinction, either before or after this fix; the `ReplayResult`'s own `status` is.
+`_is_approved`'s equality check is intentionally exact-string (`"approve"`, not case-insensitive or
+prefix-matched) -- easy to get wrong by hand if a caller does not read the contract; documented
+here and in both engines' docstrings rather than guarded with fuzzy matching that could itself
+approve something unintended.
+
+**Update to D79:** the design D79 chose (escalate resolves and clicks as a side effect, engine
+always returns `NEEDS_APPROVAL` regardless of the human's choice) is corrected by this decision.
+See the "Update: corrected, see D85" note added directly to D79, above.
+
+**Brief ref:** 3.3 (replay, no LLM in the loop, structured result), 3.4, 3.6, D20, D27, D28, D33,
+D38, D77, D79.

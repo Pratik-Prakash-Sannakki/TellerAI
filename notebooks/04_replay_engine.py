@@ -311,7 +311,7 @@ def _find_outcome_rule(cap: "Capability", url: str, text: str):
 
 
 def _is_approved(decision: Any) -> bool:
-    """Pure: what a risky click's `escalate(reason, ctx)` return value means (D82). Exactly the
+    """Pure: what a risky click's `escalate(reason, ctx)` return value means (D85). Exactly the
     string `"approve"` means "proceed with this click"; anything else -- `None` (every existing
     fake escalate's implicit return, unchanged), a rejection string, a coroutine's other result --
     means "no decision, stay NEEDS_APPROVAL". Shared by run_capability's and run_capability_async's
@@ -359,7 +359,7 @@ def run_capability(
     exercised in tests by a fake.
 
     For a risky click at/above `auto_approve_limit`, `escalate`'s return value is now consulted
-    (D82): exactly the string `"approve"` means resolve the target and click it for real, then
+    (D85): exactly the string `"approve"` means resolve the target and click it for real, then
     continue to the remaining steps; anything else (including the default `None`) means stay
     `NEEDS_APPROVAL`, unchanged from before. `escalate` itself must never perform the click."""
     values = validate_inputs(cap, inputs)
@@ -383,9 +383,9 @@ def run_capability(
                             reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
                             ctx = {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit}
                             decision = escalate(reason, ctx) if escalate is not None else None
-                            if not _is_approved(decision):   # D82: unchanged NEEDS_APPROVAL behavior
+                            if not _is_approved(decision):   # D85: unchanged NEEDS_APPROVAL behavior
                                 return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
-                            # D82: escalate approved this click -- fall through to the exact same
+                            # D85: escalate approved this click -- fall through to the exact same
                             # resolve-then-click a non-risky (or under-limit) click step already
                             # uses below, and let the loop continue to the remaining steps.
                     ref = resolve_target(surface, step.target, logger=logger)
@@ -758,7 +758,7 @@ assert 13 not in xfer_surface2.clicked
 assert len(approvals) == 1
 print("integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
 
-# D82 fix: over-limit click, escalate returns "approve" -> the engine clicks the target itself,
+# D85 fix: over-limit click, escalate returns "approve" -> the engine clicks the target itself,
 # continues to the remaining steps (extract, checkpoint), reaches SUCCESS with the real
 # confirmation. This is the exact real-world shape the bug was in (a risky click followed by an
 # extract step and a checkpoint), same fixture as the two tests just above.
@@ -784,7 +784,7 @@ assert len(approve_calls) == 1
 check_result(xfer, xfer_result3)
 print("integration (transfer_funds, escalate approves over-limit click):", xfer_result3.status, xfer_result3.outputs)
 
-# D82: escalate approves, but the target cannot be resolved at that point -> FAILED, not a silent
+# D85: escalate approves, but the target cannot be resolved at that point -> FAILED, not a silent
 # success and not NEEDS_APPROVAL. The Transfer button is deliberately never registered.
 xfer_surface4 = FakeSurface()
 xfer_surface4.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
@@ -801,7 +801,7 @@ assert 13 not in xfer_surface4.clicked
 print("integration (transfer_funds, escalate approves but target unresolvable):",
       xfer_result4.status, xfer_result4.failure.observed)
 
-# D82: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL, click
+# D85: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL, click
 # never called -- same contract the None-returning fake above already proved, with a different
 # non-"approve" value.
 xfer_surface5 = FakeSurface()
@@ -932,7 +932,7 @@ async def _call_escalate(escalate: Callable[[str, dict], Any] | None, reason: st
 
     Returns whatever `escalate` (or the coroutine it returned) itself returned -- `None` for every
     prior caller here, which all discard the return value, exactly as before. The risky-click
-    branch (D82) is the one caller that now reads this to decide whether `escalate` said
+    branch (D85) is the one caller that now reads this to decide whether `escalate` said
     `"approve"`."""
     if escalate is None:
         return None
@@ -1039,7 +1039,7 @@ async def run_capability_async(
     bound (never for a risky click), same checkpoint/output checks, same four statuses. See the
     markdown cell at the top of Section 6.
 
-    Same D82 approval contract as run_capability: a risky click's `escalate` return value of
+    Same D85 approval contract as run_capability: a risky click's `escalate` return value of
     exactly `"approve"` resolves the target and clicks it for real, then continues; anything else
     stays `NEEDS_APPROVAL`, unchanged."""
     values = validate_inputs(cap, inputs)
@@ -1063,9 +1063,9 @@ async def run_capability_async(
                             reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
                             ctx = {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit}
                             decision = await _call_escalate(escalate, reason, ctx)
-                            if not _is_approved(decision):   # D82: unchanged NEEDS_APPROVAL behavior
+                            if not _is_approved(decision):   # D85: unchanged NEEDS_APPROVAL behavior
                                 return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
-                            # D82: escalate approved this click -- fall through to the exact same
+                            # D85: escalate approved this click -- fall through to the exact same
                             # resolve-then-click a non-risky (or under-limit) click step already
                             # uses below, and let the loop continue to the remaining steps.
                     ref = await resolve_target_async(surface, step.target, logger=logger)
@@ -1380,7 +1380,7 @@ async def _run_async_integration() -> None:
     assert len(approvals) == 1
     print("async integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
 
-    # D82 fix: over-limit click, escalate returns "approve" -> the engine clicks the target
+    # D85 fix: over-limit click, escalate returns "approve" -> the engine clicks the target
     # itself, continues to the remaining steps (extract, checkpoint), reaches SUCCESS with the
     # real confirmation. Same fixture as the two tests just above.
     xfer_surface3 = AsyncFakeSurface()
@@ -1410,7 +1410,7 @@ async def _run_async_integration() -> None:
     check_result(xfer2, xfer_result3)
     print("async integration (transfer_funds, escalate approves over-limit click):", xfer_result3.status, xfer_result3.outputs)
 
-    # D82: escalate approves, but the target cannot be resolved at that point -> FAILED, not a
+    # D85: escalate approves, but the target cannot be resolved at that point -> FAILED, not a
     # silent success and not NEEDS_APPROVAL. The Transfer button is deliberately never registered.
     xfer_surface4 = AsyncFakeSurface()
     xfer_surface4.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
@@ -1431,7 +1431,7 @@ async def _run_async_integration() -> None:
     print("async integration (transfer_funds, escalate approves but target unresolvable):",
           xfer_result4.status, xfer_result4.failure.observed)
 
-    # D82: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL,
+    # D85: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL,
     # click never called -- same contract the None-returning fake above already proved, with a
     # different non-"approve" value.
     xfer_surface5 = AsyncFakeSurface()

@@ -35,7 +35,7 @@
 #    that file the same way. For a RISKY capability (e.g. `transfer_funds.yaml`) with an amount at
 #    or above `auto_approve_limit` (default $500), you will see the same dark Approve/Reject/Take
 #    over bar `agent.ipynb`'s own `click()` tool shows. **Approve** makes the engine resolve the
-#    button and click it for real (D82), then continue on to the capability's remaining steps --
+#    button and click it for real (D85), then continue on to the capability's remaining steps --
 #    expect `REPLAY RESULT: SUCCESS {'confirmation': '...'}` with the real confirmation text, not
 #    `NEEDS_APPROVAL`. **Reject** or **Take over** still leave the result at `NEEDS_APPROVAL`,
 #    with no click ever made on our say-so.
@@ -842,10 +842,10 @@ live_surface = PlaywrightReplaySurface(page)
 print("PlaywrightReplaySurface ready, backed by the single global page/surface")
 
 # %% [markdown]
-# ## Wiring `escalate` to the real decision bar (D79, corrected by D82)
+# ## Wiring `escalate` to the real decision bar (D79, corrected by D85)
 #
 # `run_capability_async`'s risky-click branch calls `escalate(reason, ctx)` and now consults its
-# return value (D82): exactly the string `"approve"` means "proceed" -- the ENGINE resolves the
+# return value (D85): exactly the string `"approve"` means "proceed" -- the ENGINE resolves the
 # target itself (via `resolve_target_async`, the exact same code path a normal click step already
 # uses) and clicks it, then continues on to the capability's remaining steps. Anything else
 # (including `None`, the default) leaves the engine's behavior exactly as before: it stops and
@@ -864,7 +864,7 @@ print("PlaywrightReplaySurface ready, backed by the single global page/surface")
 #   (not `"approve"`) -- the engine cannot safely assume the click happened just because a human
 #   took over, so this stays the same honest, conservative `NEEDS_APPROVAL` outcome as before.
 #
-# **Corrected (D82):** approving a real payment now results in `SUCCESS` with the real
+# **Corrected (D85):** approving a real payment now results in `SUCCESS` with the real
 # confirmation text and a verified checkpoint -- not `NEEDS_APPROVAL` -- because the engine
 # itself continues past the click instead of returning immediately. Rejecting still returns
 # `NEEDS_APPROVAL`, and a caller reading only `result.status` still cannot distinguish "rejected"
@@ -884,8 +884,8 @@ def make_escalate(cap: "Capability"):
     """Returns an escalate(reason, ctx) closure for this one capability. Passed as
     run_capability_async's `escalate=` argument.
 
-    D82: for the risky-click case, this closure only shows the decision bar and REPORTS the
-    human's choice -- it must never click anything itself any more. The engine (D82) is what
+    D85: for the risky-click case, this closure only shows the decision bar and REPORTS the
+    human's choice -- it must never click anything itself any more. The engine (D85) is what
     resolves the target and clicks it, and only when this returns exactly the string "approve"."""
 
     async def escalate(reason: str, ctx: dict) -> str | None:
