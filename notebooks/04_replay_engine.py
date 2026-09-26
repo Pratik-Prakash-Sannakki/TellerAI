@@ -310,6 +310,16 @@ def _find_outcome_rule(cap: "Capability", url: str, text: str):
     return None
 
 
+def _is_approved(decision: Any) -> bool:
+    """Pure: what a risky click's `escalate(reason, ctx)` return value means (D82). Exactly the
+    string `"approve"` means "proceed with this click"; anything else -- `None` (every existing
+    fake escalate's implicit return, unchanged), a rejection string, a coroutine's other result --
+    means "no decision, stay NEEDS_APPROVAL". Shared by run_capability's and run_capability_async's
+    risky-click branches so the two engines can never disagree about what counts as approval,
+    the same pattern D77 already used for `_target_locators`/`_find_outcome_rule`."""
+    return decision == "approve"
+
+
 def _check_outcomes(cap, step_index, url, text, escalate, base, logger):
     """First matching rule wins, in declared order (D10's documented order rule)."""
     rule = _find_outcome_rule(cap, url, text)
@@ -346,7 +356,12 @@ def run_capability(
     """Run every step of `cap` against `surface`, no LLM in the loop (D6, 3.3). `escalate`, when
     given, is called for NEEDS_APPROVAL and for an unrecoverable hard failure -- Phase 9 wires it
     to agent.ipynb's real human_takeover/decision-bar mechanism; here it is only a seam,
-    exercised in tests by a fake."""
+    exercised in tests by a fake.
+
+    For a risky click at/above `auto_approve_limit`, `escalate`'s return value is now consulted
+    (D82): exactly the string `"approve"` means resolve the target and click it for real, then
+    continue to the remaining steps; anything else (including the default `None`) means stay
+    `NEEDS_APPROVAL`, unchanged from before. `escalate` itself must never perform the click."""
     values = validate_inputs(cap, inputs)
     outputs: dict[str, str] = {}
 
@@ -366,9 +381,13 @@ def run_capability(
                         amount = parse_amount(values.get(step.amount_input, "")) if step.amount_input else float("inf")
                         if amount >= auto_approve_limit:
                             reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
-                            if escalate is not None:
-                                escalate(reason, {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit})
-                            return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                            ctx = {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit}
+                            decision = escalate(reason, ctx) if escalate is not None else None
+                            if not _is_approved(decision):   # D82: unchanged NEEDS_APPROVAL behavior
+                                return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                            # D82: escalate approved this click -- fall through to the exact same
+                            # resolve-then-click a non-risky (or under-limit) click step already
+                            # uses below, and let the loop continue to the remaining steps.
                     ref = resolve_target(surface, step.target, logger=logger)
                     surface.click(ref)
                 elif action == "type":
@@ -739,6 +758,67 @@ assert 13 not in xfer_surface2.clicked
 assert len(approvals) == 1
 print("integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
 
+# D82 fix: over-limit click, escalate returns "approve" -> the engine clicks the target itself,
+# continues to the remaining steps (extract, checkpoint), reaches SUCCESS with the real
+# confirmation. This is the exact real-world shape the bug was in (a risky click followed by an
+# extract step and a checkpoint), same fixture as the two tests just above.
+xfer_surface3 = FakeSurface()
+xfer_surface3.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+xfer_surface3.register(xurl, xfer_type.target.primary, 10)
+xfer_surface3.register(xurl, xfer_sel1.target.primary, 11)
+xfer_surface3.register(xurl, xfer_sel2.target.primary, 12)
+xfer_surface3.register(xurl, xfer_click.target.primary, 13)
+xfer_surface3.register(xurl, xfer_extract.target.primary, 14)
+xfer_surface3.set_value(14, "Transfer Complete!")
+xfer_surface3.click_effects[13] = lambda s: s.set_page(xurl, "Transfer Complete! $999.00 has moved.")
+approve_calls = []
+xfer_result3 = run_capability(
+    xfer, xfer_surface3, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+    resolve_secret, run_id="evidence-4", auto_approve_limit=500.0,
+    escalate=lambda reason, ctx: (approve_calls.append((reason, ctx)), "approve")[1],
+)
+assert xfer_result3.status == "SUCCESS", xfer_result3
+assert xfer_result3.outputs == {"confirmation": "Transfer Complete!"}
+assert xfer_surface3.clicked == [13]
+assert len(approve_calls) == 1
+check_result(xfer, xfer_result3)
+print("integration (transfer_funds, escalate approves over-limit click):", xfer_result3.status, xfer_result3.outputs)
+
+# D82: escalate approves, but the target cannot be resolved at that point -> FAILED, not a silent
+# success and not NEEDS_APPROVAL. The Transfer button is deliberately never registered.
+xfer_surface4 = FakeSurface()
+xfer_surface4.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+xfer_surface4.register(xurl, xfer_type.target.primary, 10)
+xfer_surface4.register(xurl, xfer_sel1.target.primary, 11)
+xfer_surface4.register(xurl, xfer_sel2.target.primary, 12)
+xfer_result4 = run_capability(
+    xfer, xfer_surface4, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+    resolve_secret, run_id="evidence-5", auto_approve_limit=500.0,
+    escalate=lambda reason, ctx: "approve",
+)
+assert xfer_result4.status == "FAILED" and xfer_result4.failure.step_action == "click", xfer_result4
+assert 13 not in xfer_surface4.clicked
+print("integration (transfer_funds, escalate approves but target unresolvable):",
+      xfer_result4.status, xfer_result4.failure.observed)
+
+# D82: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL, click
+# never called -- same contract the None-returning fake above already proved, with a different
+# non-"approve" value.
+xfer_surface5 = FakeSurface()
+xfer_surface5.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+xfer_surface5.register(xurl, xfer_type.target.primary, 10)
+xfer_surface5.register(xurl, xfer_sel1.target.primary, 11)
+xfer_surface5.register(xurl, xfer_sel2.target.primary, 12)
+xfer_surface5.register(xurl, xfer_click.target.primary, 13)
+xfer_result5 = run_capability(
+    xfer, xfer_surface5, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+    resolve_secret, run_id="evidence-6", auto_approve_limit=500.0,
+    escalate=lambda reason, ctx: "reject",
+)
+assert xfer_result5.status == "NEEDS_APPROVAL" and xfer_result5.pending_step == 4, xfer_result5
+assert 13 not in xfer_surface5.clicked
+print("integration (transfer_funds, escalate returns non-approve string):", xfer_result5.status, xfer_result5.reason)
+
 print("\nINTEGRATION CHECKS PASSED")
 
 # %% [markdown]
@@ -840,7 +920,7 @@ async def resolve_target_async(surface: AsyncReplaySurface, target: "Target", *,
     raise ResolutionError(target)
 
 
-async def _call_escalate(escalate: Callable[[str, dict], Any] | None, reason: str, ctx: dict) -> None:
+async def _call_escalate(escalate: Callable[[str, dict], Any] | None, reason: str, ctx: dict) -> Any:
     """Call `escalate` and, if it returns something awaitable (a real live implementation that
     shows a decision bar and waits for a human is exactly this), await it before continuing. A
     plain sync escalate -- every offline test's fake, unchanged from the sync engine -- returns
@@ -848,12 +928,18 @@ async def _call_escalate(escalate: Callable[[str, dict], Any] | None, reason: st
     every existing test (D77). This is the ONE place run_capability_async's behavior genuinely
     differs from run_capability's: escalate here may be an async callable, because handing
     control to a real person is an inherently awaitable action, and the whole reason this mirror
-    exists is to let that finish before run_capability_async returns."""
+    exists is to let that finish before run_capability_async returns.
+
+    Returns whatever `escalate` (or the coroutine it returned) itself returned -- `None` for every
+    prior caller here, which all discard the return value, exactly as before. The risky-click
+    branch (D82) is the one caller that now reads this to decide whether `escalate` said
+    `"approve"`."""
     if escalate is None:
-        return
+        return None
     result = escalate(reason, ctx)
     if inspect.isawaitable(result):
-        await result
+        return await result
+    return result
 
 
 # %% Section 8b: checks for resolve_target_async and _call_escalate
@@ -951,7 +1037,11 @@ async def run_capability_async(
     `_call_escalate`, D77). No business logic differs: same input validation, same per-step
     resolution order, same risky-click gate BEFORE the click, same outcome-rule order, same retry
     bound (never for a risky click), same checkpoint/output checks, same four statuses. See the
-    markdown cell at the top of Section 6."""
+    markdown cell at the top of Section 6.
+
+    Same D82 approval contract as run_capability: a risky click's `escalate` return value of
+    exactly `"approve"` resolves the target and clicks it for real, then continues; anything else
+    stays `NEEDS_APPROVAL`, unchanged."""
     values = validate_inputs(cap, inputs)
     outputs: dict[str, str] = {}
 
@@ -971,8 +1061,13 @@ async def run_capability_async(
                         amount = parse_amount(values.get(step.amount_input, "")) if step.amount_input else float("inf")
                         if amount >= auto_approve_limit:
                             reason = f"amount {amount} is at or above the auto-approve limit {auto_approve_limit}"
-                            await _call_escalate(escalate, reason, {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit})
-                            return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                            ctx = {"capability": cap.name, "step_index": i, "amount": amount, "limit": auto_approve_limit}
+                            decision = await _call_escalate(escalate, reason, ctx)
+                            if not _is_approved(decision):   # D82: unchanged NEEDS_APPROVAL behavior
+                                return ReplayResult(**base(status="NEEDS_APPROVAL", pending_step=i, reason=reason))
+                            # D82: escalate approved this click -- fall through to the exact same
+                            # resolve-then-click a non-risky (or under-limit) click step already
+                            # uses below, and let the loop continue to the remaining steps.
                     ref = await resolve_target_async(surface, step.target, logger=logger)
                     await surface.click(ref)
                 elif action == "type":
@@ -1284,6 +1379,79 @@ async def _run_async_integration() -> None:
     assert 13 not in xfer_surface2.clicked
     assert len(approvals) == 1
     print("async integration (transfer_funds, over limit):", xfer_result2.status, xfer_result2.reason)
+
+    # D82 fix: over-limit click, escalate returns "approve" -> the engine clicks the target
+    # itself, continues to the remaining steps (extract, checkpoint), reaches SUCCESS with the
+    # real confirmation. Same fixture as the two tests just above.
+    xfer_surface3 = AsyncFakeSurface()
+    xfer_surface3.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+    xfer_surface3.register(xurl, xfer_type.target.primary, 10)
+    xfer_surface3.register(xurl, xfer_sel1.target.primary, 11)
+    xfer_surface3.register(xurl, xfer_sel2.target.primary, 12)
+    xfer_surface3.register(xurl, xfer_click.target.primary, 13)
+    xfer_surface3.register(xurl, xfer_extract.target.primary, 14)
+    xfer_surface3.set_value(14, "Transfer Complete!")
+    xfer_surface3.click_effects[13] = lambda s: s.set_page(xurl, "Transfer Complete! $999.00 has moved.")
+    approve_calls: list = []
+
+    async def _fake_escalate3(reason, ctx):
+        approve_calls.append((reason, ctx))
+        return "approve"
+
+    xfer_result3 = await run_capability_async(
+        xfer2, xfer_surface3, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+        resolve_secret, run_id="async-evidence-4", auto_approve_limit=500.0,
+        escalate=_fake_escalate3,
+    )
+    assert xfer_result3.status == "SUCCESS", xfer_result3
+    assert xfer_result3.outputs == {"confirmation": "Transfer Complete!"}
+    assert xfer_surface3.clicked == [13]
+    assert len(approve_calls) == 1
+    check_result(xfer2, xfer_result3)
+    print("async integration (transfer_funds, escalate approves over-limit click):", xfer_result3.status, xfer_result3.outputs)
+
+    # D82: escalate approves, but the target cannot be resolved at that point -> FAILED, not a
+    # silent success and not NEEDS_APPROVAL. The Transfer button is deliberately never registered.
+    xfer_surface4 = AsyncFakeSurface()
+    xfer_surface4.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+    xfer_surface4.register(xurl, xfer_type.target.primary, 10)
+    xfer_surface4.register(xurl, xfer_sel1.target.primary, 11)
+    xfer_surface4.register(xurl, xfer_sel2.target.primary, 12)
+
+    async def _fake_escalate4(reason, ctx):
+        return "approve"
+
+    xfer_result4 = await run_capability_async(
+        xfer2, xfer_surface4, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+        resolve_secret, run_id="async-evidence-5", auto_approve_limit=500.0,
+        escalate=_fake_escalate4,
+    )
+    assert xfer_result4.status == "FAILED" and xfer_result4.failure.step_action == "click", xfer_result4
+    assert 13 not in xfer_surface4.clicked
+    print("async integration (transfer_funds, escalate approves but target unresolvable):",
+          xfer_result4.status, xfer_result4.failure.observed)
+
+    # D82: escalate returns a plain non-"approve" string ("reject") -> unchanged NEEDS_APPROVAL,
+    # click never called -- same contract the None-returning fake above already proved, with a
+    # different non-"approve" value.
+    xfer_surface5 = AsyncFakeSurface()
+    xfer_surface5.set_page(xurl, "Transfer Funds\nAmount: From account #: To account #:")
+    xfer_surface5.register(xurl, xfer_type.target.primary, 10)
+    xfer_surface5.register(xurl, xfer_sel1.target.primary, 11)
+    xfer_surface5.register(xurl, xfer_sel2.target.primary, 12)
+    xfer_surface5.register(xurl, xfer_click.target.primary, 13)
+
+    async def _fake_escalate5(reason, ctx):
+        return "reject"
+
+    xfer_result5 = await run_capability_async(
+        xfer2, xfer_surface5, {"from_account": "13344", "to_account": "13355", "amount": "999.00"},
+        resolve_secret, run_id="async-evidence-6", auto_approve_limit=500.0,
+        escalate=_fake_escalate5,
+    )
+    assert xfer_result5.status == "NEEDS_APPROVAL" and xfer_result5.pending_step == 4, xfer_result5
+    assert 13 not in xfer_surface5.clicked
+    print("async integration (transfer_funds, escalate returns non-approve string):", xfer_result5.status, xfer_result5.reason)
 
 
 asyncio.run(_run_async_integration())
