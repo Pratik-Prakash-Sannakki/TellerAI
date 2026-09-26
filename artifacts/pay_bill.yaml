@@ -22,6 +22,31 @@ inputs:
   description: Amount to pay.
   required: true
   pattern: ^\$?[0-9]+(\.[0-9]{2})?$
+- name: address
+  type: string
+  description: Address, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: city
+  type: string
+  description: City, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: state
+  type: string
+  description: State, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: zip_code
+  type: string
+  description: Zip Code, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: phone
+  type: string
+  description: 'Phone #, entered by a human during discovery -- provide the real value for each run.'
+  required: true
+  pattern: ^.{1,80}$
 outputs: []
 secrets: []
 steps:
@@ -131,7 +156,7 @@ steps:
       nth: 2
       stability: low
       note: Position inside its container, counting all elements of that tag; last resort only.
-  value: '3'
+  value: '{{address}}'
 - why: Value entered by a human during discovery; the agent did not have this value.
   action: type
   target:
@@ -149,7 +174,7 @@ steps:
       nth: 3
       stability: low
       note: Position inside its container, counting all elements of that tag; last resort only.
-  value: '4'
+  value: '{{city}}'
 - why: Value entered by a human during discovery; the agent did not have this value.
   action: type
   target:
@@ -167,7 +192,7 @@ steps:
       nth: 4
       stability: low
       note: Position inside its container, counting all elements of that tag; last resort only.
-  value: '34'
+  value: '{{state}}'
 - why: Value entered by a human during discovery; the agent did not have this value.
   action: type
   target:
@@ -185,7 +210,7 @@ steps:
       nth: 5
       stability: low
       note: Position inside its container, counting all elements of that tag; last resort only.
-  value: '4'
+  value: '{{zip_code}}'
 - why: Value entered by a human during discovery; the agent did not have this value.
   action: type
   target:
@@ -203,7 +228,7 @@ steps:
       nth: 6
       stability: low
       note: Position inside its container, counting all elements of that tag; last resort only.
-  value: '4'
+  value: '{{phone}}'
 - why: Point of no return. A human approved it in discovery. Replay decides by policy.
   action: click
   target:
