@@ -447,23 +447,39 @@ def split_login(kept: list[dict]):
     raise CompileError("secrets were typed but no click followed. The login click is missing.")
 
 
+# D82: only a GENUINELY unstructured handoff -- one where we have no idea, in advance, which
+# element(s) a human touched -- is refused here. `ask_human` is free-form ("figure out what's
+# needed"); a take-over click (the `choice == "t"` path inside `click()`, D56-D62) is the same: the
+# human could have done anything to the page. `request_value`/`request_missing_values` are NOT
+# unstructured: both open a KNOWN, specific ref (or list of refs) before handing off, so CAPTURE's
+# own wrapper for those two tools (BROWSER 10b) reads `current_value(ref)` right after hand-back and
+# turns whatever is now non-empty into a proper `type_text`/`select_option` event via
+# `synthesize_human_entries` (OFFLINE 4c). That synthetic event is what actually gets compiled into
+# a step; this function never needs to special-case it.
+UNSTRUCTURED_HANDOFF_TOOLS = {"ask_human", "click"}
+
+
 def _refuse_bad_run(events: list[dict]) -> None:
     """Top-level refusals, BEFORE any cleanup runs. A run that hit the login attempt guard, used a
-    human handoff, gave up, or was declined must never become a capability at all."""
+    genuinely unstructured human handoff (ask_human, or a take-over click, D82), gave up, or was
+    declined must never become a capability at all."""
     if any(e.get("status") == "stop" for e in events):
         raise CompileError(
             "this run hit the login attempt guard (D69: 'STOP: login failed...'). "
             "Refusing to compile any capability from it."
         )
-    if any(e.get("status") == "handoff" for e in events):
+    if any(e.get("status") == "handoff" and e.get("tool") in UNSTRUCTURED_HANDOFF_TOOLS for e in events):
         raise CompileError(
-            "a human entered a value by hand during this run. That step cannot be recorded. "
-            "Put every value in the goal as a declared input and run again."
+            "a human took over with no specific field known (ask_human, or taking over a risky "
+            "click) during this run. There is no way to know what they did, so that step cannot "
+            "be recorded. Put every value in the goal as a declared input, approve (rather than "
+            "take over) any risky click, and run again."
         )
     fin = next((e for e in events if e["tool"] == "finish"), None)
     if fin and (fin.get("summary") or "").startswith(("STUCK:", "DECLINED:")):
         raise CompileError(f"this run did not complete: {fin['summary']!r}. Refusing to compile a capability from it.")
-    if any(e["tool"] == "finish_business_outcome" for e in events):
+    terminal = [e for e in events if e["tool"] in {"finish", "finish_business_outcome"} and e.get("status", "ok") == "ok"]
+    if terminal and terminal[-1]["tool"] == "finish_business_outcome":
         raise CompileError("this run ended with a business outcome. It is a probe: use rule_from_probe(), not compile_run().")
 
 
@@ -524,14 +540,144 @@ print("split_login: login =", [e["tool"] for e in login_ev], "| task =", [e["too
 # top-level refusals
 expect_raises(lambda: _refuse_bad_run([_ev(0, "click", "/index.htm", "/index.htm", status="stop")]),
               "login attempt guard")
+# ask_human is genuinely unstructured (D82): still refused, with the new (more precise) message
 expect_raises(lambda: _refuse_bad_run([_ev(0, "ask_human", "/x", "/x", status="handoff")]),
-              "a human entered a value by hand")
+              "no specific field known")
+# a take-over click (choice == "t" inside click()) is the other unstructured case: also refused
+expect_raises(lambda: _refuse_bad_run([_ev(0, "click", "/x", "/x", status="handoff")]),
+              "no specific field known")
+# request_value/request_missing_values are NOT unstructured (D82): a handoff from either must NOT
+# refuse here on its own -- it is backed by a synthetic event elsewhere (OFFLINE 4c/BROWSER 10b)
+_refuse_bad_run([_ev(0, "request_value", "/x", "/x", status="handoff")])
+_refuse_bad_run([_ev(0, "request_missing_values", "/x", "/x", status="handoff")])
+print("D82 (request_value/request_missing_values handoffs no longer refuse at the top level): ok")
 expect_raises(lambda: _refuse_bad_run([_ev(0, "finish", "/x", "/x", summary="STUCK: lost")]),
               "this run did not complete")
 expect_raises(lambda: _refuse_bad_run([_ev(0, "finish_business_outcome", "/x", "/x", outcome="X", proof="p")]),
               "It is a probe")
+_refuse_bad_run([
+    _ev(0, "finish_business_outcome", "/x", "/x", outcome="X", proof="p"),
+    _ev(1, "finish", "/x", "/x", summary="Completed."),
+])
 _refuse_bad_run([_ev(0, "click", "/x", "/y")])   # a normal run: no refusal
 print("clean-up: all checks passed")
+
+# %% OFFLINE 4c: synthesize_human_entries -- a human-entered value becomes a proper event (D82, D83)
+HUMAN_ENTRY_WHY = "Value entered by a human during discovery; the agent did not have this value."
+SELECT_ROLES = {"combobox", "select"}   # DESCRIBE_JS's own role vocabulary (D42) for a dropdown
+
+
+def synthesize_human_entries(i_start: int, before_url: str, before_heading: str, after_url: str,
+                              after_heading: str, entries: list[dict]) -> list[dict]:
+    """Turn what a human filled in during a request_value/request_missing_values handoff into
+    proper events, the SAME shape `_capture` produces.
+
+    `entries`: `[{"ref": int, "el": <descriptor dict, same shape DESCRIBE_JS returns>,
+    "value_after": str}, ...]` -- one entry per ref that was OPENED for the human (i.e. every ref
+    `allow_refs` named). `value_after` is whatever `current_value(ref)` reads right after
+    hand-back.
+
+    An entry whose `value_after` is still empty means the human declined to fill that field: it is
+    SKIPPED, not synthesized -- no step should claim a value that was never actually entered. This
+    is deliberately the only validation done here; a still-missing declared input, or an otherwise
+    incomplete capability, surfaces later at compile time through the normal checks (D29/D44),
+    not as a special case in this function.
+
+    Every synthesized entry becomes exactly one event, numbered sequentially from `i_start`
+    (skipped entries do not consume a number), with `tool` chosen by the element's own `role`: a
+    `combobox`/`select` (D42/D63's role vocabulary) becomes a `select_option`-shaped event;
+    anything else becomes a `type_text`-shaped event. `status` is always `"ok"` (the value is now
+    genuinely on the page, exactly as if the agent had typed or chosen it itself) and
+    `human_entered: True` plus a `why` note (3.2 reviewability, D84) mark it as human-sourced so
+    build_steps (OFFLINE 5) can carry that note onto the compiled step.
+
+    Pure: no browser, no network, no page access -- everything it needs is already in `entries`."""
+    out: list[dict] = []
+    i = i_start
+    for entry in entries:
+        value = (entry.get("value_after") or "").strip()
+        if not value:
+            continue   # the human declined to fill this one; nothing to synthesize
+        el = entry.get("el") or {}
+        is_select = (el.get("role") or "").lower() in SELECT_ROLES
+        tool = "select_option" if is_select else "type_text"
+        args = {"ref": entry["ref"], **({"option": value} if is_select else {"text": value})}
+        out.append({
+            "i": i, "tool": tool, "args": args,
+            "message": f"Synthesized from a human handoff: {'chose' if is_select else 'typed'} into [{entry['ref']}].",
+            "status": "ok",
+            "before": {"url": before_url, "heading": before_heading},
+            "after": {"url": after_url, "heading": after_heading},
+            "approved": False, "el": el, "value": value,
+            "human_entered": True, "why": HUMAN_ENTRY_WHY,
+        })
+        i += 1
+    return out
+
+
+print("synthesize_human_entries ready")
+
+# %% OFFLINE 4d: checks for synthesize_human_entries
+PAYEE_NAME_EL = {"role": "textbox", "name": "payeeName", "name_source": "attr", "label": "Name",
+                 "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                 "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 1,
+                 "name_count": 1, "label_count": 1}
+FROM_ACCOUNT_DROPDOWN_EL = {"role": "combobox", "name": "fromAccountId", "name_source": "attr",
+                            "label": "Account", "text": None, "tag": "select", "type": None,
+                            "submit": False, "options": ["12345", "67890"],
+                            "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 1,
+                            "name_count": 1, "label_count": 1}
+CITY_FIELD_EL = {"role": "textbox", "name": "address.city", "name_source": "attr", "label": "City",
+                 "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                 "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 2,
+                 "name_count": 1, "label_count": 1}
+TO_ACCOUNT_DROPDOWN_EL = {**FROM_ACCOUNT_DROPDOWN_EL, "name": "toAccountId", "options": ["AAA", "BBB"]}
+
+# one text field
+out = synthesize_human_entries(5, "/billpay.htm", "Bill Payment Service", "/billpay.htm",
+                                "Bill Payment Service",
+                                [{"ref": 10, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"}])
+assert [e["i"] for e in out] == [5]
+assert out[0]["tool"] == "type_text" and out[0]["value"] == "Nagarjuana"
+assert out[0]["status"] == "ok" and out[0]["human_entered"] is True and out[0]["why"] == HUMAN_ENTRY_WHY
+assert out[0]["args"] == {"ref": 10, "text": "Nagarjuana"}
+print("synthesize (one text field):", out[0]["tool"], out[0]["value"])
+
+# one dropdown
+out = synthesize_human_entries(5, "/billpay.htm", "Bill Payment Service", "/billpay.htm",
+                                "Bill Payment Service",
+                                [{"ref": 11, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"}])
+assert out[0]["tool"] == "select_option" and out[0]["value"] == "12345"
+assert out[0]["args"] == {"ref": 11, "option": "12345"}
+print("synthesize (one dropdown):", out[0]["tool"], out[0]["value"])
+
+# two of each in one call, sequential i from i_start
+entries = [
+    {"ref": 10, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"},
+    {"ref": 12, "el": CITY_FIELD_EL, "value_after": "Springfield"},
+    {"ref": 11, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"},
+    {"ref": 13, "el": TO_ACCOUNT_DROPDOWN_EL, "value_after": "BBB"},
+]
+out = synthesize_human_entries(20, "/billpay.htm", "Bill Payment Service", "/billpay.htm",
+                                "Bill Payment Service", entries)
+assert [e["i"] for e in out] == [20, 21, 22, 23]
+assert [e["tool"] for e in out] == ["type_text", "type_text", "select_option", "select_option"]
+print("synthesize (two of each in one call):", [(e["i"], e["tool"], e["value"]) for e in out])
+
+# an entry the human declined to fill (still empty after hand-back) is SKIPPED, not synthesized --
+# and i numbering for entries after it still continues correctly, with no gap and no reuse
+entries_with_decline = [
+    {"ref": 10, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"},
+    {"ref": 12, "el": CITY_FIELD_EL, "value_after": ""},          # human left this one empty
+    {"ref": 11, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"},
+]
+out = synthesize_human_entries(7, "/billpay.htm", "Bill Payment Service", "/billpay.htm",
+                                "Bill Payment Service", entries_with_decline)
+assert [e["i"] for e in out] == [7, 8]
+assert [e["tool"] for e in out] == ["type_text", "select_option"]
+assert {e["args"]["ref"] for e in out} == {10, 11}
+print("synthesize (declined field skipped, i numbering continues):", [(e["i"], e["args"]["ref"]) for e in out])
+print("synthesize_human_entries: all checks passed")
 
 # %% OFFLINE 5: parameterisation and per-step assembly (D8, D9, D10, D29, D33, D38)
 SENSITIVE_WORDS = ("ssn", "password", "social")
@@ -596,20 +742,30 @@ def build_steps(events: list[dict], specs: dict, warnings: list[str], constants:
                 value = "{{secret:" + name + "}}"
             else:
                 value = _params(e["value"], inputs, constants, f"{where} into {el.get('label') or el.get('name')!r}")
-            steps.append(TypeText(target=derive_target(el, inputs, warnings), value=value))
+            # D84 (reviewability, 3.2): a value a human typed by hand during discovery, not one the
+            # agent decided on, gets a `why` note saying so, exactly like a risky click's own note
+            # above -- this is only ever set on a synthetic event from synthesize_human_entries
+            # (OFFLINE 4c), never on an event the agent's own type_text produced.
+            steps.append(TypeText(target=derive_target(el, inputs, warnings), value=value,
+                                   why=HUMAN_ENTRY_WHY if e.get("human_entered") else None))
         elif tool == "select_option":
             if el.get("options") and e["value"] not in el["options"]:
                 raise CompileError(f"{where}: option {e['value']!r} is not in the dropdown's options")
             steps.append(Select(
                 target=derive_target(el, inputs, warnings),
                 option=_params(e["value"], inputs, constants, f"{where} in {el.get('label') or el.get('name')!r}"),
+                why=HUMAN_ENTRY_WHY if e.get("human_entered") else None,
             ))
         elif tool == "extract_value":
             label = substitute(e["label"], inputs)
+            desc = substitute(
+                e.get("description") or f"The value shown next to '{e['label']}'.",
+                inputs,
+            )
             steps.append(Extract(target=_extract_target(label, e.get("label_count", 1)), save_as=e["save_as"]))
             outputs.append(OutputParam(
                 name=e["save_as"], type=e.get("value_type", "string"),
-                description=e.get("description") or f"The value shown next to '{e['label']}'.",
+                description=desc,
             ))
     return steps, outputs, secrets, paths
 
@@ -857,15 +1013,12 @@ dead_ends = [d for d in result2["report"]["dropped"] if d[2].startswith("dead en
 assert len(dead_ends) == 2 and {d[0] for d in dead_ends} == {40, 41}
 print("fixture 2 (dead-end click removed):", dead_ends)
 
-# %% OFFLINE 9: fixture 5 -- leftover-literal refusal
+# %% OFFLINE 9: fixture 5 -- output descriptions are parameterized
 LEAKY_SPEC = {**BAL_SPEC}
 leaky_events = _balance_events(extra_description="Current balance of account 13344.")
-try:
-    compile_run(leaky_events, LEAKY_SPEC)
-    raise AssertionError("was NOT rejected")
-except CompileError as err:
-    assert any("account_id" in p and "description" in p for p in err.problems), err.problems
-    print("fixture 5 (leftover-literal refusal):", err.problems)
+leaky_result = compile_run(leaky_events, LEAKY_SPEC)
+assert leaky_result["task"].outputs[0].description == "Current balance of account {{account_id}}."
+print("fixture 5 (output description parameterized):", leaky_result["task"].outputs[0].description)
 
 # %% OFFLINE 10: fixture 6 -- a risky click produces risk: risky + a matching risk_level
 XFER_SPEC = {
@@ -930,6 +1083,130 @@ try:
 except CompileError as err:
     assert "login attempt guard" in str(err)
     print("fixture 8 (login-attempt-guard STOP refused entirely):", err)
+
+# %% OFFLINE 12b: fixture 9 -- ask_human's handoff still refuses the whole run, end to end (D82)
+ask_human_events = [
+    _e(0, "type_secret", "/index.htm", "/index.htm", el=USERNAME_FIELD_EL, value="username", message="Typed secret 'username' into [1]."),
+    _e(1, "type_secret", "/index.htm", "/index.htm", el=PASSWORD_FIELD_EL, value="password", message="Typed secret 'password' into [2]."),
+    _e(2, "click", "/index.htm", "/overview.htm", el=LOGIN_BUTTON_EL, message="Clicked [3].",
+       before_heading="Customer Login", after_heading="Accounts Overview"),
+    _e(3, "ask_human", "/overview.htm", "/overview.htm",
+       message="A human took over and handed back. Pages the human visited: none. Page now: .../overview.htm."),
+]
+try:
+    compile_run(ask_human_events, BAL_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert "no specific field known" in str(err)
+    print("fixture 9 (ask_human's handoff still refuses the whole run, end to end):", err)
+
+# %% OFFLINE 12c: fixture 10 -- a request_missing_values handoff, backed by two synthetic entries
+# (one type, one select), correctly compiles the task WITH those two steps, not refused (D82/D83).
+# This is the exact bug report the fix targets: a bill-pay run filled 4 fields via type_text, then
+# called request_missing_values because more were still empty; a human filled in a payee name (a
+# text field: "Nagarjuana") and an account (a dropdown: "12345") by hand.
+AMOUNT_FIELD_EL = {"role": "textbox", "name": "amount", "name_source": "attr", "label": "Amount",
+                   "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                   "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 3,
+                   "name_count": 1, "label_count": 1}
+SEND_PAYMENT_BUTTON_EL = {"role": "button", "name": "Send Payment", "name_source": "value",
+                          "label": None, "text": None, "tag": "input", "type": "submit",
+                          "submit": True, "options": None,
+                          "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 1,
+                          "name_count": 1, "label_count": 1}
+
+BILLPAY_SPEC = {
+    "name": "pay_bill",
+    "description": "Pay a bill to a named payee account from one source account.",
+    "inputs": {
+        "amount": {"value": "20.00", "type": "currency", "description": "Amount to pay.",
+                   "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"},
+        "payee_name": {"value": "Nagarjuana", "type": "string", "description": "Payee name as it appears on the bill-pay form.",
+                       "pattern": r"^.{2,80}$"},
+        "from_account": {"value": "12345", "type": "string", "description": "Account to pay from.",
+                         "pattern": r"^[0-9]{4,10}$"},
+    },
+}
+
+billpay_handoff_events = [
+    _e(0, "type_secret", "/index.htm", "/index.htm", el=USERNAME_FIELD_EL, value="username", message="Typed secret 'username' into [1]."),
+    _e(1, "type_secret", "/index.htm", "/index.htm", el=PASSWORD_FIELD_EL, value="password", message="Typed secret 'password' into [2]."),
+    _e(2, "click", "/index.htm", "/overview.htm", el=LOGIN_BUTTON_EL, message="Clicked [3].",
+       before_heading="Customer Login", after_heading="Accounts Overview"),
+    _e(3, "click", "/overview.htm", "/billpay.htm", el={"role": "link", "name": "Bill Pay", "name_source": "text"},
+       message="Clicked [4].", before_heading="Accounts Overview", after_heading="Bill Payment Service"),
+    _e(4, "type_text", "/billpay.htm", "/billpay.htm", el=AMOUNT_FIELD_EL, value="20.00",
+       message="Typed into [7].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    # the AUDIT event task 2's wrapper still appends for visibility -- not an ACTION_TOOLS member,
+    # so clean_events drops it as "not an action" regardless of its (no-longer-refusing) status
+    _e(5, "request_missing_values", "/billpay.htm", "/billpay.htm", args={"hints": {}},
+       message="A human filled in what they chose to. Pages the human visited: none. Page now: .../billpay.htm.",
+       before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    # the two synthetic events the wrapper builds from current_value() after hand-back (OFFLINE 4c)
+    *synthesize_human_entries(6, "/billpay.htm", "Bill Payment Service", "/billpay.htm", "Bill Payment Service", [
+        {"ref": 8, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"},
+        {"ref": 9, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"},
+    ]),
+    _e(8, "click", "/billpay.htm", "/billpay.htm", el=SEND_PAYMENT_BUTTON_EL, approved=True,
+       message="Clicked [10].", before_heading="Bill Payment Service", after_heading="Bill Payment Complete!"),
+    _e(9, "finish", "/billpay.htm", "/billpay.htm", summary="Paid the bill.",
+       values={"confirmation": "Bill Payment Complete!"}, message="Recorded. Stop now."),
+]
+
+billpay_handoff_result = compile_run(billpay_handoff_events, BILLPAY_SPEC)
+billpay_task = billpay_handoff_result["task"]
+synth_steps = [s for s in billpay_task.steps if s.why == HUMAN_ENTRY_WHY]
+assert len(synth_steps) == 2, synth_steps
+assert {s.action for s in synth_steps} == {"type", "select"}
+type_step = next(s for s in synth_steps if s.action == "type")
+select_step = next(s for s in synth_steps if s.action == "select")
+assert type_step.value == "{{payee_name}}"
+assert select_step.option == "{{from_account}}"
+assert {i.name for i in billpay_task.inputs} == {"amount", "payee_name", "from_account"}
+print("fixture 10 (request_missing_values handoff, backed by 2 synthetic entries, compiles WITH both steps + why note):")
+for s in synth_steps:
+    print(f"  {s.action}: why={s.why!r}")
+
+# %% OFFLINE 12d: fixture 11 -- D29/D44 constant reporting still applies to a human-entered value
+# that matches NO declared input: reported as a constant, never silently accepted (task 5)
+REMARKS_FIELD_EL = {"role": "textbox", "name": "remarks", "name_source": "attr", "label": "Remarks",
+                    "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+                    "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 5,
+                    "name_count": 1, "label_count": 1}
+
+constant_events = [
+    *billpay_handoff_events[:5],
+    _e(5, "request_missing_values", "/billpay.htm", "/billpay.htm", args={"hints": {}},
+       message="A human filled in what they chose to. Pages the human visited: none. Page now: .../billpay.htm.",
+       before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    *synthesize_human_entries(6, "/billpay.htm", "Bill Payment Service", "/billpay.htm", "Bill Payment Service", [
+        {"ref": 8, "el": PAYEE_NAME_EL, "value_after": "Nagarjuana"},
+        {"ref": 9, "el": FROM_ACCOUNT_DROPDOWN_EL, "value_after": "12345"},
+        {"ref": 14, "el": REMARKS_FIELD_EL, "value_after": "Thanks for your business"},
+    ]),
+    _e(9, "click", "/billpay.htm", "/billpay.htm", el=SEND_PAYMENT_BUTTON_EL, approved=True,
+       message="Clicked [10].", before_heading="Bill Payment Service", after_heading="Bill Payment Complete!"),
+    _e(10, "finish", "/billpay.htm", "/billpay.htm", summary="Paid the bill.",
+       values={"confirmation": "Bill Payment Complete!"}, message="Recorded. Stop now."),
+]
+constant_result = compile_run(constant_events, BILLPAY_SPEC)
+constants_reported = constant_result["report"]["constants"]
+assert any(c["value"] == "Thanks for your business" for c in constants_reported), constants_reported
+remarks_steps = [s for s in constant_result["task"].steps
+                 if s.action == "type" and s.why == HUMAN_ENTRY_WHY and s.value == "Thanks for your business"]
+assert len(remarks_steps) == 1
+print("fixture 11 (human-entered value matching no input -> reported as a constant, not silently accepted):",
+      constants_reported)
+
+# %% OFFLINE 12e: fixture 12 -- D29/D44 leftover-literal refusal still applies to a human-entered
+# value that matches a declared input, if it leaks somewhere it was never substituted (task 5)
+LEAKY_BILLPAY_SPEC = {**BILLPAY_SPEC, "description": "Pay a bill to Nagarjuana from one source account."}
+try:
+    compile_run(billpay_handoff_events, LEAKY_BILLPAY_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert any("payee_name" in p and "description" in p for p in err.problems), err.problems
+    print("fixture 12 (human-entered value leaking into an unparameterized description still refused):", err.problems)
 
 # %% OFFLINE 13: save_capability -- happy path, secret-value guard, verified-overwrite guard
 with tempfile.TemporaryDirectory() as tmp:
@@ -1088,7 +1365,10 @@ print("\nALL OFFLINE CHECKS PASSED")
 # Cells after `STEP 3` (other than the TypeSafe ones above) are new, additive, and clearly
 # labelled: they wrap each tool to log an event, and add three small new tools the compiler needs
 # that agent.ipynb has no reason to carry itself (`extract_value`, `open_path`,
-# `finish_business_outcome`). None of them touch the body of any tool copied above.
+# `finish_business_outcome`). `request_value`/`request_missing_values` get their OWN wrapper
+# (BROWSER 10b, D82) instead of the generic one, since a handoff through either is now backed by a
+# synthesized `type_text`/`select_option` event (OFFLINE 4c) rather than refusing the whole run.
+# None of them touch the body of any tool copied above.
 #
 # ## How the user tests this
 # Before you start: `.env` has the API key and the ParaBank test user. Kernel = this repo's
@@ -2267,9 +2547,12 @@ _VALUE_OF = {
     "type_secret": lambda kw: kw.get("name"),       # the secret NAME, never its value
     "select_option": lambda kw: kw.get("option"),
 }
+# request_value/request_missing_values get their OWN wrapper below (BROWSER 10b, D82), same as
+# extract_value/finish/finish_business_outcome already do -- not the generic _capture.
+_SPECIAL_WRAPPED = {"finish", "request_value", "request_missing_values"}
 for _t in (*BROWSER_TOOLS, open_path):
-    if _t.name == "finish":
-        continue   # finish gets its own wrapper below (captures summary/values, not a page action)
+    if _t.name in _SPECIAL_WRAPPED:
+        continue
     _capture(_t, value_of=_VALUE_OF.get(_t.name, lambda kw: None))
 
 
@@ -2330,6 +2613,77 @@ async def _probe_wrapped(outcome: str, proof_text: str):
 
 
 finish_business_outcome.coroutine = _probe_wrapped
+
+# %% BROWSER 10b: request_value / request_missing_values get their OWN wrapper (D82), not the
+# generic _capture above. Neither tool's own body (copied verbatim from agent.ipynb) is touched --
+# this only wraps `.coroutine`, exactly the pattern extract_value/finish/finish_business_outcome
+# already use above. The reason these two need a DIFFERENT wrapper from the generic one: a handoff
+# through either tool opens a KNOWN, specific ref (or list of refs) -- `current_value(ref)`, read
+# right after hand-back, is exactly what the human typed or chose. `synthesize_human_entries`
+# (OFFLINE 4c) turns that into a proper `type_text`/`select_option` event, appended to EVENTS
+# alongside the original "handoff" event (kept for audit visibility that a human was involved --
+# D82 is what stops that audit event, on its own, from refusing the whole run).
+_request_value_original = request_value.coroutine
+
+
+async def _request_value_wrapped(ref: int, hint: str):
+    before_url, before_heading = page.url, await current_heading()
+    el = await describe_ref(ref)                    # captured BEFORE the call, same as _capture does
+    result = await _request_value_original(ref=ref, hint=hint)
+    message = _first_line(result)
+    status = classify_status(message)
+    after_url, after_heading = page.url, await current_heading()
+    EVENTS.append({
+        "i": len(EVENTS), "tool": "request_value", "args": {"ref": ref, "hint": hint},
+        "message": message, "status": status,
+        "before": {"url": norm_url(before_url), "heading": before_heading},
+        "after": {"url": norm_url(after_url), "heading": after_heading},
+        "approved": False, "el": el, "value": None,
+    })
+    if status == "handoff":
+        entered = await current_value(ref)
+        EVENTS.extend(synthesize_human_entries(
+            len(EVENTS), norm_url(before_url), before_heading, norm_url(after_url), after_heading,
+            [{"ref": ref, "el": el, "value_after": entered}],
+        ))
+    return result
+
+
+request_value.coroutine = _request_value_wrapped
+
+_request_missing_values_original = request_missing_values.coroutine
+
+
+async def _request_missing_values_wrapped(hints: dict[str, str] = {}):
+    before_url, before_heading = page.url, await current_heading()
+    # The SAME ref list the tool itself uses (missing_field_labels over surface.last_elements),
+    # computed the SAME way, BEFORE calling it -- this captures the page state at the moment the
+    # tool acted, not after the human has already changed it.
+    missing = missing_field_labels(surface.last_elements, hints)
+    els = {ref: await describe_ref(ref) for ref, _label in missing}
+    result = await _request_missing_values_original(hints=hints)
+    message = _first_line(result)
+    status = classify_status(message)
+    after_url, after_heading = page.url, await current_heading()
+    EVENTS.append({
+        "i": len(EVENTS), "tool": "request_missing_values", "args": {"hints": dict(hints)},
+        "message": message, "status": status,
+        "before": {"url": norm_url(before_url), "heading": before_heading},
+        "after": {"url": norm_url(after_url), "heading": after_heading},
+        "approved": False, "el": None, "value": None,
+    })
+    if status == "handoff":
+        # synthesize_human_entries itself skips any ref still empty -- the human chose not to fill
+        # it, and that surfaces normally at compile time (a missing declared input, or an
+        # incomplete capability), not as a special case here.
+        entries = [{"ref": ref, "el": els[ref], "value_after": await current_value(ref)} for ref, _label in missing]
+        EVENTS.extend(synthesize_human_entries(
+            len(EVENTS), norm_url(before_url), before_heading, norm_url(after_url), after_heading, entries,
+        ))
+    return result
+
+
+request_missing_values.coroutine = _request_missing_values_wrapped
 
 ALL_TOOLS = [*BROWSER_TOOLS, extract_value, open_path, finish_business_outcome]
 print("capture ready:", [t.name for t in ALL_TOOLS])
@@ -2494,19 +2848,125 @@ print("saved:", save_capability(result["task"]))
 FROM_ACCOUNT = "CHANGE_ME"
 TO_ACCOUNT = "CHANGE_ME"
 AMOUNT = "20.00"
-GOAL_TRANSFER = f"Transfer {AMOUNT} from account {FROM_ACCOUNT} to account {TO_ACCOUNT}."
-await run_capture(GOAL_TRANSFER)
-TRANSFER_EVENTS = list(EVENTS)
+transfer_result = None
+if FROM_ACCOUNT == TO_ACCOUNT:
+    print("FROM_ACCOUNT and TO_ACCOUNT are the same. Set different account ids and rerun this cell.")
+else:
+    GOAL_TRANSFER = f"Transfer {AMOUNT} from account {FROM_ACCOUNT} to account {TO_ACCOUNT}."
+    await run_capture(GOAL_TRANSFER)
+    TRANSFER_EVENTS = list(EVENTS)
 
-transfer_spec = {
-    "name": "transfer_funds",
-    "description": "Move a stated amount from one account to another.",
-    "inputs": {
-        "from_account": {"value": FROM_ACCOUNT, "type": "string", "description": "Account to take the money from.", "pattern": r"^[0-9]{4,10}$"},
-        "to_account": {"value": TO_ACCOUNT, "type": "string", "description": "Account to put the money in.", "pattern": r"^[0-9]{4,10}$"},
-        "amount": {"value": AMOUNT, "type": "currency", "description": "Amount to move.", "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"},
-    },
-}
-transfer_result = compile_run(TRANSFER_EVENTS, transfer_spec)
-show(transfer_result)
-print("saved:", save_capability(transfer_result["task"]))
+    transfer_spec = {
+        "name": "transfer_funds",
+        "description": "Move a stated amount from one account to another.",
+        "inputs": {
+            "from_account": {"value": FROM_ACCOUNT, "type": "string", "description": "Account to take the money from.", "pattern": r"^[0-9]{4,10}$"},
+            "to_account": {"value": TO_ACCOUNT, "type": "string", "description": "Account to put the money in.", "pattern": r"^[0-9]{4,10}$"},
+            "amount": {"value": AMOUNT, "type": "currency", "description": "Amount to move.", "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"},
+        },
+    }
+    probe_inputs = {
+        "from_account": FROM_ACCOUNT,
+        "to_account": TO_ACCOUNT,
+        "amount": AMOUNT,
+    }
+    try:
+        transfer_result = compile_run(TRANSFER_EVENTS, transfer_spec)
+    except CompileError as err:
+        msg = str(err)
+        if "business outcome" in msg:
+            transfer_probe_rule = rule_from_probe(TRANSFER_EVENTS, probe_inputs)
+            print("transfer run ended as a probe, not a completed transfer")
+            print("probe rule:", transfer_probe_rule.outcome, "| when text contains:", repr(transfer_probe_rule.when.text_present))
+            print("use valid from/to accounts and rerun this cell to compile transfer_funds")
+        elif "did not complete" in msg:
+            print("transfer run did not complete (STUCK/DECLINED), so no capability was compiled")
+            print(msg)
+            print("use valid from/to accounts and rerun this cell to compile transfer_funds")
+        else:
+            raise
+    else:
+        show(transfer_result)
+        print("saved:", save_capability(transfer_result["task"]))
+
+# %% BROWSER 18: RUN 4 (optional). Bill Pay
+FROM_ACCOUNT_BILL = "CHANGE_ME"
+PAYEE_NAME = "CHANGE_ME"
+PAYEE_ACCOUNT = "CHANGE_ME"
+AMOUNT_BILL = "20.00"
+billpay_result = None
+
+if PAYEE_NAME == "CHANGE_ME" or PAYEE_ACCOUNT == "CHANGE_ME" or FROM_ACCOUNT_BILL == "CHANGE_ME":
+    print("Set FROM_ACCOUNT_BILL, PAYEE_NAME, and PAYEE_ACCOUNT, then rerun this cell.")
+else:
+    GOAL_BILLPAY = (
+        f"Pay {AMOUNT_BILL} from account {FROM_ACCOUNT_BILL} to payee {PAYEE_NAME} "
+        f"with account number {PAYEE_ACCOUNT}."
+    )
+    await run_capture(GOAL_BILLPAY)
+    BILLPAY_EVENTS = list(EVENTS)
+
+    billpay_spec = {
+        "name": "pay_bill",
+        "description": "Pay a bill to a named payee account from one source account.",
+        "inputs": {
+            "from_account": {
+                "value": FROM_ACCOUNT_BILL,
+                "type": "string",
+                "description": "Account to take the money from.",
+                "pattern": r"^[0-9]{4,10}$",
+            },
+            "payee_name": {
+                "value": PAYEE_NAME,
+                "type": "string",
+                "description": "Payee name as it appears on the bill-pay form.",
+                "pattern": r"^.{2,80}$",
+            },
+            "payee_account": {
+                "value": PAYEE_ACCOUNT,
+                "type": "string",
+                "description": "Payee account number.",
+                "pattern": r"^[A-Za-z0-9-]{4,30}$",
+            },
+            "amount": {
+                "value": AMOUNT_BILL,
+                "type": "currency",
+                "description": "Amount to pay.",
+                "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$",
+            },
+        },
+    }
+    billpay_probe_inputs = {
+        "from_account": FROM_ACCOUNT_BILL,
+        "payee_name": PAYEE_NAME,
+        "payee_account": PAYEE_ACCOUNT,
+        "amount": AMOUNT_BILL,
+    }
+
+    try:
+        billpay_result = compile_run(BILLPAY_EVENTS, billpay_spec)
+    except CompileError as err:
+        msg = str(err)
+        if "business outcome" in msg:
+            billpay_probe_rule = rule_from_probe(BILLPAY_EVENTS, billpay_probe_inputs)
+            print("bill-pay run ended as a probe, not a completed payment")
+            print("probe rule:", billpay_probe_rule.outcome, "| when text contains:", repr(billpay_probe_rule.when.text_present))
+            print("use valid payee/from-account values and rerun this cell to compile pay_bill")
+        elif "no specific field known" in msg:
+            # D82: this is now genuinely rare for bill-pay -- a request_value/request_missing_values
+            # handoff (the common case: a missing payee or dropdown) no longer lands here at all,
+            # since it is backed by a synthesized type_text/select_option step instead (see the
+            # printed steps below, each with its own `why` note). This branch only still fires for
+            # ask_human, or a human taking over a risky click directly -- genuinely unstructured.
+            print("bill-pay run used an unstructured hand-over (ask_human, or a take-over click), so no capability was compiled")
+            print("put every needed bill-pay value in the goal/spec, or approve (not take over) the risky click, and rerun")
+            print(msg)
+        elif "did not complete" in msg:
+            print("bill-pay run did not complete (STUCK/DECLINED), so no capability was compiled")
+            print(msg)
+            print("use valid payee/from-account values and rerun this cell to compile pay_bill")
+        else:
+            raise
+    else:
+        show(billpay_result)
+        print("saved:", save_capability(billpay_result["task"]))
