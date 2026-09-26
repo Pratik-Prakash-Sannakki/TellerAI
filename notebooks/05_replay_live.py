@@ -34,7 +34,11 @@
 # 7. Optional: once you have captured a fresh artifact with `03_recorder.py`'s CAPTURE half, replay
 #    that file the same way. For a RISKY capability (e.g. `transfer_funds.yaml`) with an amount at
 #    or above `auto_approve_limit` (default $500), you will see the same dark Approve/Reject/Take
-#    over bar `agent.ipynb`'s own `click()` tool shows. Approve performs the click for real.
+#    over bar `agent.ipynb`'s own `click()` tool shows. **Approve** makes the engine resolve the
+#    button and click it for real (D82), then continue on to the capability's remaining steps --
+#    expect `REPLAY RESULT: SUCCESS {'confirmation': '...'}` with the real confirmation text, not
+#    `NEEDS_APPROVAL`. **Reject** or **Take over** still leave the result at `NEEDS_APPROVAL`,
+#    with no click ever made on our say-so.
 #
 # **Send back:** the exact `REPLAY RESULT: ...` line, any `[escalate] ...` lines printed, and any
 # red error, exactly as shown. Never paste `.env` or anything typed as a secret.
@@ -838,24 +842,35 @@ live_surface = PlaywrightReplaySurface(page)
 print("PlaywrightReplaySurface ready, backed by the single global page/surface")
 
 # %% [markdown]
-# ## Wiring `escalate` to the real decision bar (D79)
+# ## Wiring `escalate` to the real decision bar (D79, corrected by D82)
 #
-# `run_capability_async`'s risky-click branch calls `escalate(reason, ctx)` and then
-# unconditionally returns `NEEDS_APPROVAL` -- it never resolves the target itself at that point,
-# and never consults `escalate`'s return value (D77: unchanged from `run_capability`, on purpose).
-# `make_escalate` below does the resolve-and-click itself, as a side effect, when a human approves,
-# so the live session that was already open genuinely performs the click in it (D28's "hold the
-# session open" design, realized by `escalate` rather than by the engine resuming its own loop).
+# `run_capability_async`'s risky-click branch calls `escalate(reason, ctx)` and now consults its
+# return value (D82): exactly the string `"approve"` means "proceed" -- the ENGINE resolves the
+# target itself (via `resolve_target_async`, the exact same code path a normal click step already
+# uses) and clicks it, then continues on to the capability's remaining steps. Anything else
+# (including `None`, the default) leaves the engine's behavior exactly as before: it stops and
+# returns `NEEDS_APPROVAL` without ever touching the page.
 #
-# - **Approve** -> `await live_surface.click(ref)`: the click happens for real.
-# - **Reject** -> no action taken.
+# `make_escalate` below therefore only shows the decision bar and REPORTS the human's choice --
+# it must never click anything itself; that would be a second, competing click path now that the
+# engine performs the click on approval (D28's "hold the session open" design is still satisfied:
+# the session stays open, and the engine's own click happens in it once `escalate` says
+# `"approve"`).
+#
+# - **Approve** -> return the string `"approve"`. No click here; the engine performs it.
+# - **Reject** -> return `None`, print the same rejection message as before.
 # - **Take over** -> the same `human_takeover(auto_on_navigate=True, block_risky=False)` call
-#   `agent.ipynb`'s own `click()` tool uses for its take-over-to-submit case.
+#   `agent.ipynb`'s own `click()` tool uses for its take-over-to-submit case, then return `None`
+#   (not `"approve"`) -- the engine cannot safely assume the click happened just because a human
+#   took over, so this stays the same honest, conservative `NEEDS_APPROVAL` outcome as before.
 #
-# **Honestly stated limitation (D79):** `run_capability_async`'s returned `status` is always
-# `NEEDS_APPROVAL` for this branch, whatever the human chose -- the engine's own logic does not
-# change. Telling "approved and clicked" apart from "rejected" requires reading the `[escalate]`
-# line this prints (or the live page), not the typed `ReplayResult` alone.
+# **Corrected (D82):** approving a real payment now results in `SUCCESS` with the real
+# confirmation text and a verified checkpoint -- not `NEEDS_APPROVAL` -- because the engine
+# itself continues past the click instead of returning immediately. Rejecting still returns
+# `NEEDS_APPROVAL`, and a caller reading only `result.status` still cannot distinguish "rejected"
+# from "took over" (both leave `status` at `NEEDS_APPROVAL`); distinguishing those two still needs
+# the `[escalate] ...` line this prints, or the live page -- D79's honestly-stated limitation for
+# that specific pair, not for Approve any more.
 
 # %% make_escalate
 async def _show_decision(title: str, details: str) -> str:
@@ -867,9 +882,13 @@ async def _show_decision(title: str, details: str) -> str:
 
 def make_escalate(cap: "Capability"):
     """Returns an escalate(reason, ctx) closure for this one capability. Passed as
-    run_capability_async's `escalate=` argument."""
+    run_capability_async's `escalate=` argument.
 
-    async def escalate(reason: str, ctx: dict) -> None:
+    D82: for the risky-click case, this closure only shows the decision bar and REPORTS the
+    human's choice -- it must never click anything itself any more. The engine (D82) is what
+    resolves the target and clicks it, and only when this returns exactly the string "approve"."""
+
+    async def escalate(reason: str, ctx: dict) -> str | None:
         step_index = ctx.get("step_index")
         step = cap.steps[step_index] if step_index is not None else None
 
@@ -879,20 +898,22 @@ def make_escalate(cap: "Capability"):
             info["details"] = f"Reason: {reason}"        # TYPED is empty during replay; show the real reason instead
             choice = await _show_decision(info["title"], info["details"])
             if choice == "a":
-                await live_surface.click(ref)
-                print(f"[escalate] APPROVED -- clicked ref={ref} ({surface.name_of(ref)!r})")
+                print(f"[escalate] APPROVED -- ref={ref} ({surface.name_of(ref)!r}); the engine will click it")
+                return "approve"
             elif choice == "r":
                 print(f"[escalate] REJECTED -- no action taken. reason: {reason}")
+                return None
             else:
                 report = await human_takeover(question="", auto_on_navigate=True, block_risky=False)
                 print(f"[escalate] TAKE OVER -- a human acted directly. {report}")
-            return
+                return None   # a human took over; the engine must not also click on our say-so
 
         # A hard failure (checkpoint / outcome-rule / resolution / retries-exhausted). Nothing to
         # click here -- run_capability_async already returns FAILED regardless of what a human
         # does with this bar; it exists only to make the failure visible in the live browser.
         await _show_decision("REPLAY needs your attention", reason)
         print(f"[escalate] acknowledged: {reason} | context: {ctx}")
+        return None
 
     return escalate
 
