@@ -1875,6 +1875,8 @@ notebook's two example artifacts exercise. A form control that is both empty AND
 text (unusual, but not impossible for a custom-styled input) could read incorrectly; not a case
 either bundled example hits, flagged rather than special-cased blindly.
 
+**Brief ref:** 3.2, D46, D78.
+
 ## Q. Phase 3 bugfix: a request_value/request_missing_values handoff is now recordable
 
 A real bill-pay discovery run filled 4 fields via `type_text`, then called
@@ -2028,8 +2030,6 @@ into the goal)?
   steps (`why: None`) -- the note is additive, not something every step now carries.
 
 **Brief ref:** 3.2 (reviewability), 3.4 (parameterisation and the leftover check), D29, D44, D49.
-
-**Brief ref:** 3.2, D46, D78.
 
 ## R. Phase 4 bugfix: escalate's return value gates the risky click, not a side effect inside it
 
