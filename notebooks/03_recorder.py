@@ -400,14 +400,23 @@ def clean_events(events: list[dict]):
 
 def drop_detours(kept: list[dict], dropped: list):
     """A click/open_path that changed the page, then a later one that returned to the page it
-    left, with nothing typed, chosen, or extracted in between: both are a dead end. Remove them."""
+    left, with nothing typed, chosen, or extracted in between: both are a dead end. Remove them.
+
+    D86: a `risky` (approved) click is eligible for this exact same check, same as any other click
+    -- it is no longer blanket-excluded just because it is risky. (A blanket `not e.get("approved")`
+    exclusion used to sit on both sides of this check; it was never load-bearing for anything this
+    function's own fixtures test, and it is precisely the kind of "assume it's safe evidence, never
+    look" shortcut D82's own reasoning warns against.) This function's shape -- an unbroken run of
+    NAV_TOOL events returning to the exact URL a NAV_TOOL event left -- still cannot see a
+    same-page, same-URL failed submission with real typing in between; that different shape is
+    `drop_dead_end_risky_clicks`'s job, right below."""
     out, i = [], 0
     while i < len(kept):
         e, end = kept[i], None
-        if e["tool"] in NAV_TOOLS and e["after"]["url"] != e["before"]["url"] and not e.get("approved"):
+        if e["tool"] in NAV_TOOLS and e["after"]["url"] != e["before"]["url"]:
             for j in range(i + 1, len(kept)):
                 k = kept[j]
-                if k["tool"] not in NAV_TOOLS or k.get("approved"):
+                if k["tool"] not in NAV_TOOLS:
                     break
                 if k["after"]["url"] == e["before"]["url"]:
                     end = j
@@ -420,6 +429,60 @@ def drop_detours(kept: list[dict], dropped: list):
                 dropped.append((x["i"], x["tool"], f"dead end: left {path_only(e['before']['url'])} and came back"))
             i = end + 1
     return out
+
+
+# D86: a premature, failed risky click (e.g. a "Send Payment" submit fired before every required
+# field was filled) does not fit `drop_detours`' shape at all -- ParaBank's own validation-failure
+# response redisplays the SAME url and heading (nothing "left"), and the fields a human then fills
+# in to actually succeed are STATE_TOOLS (type_text/select_option) sitting between the two clicks,
+# which `drop_detours` treats as proof the two NAV events are unrelated, not proof of a retry. Real
+# root cause: `drop_detours` was built for exactly one shape (leave to a different URL, come
+# straight back with nothing typed in between) and a failed same-page resubmission is a different
+# shape it was never designed to see -- not a byte-comparison bug, since it never even looks at
+# heading, and not solely the (also real, now-removed) blanket `approved` exclusion above, which by
+# itself is not sufficient: even with that exclusion gone, the intervening type_text events break
+# the adjacency this function requires. See DECISIONS.md D86 for the full trace.
+#
+# The signal used here (task's own preference order): the SAME click target appears more than once
+# among a run's risky clicks. A click on that target whose own before/after state (url AND heading)
+# is byte-identical -- it plainly achieved nothing -- is a dead end, PROVIDED it is not the last
+# click on that target (there must be a later one that could be the real point of no return).
+# A risky click whose state DID change is never touched, however similar a later click looks.
+# If MORE THAN ONE click on the same target shows a real state change, there is no honest way to
+# tell which (if either) is the genuine point of no return without guessing -- refuse instead.
+def drop_dead_end_risky_clicks(kept: list[dict], dropped: list) -> list[dict]:
+    """Remove a risky click proven, by real evidence, to be a dead end. Never silently guesses:
+    ambiguous same-target risky clicks (more than one shows a real page-state change) raise
+    CompileError naming both events rather than picking one."""
+    by_target: dict[tuple, list[int]] = {}
+    for idx, e in enumerate(kept):
+        if e["tool"] == "click" and e.get("approved"):
+            by_target.setdefault(_key(e), []).append(idx)
+
+    to_drop: set[int] = set()
+    for target, idxs in by_target.items():
+        if len(idxs) < 2:
+            continue
+        changed = [idx for idx in idxs
+                   if (kept[idx]["before"]["url"], kept[idx]["before"]["heading"])
+                   != (kept[idx]["after"]["url"], kept[idx]["after"]["heading"])]
+        no_op = [idx for idx in idxs if idx not in changed]
+        if len(changed) > 1:
+            names = " and ".join(f"event {kept[i]['i']} ({kept[i]['tool']})" for i in changed)
+            raise CompileError(
+                f"a risky click on {target[1]} {target[2]!r} shows a real page-state change more "
+                f"than once in this run ({names}). Cannot tell which one is the genuine point of "
+                "no return without guessing -- refusing to compile. Review the run by hand."
+            )
+        for idx in no_op:
+            if idx != idxs[-1]:
+                to_drop.add(idx)
+
+    for idx in sorted(to_drop):
+        e = kept[idx]
+        dropped.append((e["i"], e["tool"],
+                         "dead end: risky click had no effect and the same target was clicked again later"))
+    return [e for n, e in enumerate(kept) if n not in to_drop]
 
 
 def _meaningful(e: dict) -> bool:
@@ -864,6 +927,7 @@ def compile_run(events: list[dict], spec: dict, *, extra_rules=(), base_url: str
 
     kept, dropped = clean_events(events)
     kept = drop_detours(kept, dropped)
+    kept = drop_dead_end_risky_clicks(kept, dropped)   # D86
     login_ev, task_ev = split_login(kept)
     task_ev = trim_tail(task_ev, dropped)
     if not task_ev:
@@ -1331,6 +1395,193 @@ assert _NEW_TOOLS <= NEVER_HIDE
 for _job in ("login", "fill_form", "read_value", "need_human", "not_a_real_job"):
     assert _NEW_TOOLS <= confidence_gate(_ALL, _job, 0.99), f"job {_job!r} must not strip the new tools"
 print("D76 (new tools always survive tool-selection): all checks passed")
+
+# %% [markdown]
+# ### D86 fixtures: a dead-end risky click, told apart from a real one by a real signal
+# The bug report: `artifacts/pay_bill.yaml` had TWO `risk: risky` "Send Payment" clicks, the first
+# one sitting BEFORE the address/city/state/zip/phone fields it needed. Root cause traced against a
+# reconstructed fixture (fixture 14 below): `drop_detours` only recognizes one dead-end shape
+# (leave to a different URL, then a later click returns with nothing typed in between); ParaBank's
+# real validation-failure response for a premature Bill Pay submission redisplays the exact SAME
+# url and heading (nothing "left"), and the fields a human fills in afterward are `type_text`
+# events sitting between the two clicks, which breaks `drop_detours`' adjacency requirement even
+# once its unrelated blanket `not e.get("approved")` exclusion (also real, also removed above) is
+# gone. See DECISIONS.md D86.
+
+# %% OFFLINE 13d: fixture 13a -- a genuinely dead-end risky click (same target, re-clicked shortly
+# after with no state change at all) is removed, exactly as a dead-end safe click already is.
+# (A harmless, unrelated "Help" click sits between the two Transfer clicks purely so the pipeline's
+# own pre-existing exact-repeat dedup in `clean_events`, D43, does not collapse them first -- that
+# rule already drops a truly IDENTICAL back-to-back action pair before this function ever runs, and
+# is out of this fix's scope. Two clicks that read differently to a human, like these, would never
+# be repeat-deduped in a real capture anyway: nothing else about the target page changes between
+# them either.)
+HELP_LINK_EL = {"role": "link", "name": "Help", "name_source": "text", "label": None, "text": "Help",
+                "tag": "a", "type": None, "submit": False, "options": None,
+                "container": None, "nth": None, "name_count": 1, "label_count": 1}
+dead_end_risky_events = [
+    _e(0, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Funds", after_heading="Transfer Funds"),
+    _e(1, "click", "/transfer.htm", "/transfer.htm", el=HELP_LINK_EL,
+       message="Clicked [6].", before_heading="Transfer Funds", after_heading="Transfer Funds"),
+    _e(2, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Funds", after_heading="Transfer Complete!"),
+    _e(3, "finish", "/transfer.htm", "/transfer.htm", summary="Transferred the amount.",
+       values={"confirmation": "Transfer Complete!"}, message="Recorded. Stop now."),
+]
+dead_end_risky_result = compile_run(dead_end_risky_events, XFER_SPEC)
+dead_end_risky_task = dead_end_risky_result["task"]
+risky_clicks = [s for s in dead_end_risky_task.steps if s.action == "click" and s.risk == "risky"]
+assert len(risky_clicks) == 1, risky_clicks
+dead_ends_13a = [d for d in dead_end_risky_result["report"]["dropped"] if d[2].startswith("dead end:")]
+assert dead_ends_13a == [(0, "click", "dead end: risky click had no effect and the same target was clicked again later")], dead_ends_13a
+print("fixture 13a (dead-end risky click removed, exactly one risky click survives):", dead_ends_13a)
+
+# %% OFFLINE 13e: fixture 13b -- a risky click that DOES change state is never touched, even
+# though a later click on the identical target looks superficially similar (also a no-op). Again,
+# an unrelated "Help" click sits between the two so `clean_events`' own exact-repeat dedup (D43,
+# out of scope here) does not collapse the pair before this function ever sees them.
+touched_events = [
+    _e(0, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Funds", after_heading="Transfer Complete!"),
+    _e(1, "click", "/transfer.htm", "/transfer.htm", el=HELP_LINK_EL,
+       message="Clicked [6].", before_heading="Transfer Complete!", after_heading="Transfer Complete!"),
+    # a second, superficially similar click on the SAME button (e.g. a human double-clicked it) --
+    # this one is the no-op (already-submitted page does not change again), but it is the LAST
+    # click on this target, so there is no later click to prove IT is a dead end either. Leaving it
+    # alone is the safe default (D86: never drop without a real reason).
+    _e(2, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Complete!", after_heading="Transfer Complete!"),
+    _e(3, "finish", "/transfer.htm", "/transfer.htm", summary="Transferred the amount.",
+       values={"confirmation": "Transfer Complete!"}, message="Recorded. Stop now."),
+]
+touched_result = compile_run(touched_events, XFER_SPEC)
+touched_dropped = [d for d in touched_result["report"]["dropped"] if d[2].startswith("dead end:")]
+assert touched_dropped == [], touched_dropped
+touched_risky_clicks = [s for s in touched_result["task"].steps if s.action == "click" and s.risk == "risky"]
+assert len(touched_risky_clicks) == 2, touched_risky_clicks
+print("fixture 13b (a risky click that changed state is never touched, even next to a similar-looking click):", touched_dropped)
+
+# %% OFFLINE 13f: fixture 13c -- two risky clicks on the same target BOTH show a real state
+# change: this is genuinely ambiguous, so compile_run refuses rather than silently pick one.
+# Again, an unrelated "Help" click breaks `clean_events`' own exact-repeat dedup (D43).
+ambiguous_events = [
+    _e(0, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Funds", after_heading="Transfer Pending"),
+    _e(1, "click", "/transfer.htm", "/transfer.htm", el=HELP_LINK_EL,
+       message="Clicked [6].", before_heading="Transfer Pending", after_heading="Transfer Pending"),
+    _e(2, "click", "/transfer.htm", "/transfer.htm", el=TRANSFER_BUTTON_EL, approved=True,
+       message="Clicked [5].", before_heading="Transfer Pending", after_heading="Transfer Complete!"),
+    _e(3, "finish", "/transfer.htm", "/transfer.htm", summary="Transferred the amount.",
+       values={"confirmation": "Transfer Complete!"}, message="Recorded. Stop now."),
+]
+try:
+    compile_run(ambiguous_events, XFER_SPEC)
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert "event 0 (click)" in str(err) and "event 2 (click)" in str(err), err
+    print("fixture 13c (ambiguous same-target risky clicks refused, naming both events):", err)
+
+# %% OFFLINE 13g: fixture 14 -- the reconstructed real bug report. A bill-pay run: payee name,
+# account, verify account and amount typed normally, then a PREMATURE "Send Payment" click (fields
+# for address/city/state/zip/phone still empty) that ParaBank's own validation rejects by simply
+# redisplaying billpay.htm with the SAME heading (nothing "left", so drop_detours alone can never
+# see this), then a request_missing_values handoff backed by 5 synthesized human entries (D82/D83),
+# then a second, real "Send Payment" click that reaches the checkpoint. This is the exact shape
+# `artifacts/pay_bill.yaml` was wrongly compiled from before the D86 fix.
+PB_FIND_TX_EL = {"role": "link", "name": "Find Transactions", "name_source": "text", "label": None,
+                 "text": "Find Transactions", "tag": "a", "type": None, "submit": False, "options": None,
+                 "container": None, "nth": None, "name_count": 1, "label_count": 1}
+PB_BILL_PAY_EL = {"role": "link", "name": "Bill Pay", "name_source": "text", "label": None,
+                  "text": "Bill Pay", "tag": "a", "type": None, "submit": False, "options": None,
+                  "container": None, "nth": None, "name_count": 1, "label_count": 1}
+
+
+def _pb_field_el(label: str, nth: int) -> dict:
+    return {"role": "textbox", "name": "", "name_source": "none", "label": label,
+            "text": None, "tag": "input", "type": "text", "submit": False, "options": None,
+            "container": {"role": "form", "name": "Bill Payment Service"}, "nth": nth,
+            "name_count": 1, "label_count": 1}
+
+
+PB_PAYEE_NAME_EL = _pb_field_el("Payee Name:", 1)
+PB_ADDRESS_EL = _pb_field_el("Address:", 2)
+PB_CITY_EL = _pb_field_el("City:", 3)
+PB_STATE_EL = _pb_field_el("State:", 4)
+PB_ZIP_EL = _pb_field_el("Zip Code:", 5)
+PB_PHONE_EL = _pb_field_el("Phone #:", 6)
+PB_ACCOUNT_EL = _pb_field_el("Account #:", 7)
+PB_VERIFY_ACCOUNT_EL = _pb_field_el("Verify Account #:", 8)
+PB_AMOUNT_EL = _pb_field_el("Amount: $", 9)
+PB_SEND_PAYMENT_EL = {"role": "button", "name": "Send Payment", "name_source": "value", "label": None,
+                      "text": None, "tag": "input", "type": "submit", "submit": True, "options": None,
+                      "container": {"role": "form", "name": "Bill Payment Service"}, "nth": 10,
+                      "name_count": 1, "label_count": 1}
+
+PAY_BILL_SPEC = {
+    "name": "pay_bill",
+    "description": "Pay a bill to a named payee account from one source account.",
+    "inputs": {
+        "payee_name": {"value": "Nagarjuana", "type": "string",
+                       "description": "Payee name as it appears on the bill-pay form.", "pattern": r"^.{2,80}$"},
+        "payee_account": {"value": "12345", "type": "string",
+                          "description": "Payee account number.", "pattern": r"^[A-Za-z0-9-]{4,30}$"},
+        "amount": {"value": "20.00", "type": "currency",
+                  "description": "Amount to pay.", "pattern": r"^\$?[0-9]+(\.[0-9]{2})?$"},
+    },
+}
+
+pay_bill_events = [
+    _e(0, "type_secret", "/index.htm", "/index.htm", el=USERNAME_FIELD_EL, value="username", message="Typed secret 'username' into [1]."),
+    _e(1, "type_secret", "/index.htm", "/index.htm", el=PASSWORD_FIELD_EL, value="password", message="Typed secret 'password' into [2]."),
+    _e(2, "click", "/index.htm", "/overview.htm", el=LOGIN_BUTTON_EL, message="Clicked [3].",
+       before_heading="Customer Login", after_heading="Accounts Overview"),
+    _e(3, "click", "/overview.htm", "/overview.htm", el=PB_FIND_TX_EL, message="Clicked [4].",
+       before_heading="Accounts Overview", after_heading="Accounts Overview"),
+    _e(4, "click", "/overview.htm", "/billpay.htm", el=PB_BILL_PAY_EL, message="Clicked [5].",
+       before_heading="Accounts Overview", after_heading="Bill Payment Service"),
+    _e(5, "type_text", "/billpay.htm", "/billpay.htm", el=PB_PAYEE_NAME_EL, value="Nagarjuana",
+       message="Typed into [6].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    _e(6, "type_text", "/billpay.htm", "/billpay.htm", el=PB_ACCOUNT_EL, value="12345",
+       message="Typed into [12].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    _e(7, "type_text", "/billpay.htm", "/billpay.htm", el=PB_VERIFY_ACCOUNT_EL, value="12345",
+       message="Typed into [13].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    _e(8, "type_text", "/billpay.htm", "/billpay.htm", el=PB_AMOUNT_EL, value="20.00",
+       message="Typed into [14].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    # PREMATURE "Send Payment": address/city/state/zip/phone are still empty. The click itself
+    # mechanically succeeds (status "ok") -- ParaBank just redisplays billpay.htm, same heading.
+    _e(9, "click", "/billpay.htm", "/billpay.htm", el=PB_SEND_PAYMENT_EL, approved=True,
+       message="Clicked [15].", before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    _e(10, "request_missing_values", "/billpay.htm", "/billpay.htm", args={"hints": {}},
+       message="A human filled in what they chose to. Pages the human visited: none. Page now: .../billpay.htm.",
+       before_heading="Bill Payment Service", after_heading="Bill Payment Service"),
+    *synthesize_human_entries(11, "/billpay.htm", "Bill Payment Service", "/billpay.htm", "Bill Payment Service", [
+        {"ref": 20, "el": PB_ADDRESS_EL, "value_after": "3"},
+        {"ref": 21, "el": PB_CITY_EL, "value_after": "4"},
+        {"ref": 22, "el": PB_STATE_EL, "value_after": "34"},
+        {"ref": 23, "el": PB_ZIP_EL, "value_after": "4"},
+        {"ref": 24, "el": PB_PHONE_EL, "value_after": "4"},
+    ]),
+    # SECOND, real "Send Payment": everything is now filled in, ParaBank accepts it. Heading text
+    # ("Bill Payment Complete", no "!") matches the real captured artifact's own checkpoint exactly.
+    _e(16, "click", "/billpay.htm", "/billpay.htm", el=PB_SEND_PAYMENT_EL, approved=True,
+       message="Clicked [15].", before_heading="Bill Payment Service", after_heading="Bill Payment Complete"),
+    _e(17, "finish", "/billpay.htm", "/billpay.htm", summary="Paid the bill.",
+       values={"confirmation": "Bill Payment Complete"}, message="Recorded. Stop now."),
+]
+
+pay_bill_result = compile_run(pay_bill_events, PAY_BILL_SPEC)
+pay_bill_task = pay_bill_result["task"]
+pb_click_steps = [s for s in pay_bill_task.steps if s.action == "click"]
+pb_risky_clicks = [s for s in pb_click_steps if s.risk == "risky"]
+assert len(pb_risky_clicks) == 1, pb_risky_clicks
+assert pay_bill_task.steps[-1] is pb_risky_clicks[0], "the risky Send Payment click must be the LAST step"
+type_steps_before_click = [s for s in pay_bill_task.steps[:-1] if s.action == "type"]
+assert len(type_steps_before_click) == 9, type_steps_before_click   # all 9 fields, before the click
+pb_dead_ends = [d for d in pay_bill_result["report"]["dropped"] if d[2].startswith("dead end:")]
+assert pb_dead_ends == [(9, "click", "dead end: risky click had no effect and the same target was clicked again later")], pb_dead_ends
+print("fixture 14 (reconstructed pay_bill bug, fixed): exactly one risky Send Payment click, last among",
+      len(type_steps_before_click), "type steps. dropped:", pb_dead_ends)
 
 # %% OFFLINE 14: summary
 print("\nALL OFFLINE CHECKS PASSED")
