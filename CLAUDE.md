@@ -58,6 +58,13 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   `why` note, and `compile_run` only hard-refuses the genuinely unstructured handoffs (`ask_human`,
   a take-over click). See DECISIONS.md section Q (D82-D84) and
   `docs/superpowers/plans/2026-09-26-recorder-human-entry-fix.md`.
+  **2026-09-26 fix (2):** a premature, failed risky click (e.g. a "Send Payment" submit that fired
+  before every required field was filled) no longer survives compilation as a second point of no
+  return — `drop_detours` no longer blanket-excludes risky clicks, and a new
+  `drop_dead_end_risky_clicks` drops a risky click proven (same target retried later, no state
+  change) to be a dead end, refusing outright rather than guessing when two same-target risky
+  clicks both look real. `artifacts/pay_bill.yaml` was regenerated from the fixed compiler. See
+  DECISIONS.md section S (D86).
 
 ## Phase 4 notebooks
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback

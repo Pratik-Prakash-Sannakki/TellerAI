@@ -2125,3 +2125,100 @@ See the "Update: corrected, see D85" note added directly to D79, above.
 
 **Brief ref:** 3.3 (replay, no LLM in the loop, structured result), 3.4, 3.6, D20, D27, D28, D33,
 D38, D77, D79.
+
+## S. Phase 3 bugfix: a premature risky click survives compilation as a second point of no return
+
+(Numbering confirmed against `git log`/`grep "^### D"` immediately before writing this, not from
+memory: D85 is the current highest number. This section continues from D86.)
+
+### D86 — A dead-end risky click is told apart from a real one by same-target-retried evidence, not by excluding risky clicks from dead-end detection
+
+**Question:** a REAL captured discovery run against ParaBank (`artifacts/pay_bill.yaml`, a real $20
+bill payment) compiled with TWO `risk: risky` "Send Payment" clicks, identical target, the FIRST
+one sitting BEFORE the Address/City/State/Zip/Phone fields it needed -- a premature, failed
+submission attempt that should never have survived compilation as a real step, let alone as a
+second risky point-of-no-return. `compile_run`'s existing dead-end-removal rule (`drop_detours`,
+D23/D43, proven by the `OFFLINE 8` fixture) did not catch it. Why not, exactly, and what is the
+honest fix, given this artifact is about to be replayed for real with both risky clicks auto-firing
+under a sane `auto_approve_limit` (worst case: an actual duplicate payment)?
+
+**Root cause, confirmed by tracing the actual code against a reconstructed fixture (`OFFLINE 13g`,
+built because no raw event log survived this real run -- `SCRATCH` is git-ignored and this run's
+own events were never persisted), not guessed:**
+- `drop_detours` only recognizes ONE dead-end shape: a NAV_TOOL click whose URL changes, followed
+  by a later NAV_TOOL click whose `after` URL returns to the FIRST click's `before` URL, with only
+  OTHER NAV_TOOL events in between (its inner loop `break`s the instant it sees anything else). A
+  premature Bill Pay submission is a different shape entirely: ParaBank's own validation-failure
+  response redisplays `billpay.htm` with the exact SAME url and heading (nothing ever "left"), so
+  the outer condition (`e["after"]["url"] != e["before"]["url"]`) is false and the click is never
+  even considered a candidate. And the fields a human fills in to actually succeed
+  (Address/City/State/Zip/Phone, D82/D83's `synthesize_human_entries`) are `type_text` events
+  sitting BETWEEN the two clicks -- which breaks the inner loop's adjacency requirement regardless.
+  **Neither of the two hypotheses checked first was, alone, the real cause:** it is not a
+  byte-identical URL/heading MISMATCH (`drop_detours` never inspects heading at all, anywhere), and
+  it is not solely the blanket `not e.get("approved")` exclusion that DID also exist on both sides
+  of the check (confirmed real, and removed by this fix, below) -- verified directly by patching
+  ONLY that exclusion out and re-running the reconstructed fixture against the unfixed algorithm:
+  the bug reproduced identically (still 2 risky clicks), because the intervening `type_text` events
+  break the loop's adjacency before "approved" is ever consulted. The real cause is structural:
+  `drop_detours`'s whole model is "wrong navigation, then correction," and a same-page failed
+  resubmission with real typing in between is a shape it was never built to see.
+
+**Chosen:** two changes, both to `notebooks/03_recorder.py`'s `OFFLINE 4` cell:
+1. **Remove the blanket `not e.get("approved")` / `k.get("approved")` exclusion from `drop_detours`
+   itself.** A risky click is now eligible for that exact existing check, same as any other click --
+   it is no longer assumed safe-by-default just because it is risky. (Verified non-breaking: this
+   exclusion was never load-bearing for any of the 25 pre-existing OFFLINE fixtures -- every risky
+   click in them keeps its own url unchanged before/after, so the check's outer condition was
+   always false for them regardless of the exclusion.)
+2. **Add a new, separate function, `drop_dead_end_risky_clicks`,** for the shape `drop_detours`
+   cannot represent. Signal used (the task's own first-preference signal): the SAME click target
+   (`_key(e)`: tool, role, name, tag, container role, nth, value, label, path) appears more than
+   once among a run's risky clicks. A click on that target whose own before/after state (url AND
+   heading, both) is byte-identical -- it plainly achieved nothing -- is a dead end, PROVIDED it is
+   not the LAST click on that target (there must be a later one that could be the genuine
+   point of no return; a lone no-op risky click with no retry is left untouched, since there is no
+   real evidence either way). A risky click whose state DID change is NEVER touched, however
+   similar a later click on the same target looks. **If more than one click on the same target
+   shows a real state change, `compile_run` refuses outright, naming both events** -- there is no
+   honest way to tell which (if either) is the genuine point of no return without guessing, and
+   this codebase never silently guesses at money-moving evidence (D82's own standing principle).
+   `compile_run` calls this right after `drop_detours`, before `split_login`.
+
+**Reasoning:**
+- This directly matches the task's own preferred signal ("the same target is clicked again later
+  in the same run with no successful outcome/checkpoint match in between") rather than trying to
+  force-fit the unrelated byte-identical-URL/heading idea, which does not describe any code that
+  actually exists in `drop_detours`.
+- Removing the blanket `approved` exclusion (item 1) is the correct, principled reading of "a risky
+  click is eligible for the existing dead-end-removal check same as any other click" even though,
+  confirmed above, it is not BY ITSELF sufficient to explain this bug -- leaving it in place would
+  still be an unprincipled "assume risky implies safe-to-keep" shortcut for the shape `drop_detours`
+  CAN represent (e.g. a risky click that genuinely navigates to a distinct confirmation URL,
+  followed by a separate later click that returns to the original page with nothing typed in
+  between -- `drop_detours`'s own existing shape, just never applied to risky clicks before).
+- The three acceptable-outcome fixtures the task named are each proven directly, not assumed:
+  (a) a genuinely dead-end risky click (no state change, same target retried later) is removed,
+  exactly as a dead-end safe click already is (`OFFLINE 13d`, fixture 13a);
+  (b) a risky click that DOES change state is never touched, even next to a later click on the same
+  target that also looks like a no-op (`OFFLINE 13e`, fixture 13b);
+  (c) two risky clicks on the same target that BOTH show a real state change refuse loudly, naming
+  both event numbers, rather than silently picking one (`OFFLINE 13f`, fixture 13c).
+- The reconstructed real bug (`OFFLINE 13g`, fixture 14) -- built from the real artifact's own
+  steps since no raw event log survived, per this task's instructions -- reproduces the exact
+  double-risky-click shape against the UNFIXED `compile_run`, and produces exactly ONE risky "Send
+  Payment" click, positioned after all 9 fields (payee name, account, verify account, amount,
+  address, city, state, zip, phone), against the FIXED one.
+- `artifacts/pay_bill.yaml` was regenerated for real from this fixture's actual `Capability` object
+  (via `save_capability`/`to_yaml`), not hand-edited -- the file on disk is genuinely what the fixed
+  compiler produces.
+
+**Cost, honestly stated:** the "no-op, not the last click" signal only fires when there IS a later
+click on the identical target -- a single dead-end risky click with no retry at all is left alone
+(no structural evidence either way, and D82's own principle says never guess). The ambiguous-refusal
+case (item (c)) means a run with two genuinely distinct real risky actions on the identical-looking
+target (a legitimate two-step confirmation flow, for instance) will refuse to compile at all until
+a human reviews it by hand; this is a deliberate, stated trade-off (fail loudly over guessing
+wrong), not an oversight.
+
+**Brief ref:** 3.2, 3.4 (risky action handling), Section 9 (real-money safety), D23, D43, D49, D82.
