@@ -2222,3 +2222,186 @@ a human reviews it by hand; this is a deliberate, stated trade-off (fail loudly 
 wrong), not an oversight.
 
 **Brief ref:** 3.2, 3.4 (risky action handling), Section 9 (real-money safety), D23, D43, D49, D82.
+
+## T. Phase 4 live bugfix: `get_account_balance` failed to resolve `extract` against the real ParaBank Accounts Overview page
+
+(Numbering confirmed against `git log`/`grep "^### D"` immediately before writing this, not from
+memory: D86 is the current highest number. This section continues from D87.)
+
+A real, live run of `artifacts/get_account_balance.yaml` (the real recorder-captured artifact,
+top-level `artifacts/`, not `artifacts/examples/`) through `05_replay_live.py`'s `replay_live`
+against the real ParaBank site logged in successfully, navigated to `/overview.htm` successfully,
+then failed at its one `extract` step: `neither primary nor fallback resolved`. The main session
+dumped the real live DOM. Three separate real problems were found in it; D87-D89 below fix each.
+
+### D87 — `bare()`'s trailing-decoration strip: one non-alphanumeric character, not just a colon
+
+**Question:** `READ_LABELED_JS`'s `bare()` (`03_recorder.py` BROWSER 8; an identical copy lives in
+`05_replay_live.py` Setup 7, D78) normalized a label for exact-match comparison by stripping only a
+trailing colon (`s.replace(/:$/, '')`) before lowercasing. The real ParaBank Accounts Overview
+table's column header is exactly `"Balance*"` (a footnote asterisk pointing at "*Balance includes
+deposits that may be subject to holds"), confirmed from the real captured DOM, not guessed. The
+declared locator says `label: Balance` (no asterisk). `bare("Balance") !== bare("Balance*")`, so
+the exact-match `hits` filter never found it, and `resolve()` correctly, but unhelpfully, reported
+`None`.
+
+**Chosen:** generalize the stripped character class from `/:$/` to `/[^a-zA-Z0-9]$/` -- ONE
+trailing character, stripped only when it is not a letter or digit, applied identically to both the
+wanted label and every candidate element's text (same as the old colon rule already did). This is a
+strict superset of the old rule (a colon is itself non-alphanumeric, so every case the old regex
+already handled is unchanged) and needed no change anywhere else in `READ_LABELED_JS` (the `hits`/
+`valueOf` logic is untouched).
+
+**Reasoning:** the task's own instruction was "at minimum `*`, and reasonably any single trailing
+non-alphanumeric decoration character" -- a footnote asterisk today, a dagger/section-mark/hash
+tomorrow on some other page, all the same shape (one trailing punctuation glyph, not part of the
+label's actual words). Narrowly scoped on purpose: only the LAST character of an already
+whitespace-normalized string, and only if it is not alphanumeric, so two labels that are genuinely
+different anywhere in their actual text (e.g. `"Balance"` vs `"Available Amount"`) can never be
+conflated by this change -- proven directly (see below), not assumed.
+
+**Verification performed (offline proxy only, no browser -- stated plainly, not overclaimed as a
+live check):** `bare()` runs inside `page.evaluate`, so it cannot be exercised directly without a
+real page, which this task's hard rules forbid. JS and Python regex behave identically for this
+simple case (a `$`-anchored single-character-class match on an already-normalized plain string, no
+lookaround, no unicode edge cases), so a pure-Python mirror is a faithful proxy. Added as a new
+`OFFLINE` cell in `03_recorder.py`, right after `BROWSER 8`:
+```python
+assert _bare_proxy("Balance") == _bare_proxy("Balance*") == "balance"       # the real bug, fixed
+assert _bare_proxy("Balance") != _bare_proxy("Available Amount")            # not overloosened
+assert _bare_proxy("Name:") == _bare_proxy("Name") == "name"                # old colon rule intact
+```
+All three pass (`uv run python -c "..."`, output: `balance balance available amount name`).
+
+**Where fixed:** `03_recorder.py`'s `READ_LABELED_JS` is the origin (D78) and is the only place this
+task's own instructions named for the code change. `05_replay_live.py`'s copy of the same string
+(Setup 7) was ALSO updated, identically, because that copy is what the real bug actually runs
+through, and the file's own comment already declares it must be "copied verbatim" from the
+recorder's -- leaving it unfixed there would leave the live bug unfixed. Both copies are now
+byte-identical again.
+
+**Cost, honestly stated:** a label ending in a meaningful (non-decorative) trailing punctuation
+mark, e.g. a genuine question `"Are you sure?"`, would now bare-match `"Are you sure"` too -- the
+same category of intentional looseness the pre-existing colon rule already accepted (`"Name:"` /
+`"Name"`), just widened by one character class. No case in either bundled example artifact is
+affected either way.
+
+**Brief ref:** 3.2 (locator robustness), D46, D68, D78.
+
+### D88 — `PlaywrightReplaySurface.resolve()` gets a bounded poll/retry for asynchronously-loaded page content
+
+**Question:** ParaBank's real `/overview.htm` renders its account table's `<tbody>` empty at
+initial page load, then fills it via a separate jQuery `$.ajax` call that runs inside
+`$(document).ready`, AFTER the page's own `load` event (confirmed from the real page's own
+`<script>`, not guessed). `05_replay_live.py`'s `navigate()` only awaits `page.goto`, and
+`resolve()` made exactly one immediate attempt before reporting a miss -- a correct label match
+could still race that AJAX call on a slow network or server, independent of D87's fix.
+
+**Chosen:** a bounded poll loop added INSIDE `PlaywrightReplaySurface.resolve()` only. The prior
+single-attempt logic was factored, unchanged, into a new private `_resolve_once(locator)`; `resolve()`
+now calls it in a `while True` loop: return immediately on a hit, otherwise sleep
+`_RESOLVE_POLL_INTERVAL_S` (0.4s) and retry, until a wall-clock deadline `_RESOLVE_POLL_BUDGET_S`
+(5.0s total, measured from `resolve()`'s own start, via `asyncio.get_event_loop().time()`) is
+reached, at which point it returns `None` -- today's behavior, unchanged, once the budget is spent.
+Applied to BOTH branches inside `_resolve_once` (the direct `labeled_value` READ_LABELED_JS path
+AND the general numbered-scan-then-DESCRIBE_JS path) -- judged equally exposed: any page's
+interactive controls, not only a `labeled_value` target, could just as easily be inserted by a
+late-running script, and the poll itself is cheap and self-contained either way.
+
+**Reasoning:** kept deliberately narrow, per the task's own instruction -- no new dependency, no
+generic wait-for-selector abstraction, no change to `04_replay_engine.py`'s already-tested
+`TransientFailure`/retry contract (D26, a different mechanism: that one retries a whole STEP after
+a raised exception; this one is `resolve()` re-checking the live DOM a few times before ever
+reporting a miss to its caller at all), and no change to `AsyncReplaySurface`'s interface
+(`resolve(locator) -> ref | None` is unchanged; only what happens INSIDE the real implementation
+changed). 5 seconds matches this codebase's existing bounded-retry philosophy (D26's own bounded
+`max_retries`, not unbounded polling).
+
+**Cost, honestly stated:** a resolution that is a TRUE miss (the target genuinely does not exist)
+now takes up to 5 seconds longer to report `FAILED`/fall through to the fallback locator, instead of
+failing instantly -- a deliberate trade against the alternative of a real page's async content
+being mistaken for a true miss. Not exercised live here (this task's hard rules forbid running a
+real browser); the main session should confirm the actual wait was short (well under 5s) on the
+real page, not that it silently used the whole budget every time.
+
+**Brief ref:** 3.2, 3.7 (heterogeneous surfaces), D26, D78.
+
+### D89 — `get_account_balance.yaml`'s `extract` step targeted the wrong thing regardless of account count; repointed at the page's own "Total" row
+
+**Question:** even with D87+D88 both fixed, is a `labeled_value` extract of `"Balance"`/`"Balance*"`
+on `/overview.htm` actually correct? The real table's structure (confirmed from the real captured
+DOM):
+```
+<table id="accountTable">
+  <thead><tr><th>Account</th><th>Balance*</th><th>Available Amount</th></tr></thead>
+  <tbody> <!-- filled async: one <tr> per account, columns id / balance / available amount --> </tbody>
+  <tfoot><tr><td colspan="3">*Balance includes deposits...</td></tr></tfoot>
+</table>
+```
+`READ_LABELED_JS`'s `valueOf()` reads "the cell after" the matched element. The ONLY element on
+this page whose bare text equals `"balance"` is the `<th>Balance*</th>` HEADER cell itself -- no
+`<tbody>` data cell ever contains the literal text "Balance" (data rows hold an id, a formatted
+amount, and another formatted amount, nothing labeled). So `valueOf()` on that header's own next
+sibling returns the string `"Available Amount"` -- a second COLUMN HEADER, not any account's
+balance figure -- for a test user with 1 account, 2 accounts, or 20. This is NOT the ambiguity the
+task first hypothesized ("which of several rows"); it is a flat structural mismatch that would
+happen even for a single-account user, because the only textual anchor matching "Balance" at all is
+the header row, never a data row. (Confirmed by reasoning about `READ_LABELED_JS`'s own code against
+the real DOM given -- not by running a real page, forbidden here by this task's hard rules.)
+
+**Both branches the task asked to weigh, resolved by this one finding:**
+- (a) "Problems 1+2 alone are sufficient, if the real account has exactly one row" -- FALSE,
+  independent of row count, for the reason above: the match happens on the header row, not any data
+  row, no matter how many data rows exist.
+- (b) "the capability needs a different, more specific locator" -- TRUE, but not for the
+  account-count reason originally suspected; for the header-vs-data-row reason confirmed above.
+
+**Why a true per-`account_id` fix (mirroring `examples/get_account_balance.yaml`'s
+`activity.htm?id={{account_id}}` approach) is not reachable here without an out-of-scope change:**
+that example page is parameterized through `navigate`'s `path`, which the engine already runs
+through `render()` (`04_replay_engine.py` Section 3/8) to substitute `{{input}}`. A row-specific
+match on `/overview.htm` would need the SAME kind of substitution inside a locator's `label` field
+(e.g. `label: '{{account_id}}'`, matching the account-id `<td>` in a specific row, then reading its
+own next sibling for that row's balance -- mechanically sound, using the existing `labeled_value`
+JS unchanged) -- but `render()` is only ever called on `step.path`/`step.value`/`step.option`
+(confirmed by reading every call site in `04_replay_engine.py`), never on a locator field, for any
+strategy. Adding that would mean changing `04_replay_engine.py`, explicitly forbidden by this task.
+A `structure`/`text` locator aimed at a specific `<td>` is equally unreachable today for an
+unrelated reason: `OBSERVE_JS` (`05_replay_live.py` Setup 4, copied verbatim from `agent.ipynb`)
+only numbers INTERACTIVE elements (`a[href], button, input, select, textarea, [role=button],
+[role=link], [onclick]`) -- a plain `<td>` holding a currency amount is never assigned a
+`data-cua-ref` at all, so `resolve()`'s general numbered-scan branch would never even see it as a
+candidate (the same gap D78 already documented for a `text`-strategy confirmation heading on
+`transfer_funds`, just hit here by a different capability). Widening `OBSERVE_JS`'s selector was
+judged out of scope: it is shared, verbatim-copied production scanning logic this task did not ask
+to touch, with unclear ripple effects on every other call site that assumes it only numbers
+clickable/fillable things.
+
+**Chosen:** hand-edit `artifacts/get_account_balance.yaml` (real code path, `compile_run`, was not
+run here -- see below for why) to repoint the SAME `labeled_value` locator at the table's own footer
+row, `label: Total`, appended by the identical async call that fills `<tbody>`, which sums every
+account's balance (`formatCurrency(totalBalance)`). `<b>Total</b>`'s next sibling `<td>` is exactly
+the total figure -- this uses the existing, unmodified `labeled_value`/`READ_LABELED_JS` mechanism,
+no schema or engine change, and resolves to a real, correct number today. The capability's top-level
+`description` and its one output's `description` were also corrected: both previously implied a
+per-`account_id` scoping (`"given its account id"`, a literal, never-substituted `{{account_id}}`
+in the output description) that no declared input ever backed (`inputs: []` already, both before
+and after this change) -- now they accurately say "total balance across all accounts."
+
+**Why hand-edited, not regenerated via `compile_run`:** this task's own hard rules reserve the rest
+of `03_recorder.py`'s recorder/compile logic for a separate, concurrent task; running `compile_run`
+end to end here (which would need a live capture run to compile from, at minimum) risks exactly the
+conflict those rules warn against. The file was edited directly and validated OFFLINE by loading it
+through the real, unmodified `Capability`/`from_yaml` (`02_artifact_schema.py`, executed read-only
+in an isolated namespace, no browser): it loads without error, `outputs`, `steps`, and `checkpoint`
+all round-trip as expected.
+
+**Cost, honestly stated -- what the live main session must still check:** "Total" is numerically
+identical to "the balance" only when the real test user has exactly one account; for a user with
+more than one, it is the CORRECT SUM across all of them (a real, honest, unambiguous answer to "the
+balance shown on this page"), not any one specific account's figure -- if the take-home's real
+grading expects one specific account's number instead of the total, this capability's declared
+scope should be renegotiated with a real schema/engine change (out of scope here), not silently
+guessed at. This was not verifiable from static evidence alone; flagged rather than assumed.
+
+**Brief ref:** 3.2 (locator robustness), D46, D63, D68, D78, D87, D88.

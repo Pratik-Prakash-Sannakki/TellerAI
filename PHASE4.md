@@ -83,6 +83,8 @@ The notebook is explicit about this itself: no `import playwright` appears anywh
 
 So: the engine's logic is solid and tested, including against a real Phase-3-produced file. What's still missing is the last mile — a real browser tab actually clicking a real button on parabank.parasoft.com.
 
+**Update, 2026-09-26:** the "last mile" above now exists — `05_replay_live.py` wires `run_capability_async` to a real Playwright browser (`PlaywrightReplaySurface`), and it HAS been run live against the real ParaBank site (D78-D86). That first real run surfaced three real bugs a `FakeSurface` test could never have caught, all specific to a real page's real quirks: a footnote-decorated label (`"Balance*"`) the old exact-match normalization didn't strip (D87), a page whose real content loads asynchronously after `load` fires, which `resolve()` checked only once (D88), and a `labeled_value` locator that matched a table's own column header instead of any account's data (D89, `artifacts/get_account_balance.yaml` was revised to read the page's "Total" row instead). The engine's own logic (Phase 4's original scope, above) was not at fault in any of the three — every bug lived in real-DOM-facing code (`READ_LABELED_JS`'s normalization, `resolve()`'s timing, one capability's own locator choice), confirming the engine/`FakeSurface` split this phase chose was the right one. The real gap now is narrower: this has been run live for exactly one capability's happy path so far, not yet for a risky (`click`-gated) capability's live Approve/Reject/Take-over path, which still needs a real run to confirm end to end.
+
 ---
 
 ## How the three phases fit together
