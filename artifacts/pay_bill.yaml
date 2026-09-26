@@ -1,0 +1,235 @@
+# DRAFT written by the recorder (Phase 3 v2). A reviewer must read it before it is verified.
+schema_version: 1
+name: pay_bill
+version: 1
+status: draft
+description: Pay a bill to a named payee account from one source account.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: risky
+inputs:
+- name: payee_name
+  type: string
+  description: Payee name as it appears on the bill-pay form.
+  required: true
+  pattern: ^.{2,80}$
+- name: payee_account
+  type: string
+  description: Payee account number.
+  required: true
+  pattern: ^[A-Za-z0-9-]{4,30}$
+- name: amount
+  type: currency
+  description: Amount to pay.
+  required: true
+  pattern: ^\$?[0-9]+(\.[0-9]{2})?$
+outputs: []
+secrets: []
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /overview.htm
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: link
+      name: Find Transactions
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+  risk: safe
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: link
+      name: Bill Pay
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+  risk: safe
+- action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Payee Name:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 1
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{payee_name}}'
+- action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Account #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 7
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{payee_account}}'
+- action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Verify Account #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 8
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{payee_account}}'
+- action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Amount: $'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 9
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{amount}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Address:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 2
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '3'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'City:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 3
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '4'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'State:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 4
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '34'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Zip Code:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 5
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '4'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Phone #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 6
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '4'
+- why: Point of no return. A human approved it in discovery. Replay decides by policy.
+  action: click
+  target:
+    primary:
+      strategy: role
+      role: button
+      name: Send Payment
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+        name: Bill Payment Service
+      nth: 10
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  risk: risky
+  amount_input: amount
+checkpoint:
+  url_contains: billpay.htm
+  text_present: Bill Payment Complete
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.
