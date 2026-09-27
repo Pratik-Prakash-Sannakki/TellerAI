@@ -133,3 +133,11 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   `build_agent` (needs a real browser) is correctly untested offline. See DECISIONS.md D96, which
   also flags a separate, unfixed UX gap: a discovery goal that doesn't explicitly say "use
   extract_value" compiles into a syntactically valid but practically useless capability.
+  **2026-09-27 fix (2):** `cua replay` gained a `--login <path>` flag — each invocation otherwise
+  launches its own fresh, logged-out browser, so a capability with no login step of its own (D45's
+  login split — nearly every real one) had no way to get an already-logged-in session from the CLI
+  at all. `--login` replays that capability first, in the SAME browser/session, before the main
+  one. Also fixed, again: a freshly-discovered `get_account_balance`-shaped capability hit D89's
+  exact same "Balance" header trap a second time (repointed to `Total`); the underlying pattern —
+  nothing validates a `labeled_value` extract's live type at compile time — is still open. See
+  DECISIONS.md D97.

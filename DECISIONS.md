@@ -2988,3 +2988,54 @@ values).
 **Verified live:** re-ran `uv run pytest` (143 passed, unaffected) and `cua discover "Log in and read the balance of account 18672. Use extract_value to save it as 'balance'." --name ...` was NOT re-attempted with the corrected phrasing in this session (the plain "read the balance" phrasing already proved the actual bug fix works — the crash is gone, the agent completes, `compile_run`/`save_capability` run to completion); the practically-useless capability produced by the first (unfixed-phrasing) run was deleted, not committed.
 
 **Brief ref:** D70, D95 (the same class of live-only gap), D33 (`given_text`'s own naming history).
+
+### D97 — `cua replay` gets a `--login` flag; each invocation otherwise starts a fresh, logged-out browser
+
+**Question:** Trying to replay a freshly-discovered `get_account_balance`-shaped capability via
+`cua replay artifacts/get_account_balance_discovery_demo.yaml` failed immediately: `FAILED
+step_index=1 ... observed='neither primary nor fallback resolved'`, with `step 0: recoverable
+condition matched (action=relogin)` printed first. The capability itself was fine -- it has no
+login step of its own, by design (D45's login split: nearly every real capability in this project
+assumes an already-logged-in session). The real problem is structural: `cua replay`'s own
+`_run_replay` calls `build_agent()` with no `page`, so it launches a brand-new, logged-out browser
+on every single invocation. Two separate `cua replay` commands never share a session, so there was
+no way to run `login_parabank` first and have that session carry into a second command -- unlike
+the notebook, where both cells run in the same Jupyter kernel/browser tab.
+
+**Chosen:** a new `--login <path>` argument on `cua replay`. When given, `_run_replay` calls
+`live.replay_live` on the login capability FIRST, with the SAME `agent_run` (same browser/page)
+that the main capability then reuses -- one process, one browser, two capabilities in sequence,
+mirroring exactly what running two notebook cells back to back already does. A login capability
+takes no non-secret inputs, so it's called with `{}`. If the login replay does not return
+`SUCCESS`, the command aborts before ever attempting the main capability (never proceeds on a
+guess that login "probably" worked).
+
+**Reasoning:** this is the CLI's own missing piece, not a schema or engine change -- `replay_live`
+already accepted an `agent` parameter precisely so it COULD be called more than once against the
+same session; `cua replay` just never exposed a way to do that from the command line before now.
+An alternative (auto-detect a `login_*.yaml` in the same directory and use it implicitly) was
+considered and rejected: implicit chaining would silently pick a login file the user did not name,
+for a project whose whole design philosophy elsewhere (D29, D68's own refusals) is to fail loudly
+and explicitly rather than guess.
+
+**Verified live:** `cua replay artifacts/get_account_balance_discovery_demo.yaml --login
+artifacts/login_parabank.yaml` -- login `SUCCESS`, then the main capability's own extract step ran
+in the SAME already-logged-in session, reaching a real `SUCCESS` (once D97-adjacent label issue
+below was also fixed).
+
+**A second, related finding from the same debugging session:** the freshly-discovered capability's
+own `extract` step used `label: Total`... originally `label: Balance` -- the exact same D89 trap
+(the Accounts Overview table's `<th>Balance*</th>` header, whose next-sibling cell is a second
+header, "Available Amount", not any real value), but hit again because D89's fix repointed one
+already-existing FILE (`artifacts/get_account_balance.yaml`), not the underlying pattern -- any
+NEW discovery run that reads this same page and has the agent choose `label='Balance'` for its own
+`extract_value` call will keep hitting this identically, since nothing in `compile_run` validates
+that a `labeled_value` locator's live "next sibling" reading actually produces the declared output
+type at compile time. Fixed for this one file (repointed to `Total`, matching D89); the deeper,
+general fix -- teaching the recorder to notice a `labeled_value` extract whose recorded value
+doesn't look like the declared type, or to prefer a footer/total-row match over a header match when
+both exist -- is NOT done, and is flagged here rather than silently left to recur a third time.
+
+**Brief ref:** D45 (login split), D89 (the first instance of the label trap), D91 (the pre-flight
+gate this flag composes with cleanly -- both run before any browser action a capability's own steps
+would take).

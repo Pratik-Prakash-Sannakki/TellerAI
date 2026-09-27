@@ -393,6 +393,20 @@ async def _run_replay(args: argparse.Namespace) -> int:
         name, _, value = pair.partition("=")
         inputs[name] = value
 
+    if args.login:
+        # D97: many real capabilities (D45's login split) assume an already-logged-in session and
+        # carry no login step of their own. Each `cua replay` invocation opens its OWN fresh
+        # browser (build_agent() above) with no session left over from any earlier command, so
+        # there was previously no way to satisfy that assumption from the CLI at all -- replaying
+        # such a capability alone always hit the "session expired" outcome rule and failed at its
+        # very first real step. Reusing the SAME agent_run (same browser/page) for both calls
+        # keeps the login's session alive into the main replay, exactly like running both cells in
+        # the same Jupyter kernel already does. A login capability takes no non-secret inputs.
+        login_result = await live.replay_live(args.login, {}, agent_run, auto_approve_limit=args.auto_approve_limit)
+        if login_result.status != "SUCCESS":
+            print(f"--login capability did not succeed (status={login_result.status}); aborting before the main replay.")
+            return 1
+
     result = await live.replay_live(args.capability, inputs, agent_run, auto_approve_limit=args.auto_approve_limit)
     print(result.model_dump_json(indent=2))
     return 0 if result.status in ("SUCCESS", "BUSINESS_OUTCOME") else 1
@@ -418,6 +432,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     replay = sub.add_parser("replay", help="Replay a saved capability YAML against the real browser (no LLM, no API key needed).")
     replay.add_argument("capability", type=Path, help="Path to a capability YAML, e.g. artifacts/get_account_balance.yaml.")
+    replay.add_argument("--login", type=Path, default=None,
+                         help="Path to a login capability YAML (e.g. artifacts/login_parabank.yaml) to replay FIRST, in the "
+                              "same browser session, before the main capability. Needed for any capability that assumes an "
+                              "already-logged-in session (D45's login split) -- without this, each 'cua replay' invocation "
+                              "starts a fresh, logged-out browser every time.")
     replay.add_argument("--input", action="append", metavar="key=value",
                          help="A declared input's value, e.g. --input account_id=14232. Repeatable. Missing required inputs are prompted for interactively.")
     replay.add_argument("--auto-approve-limit", type=float, default=500.0,

@@ -1,0 +1,18 @@
+{
+  "dropped": [
+    [
+      0,
+      "observe",
+      "not an action"
+    ],
+    [
+      5,
+      "finish",
+      "not an action"
+    ]
+  ],
+  "constants": [],
+  "warnings": [
+    "declared input 'account_id' is never used in the steps"
+  ]
+}

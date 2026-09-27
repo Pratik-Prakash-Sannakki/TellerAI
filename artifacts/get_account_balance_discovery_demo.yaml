@@ -1,0 +1,39 @@
+schema_version: 1
+name: get_account_balance_discovery_demo
+version: 1
+status: draft
+description: Read the current balance of one account, given its account id.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: safe
+inputs: []
+outputs:
+- name: balance
+  type: currency
+  description: Balance of account {{account_id}}
+secrets: []
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /overview.htm
+- action: extract
+  target:
+    primary:
+      strategy: labeled_value
+      label: Total
+      stability: medium
+      note: >-
+        Repointed from the discovery agent's own "Balance" (D89/D97): that label matches the
+        Accounts Overview table's column HEADER ("Balance*"), whose own next-sibling cell is the
+        "Available Amount" header, not any account's real value -- the same trap D89 already fixed
+        once for a different, pre-existing file. "Total" is the table's own footer row, using the
+        identical labeled_value mechanism but resolving to a real number.
+  save_as: balance
+checkpoint:
+  url_contains: overview.htm
+  text_present: Accounts Overview
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.
