@@ -127,3 +127,9 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   today, since an example artifact they index into was simplified by the later D63-D66 rebuild.
   See DECISIONS.md section W (D93), and `REPORT.md` (the assignment's own 7-heading report) /
   `README.md` (setup + demo path) at the repo root.
+  **2026-09-27 fix:** the first-ever real `cua discover` run crashed immediately —
+  `build_agent()` constructed `DiscoveryAgent(page, goal_text=goal_text, ...)`, but the class's
+  own field is named `given_text`. One-line fix; never caught by the 143-test suite since
+  `build_agent` (needs a real browser) is correctly untested offline. See DECISIONS.md D96, which
+  also flags a separate, unfixed UX gap: a discovery goal that doesn't explicitly say "use
+  extract_value" compiles into a syntactically valid but practically useless capability.

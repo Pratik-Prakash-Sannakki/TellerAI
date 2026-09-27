@@ -1024,7 +1024,7 @@ async def build_agent(page=None, goal_text: str = "", *, auto_limit: float | Non
         page = await context.new_page()
         await page.goto(f"{BASE}/index.htm")
 
-    agent = DiscoveryAgent(page, goal_text=goal_text, auto_limit=auto_limit)
+    agent = DiscoveryAgent(page, given_text=goal_text, auto_limit=auto_limit)
     await agent.setup()
     return agent
 
