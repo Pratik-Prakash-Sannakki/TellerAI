@@ -923,13 +923,27 @@ def make_escalate(cap: "Capability"):
 
     D85: for the risky-click case, this closure only shows the decision bar and REPORTS the
     human's choice -- it must never click anything itself any more. The engine (D85) is what
-    resolves the target and clicks it, and only when this returns exactly the string "approve"."""
+    resolves the target and clicks it, and only when this returns exactly the string "approve".
+
+    D94: "is this a risky click" is not the same question as "is this the pre-click approval
+    gate." `04_replay_engine.py` calls `escalate` from TWO different places for a risky-click
+    step: once BEFORE the click, to ask permission (ctx carries "amount"/"limit" -- Section 9,
+    the `amount >= auto_approve_limit` branch), and once AFTER a `ResolutionError` on that same
+    step, purely to notify a human the run has already failed (ctx carries no "amount" -- the
+    generic `except ResolutionError` handler a few lines below). The original check here
+    (`step.action == "click" and step.risk == "risky"`) fires for BOTH calls, so a risky click
+    whose target has already vanished (this notebook's own `evidence/` element-missing demo,
+    D92) re-ran the SAME resolve the engine had just failed on, inside `escalate` itself, with
+    no try/except around it -- an unhandled `ResolutionError` instead of the clean `FAILED`
+    result the engine was already about to return. `"amount" in ctx` is the one call-site
+    difference that actually distinguishes the two; check that too, not just the step's shape."""
 
     async def escalate(reason: str, ctx: dict) -> str | None:
         step_index = ctx.get("step_index")
         step = cap.steps[step_index] if step_index is not None else None
 
-        if step is not None and getattr(step, "action", None) == "click" and step.risk == "risky":
+        if (step is not None and getattr(step, "action", None) == "click"
+                and step.risk == "risky" and "amount" in ctx):
             ref = await resolve_target_async(live_surface, step.target)
             info = approval_info({"ref": ref})          # reuses agent.ipynb's own title-building
             info["details"] = f"Reason: {reason}"        # TYPED is empty during replay; show the real reason instead

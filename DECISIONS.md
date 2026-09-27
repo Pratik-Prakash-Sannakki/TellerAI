@@ -2882,3 +2882,66 @@ safety-relevant discovery (a real, if inadvertent, path to a browser launch duri
 
 **Brief ref:** Section 6 (README: how to run without live services), Section 7 (code quality),
 CLAUDE.md's own hard rules for this task (never launch a browser, never touch a notebook's logic).
+
+## X. Phase 5 live bugfix: `escalate`'s hard-failure notification re-triggered the very failure it was reporting
+
+(Numbering confirmed against `git log`/`grep "^### D"` immediately before writing this: D93 was
+just taken by the concurrent Phase 9 port. This section continues from D94.)
+
+### D94 — `escalate` must tell "approval gate" and "failure notification" apart by more than the step's shape
+
+**Question:** Running the Phase 8 element-missing error demo live (D92's own checklist item 6 —
+remove `transfer_funds`' Transfer button, then replay `{"amount": "20.00"}`, a SAFE amount well
+under the $500 auto-approve limit) crashed instead of returning the documented `FAILED`:
+
+```
+ResolutionError: primary: role='button' name='Transfer'; fallback: 2th <input> within 'form'
+  ... (raised again, uncaught, inside make_escalate's own escalate() closure)
+```
+
+`04_replay_engine.py` calls `escalate(reason, ctx)` from two structurally different places for a
+risky-click step: once *before* the click, to ask permission (the `amount >= auto_approve_limit`
+branch, `ctx` carries `"amount"`/`"limit"`), and once *after* a `ResolutionError` on that same
+step, purely to make an already-decided `FAILED` visible to a human watching the browser (the
+generic `except ResolutionError` handler). `05_replay_live.py`'s `make_escalate` (D79, D85) told
+these apart with `step.action == "click" and step.risk == "risky"` — true for BOTH calls, since a
+risky click's target can fail to resolve too. On the approval-gate branch, it re-resolves the
+target itself (`ref = await resolve_target_async(live_surface, step.target)`) to build a nice
+button name for the decision bar's title — but for the failure-notification call, the target is
+*already known* not to resolve (that is the failure being reported), so this re-resolve raises the
+identical `ResolutionError` again, uncaught, inside `escalate` itself, instead of the clean
+`FAILED` `ReplayResult` the engine was one line away from returning.
+
+**Chosen:** add `"amount" in ctx` to the check. That is the one real, structural difference
+between the two call sites (confirmed by reading both call sites in `04_replay_engine.py` Section
+9, not guessed) — the approval-gate call always carries the amount and limit it is gating on; no
+other `_call_escalate` call site in that file ever does.
+
+**Reasoning:** the fix stays inside `05_replay_live.py`, exactly where D79/D85/D88/D89 already
+live — `04_replay_engine.py`'s own `escalate` contract (a plain `Callable[[str, dict], Any]`,
+Section 8) is untouched, so this is a live-wiring correction, not an engine change. An alternative
+— have `04_replay_engine.py` pass an explicit `kind: "approve"` / `kind: "notify"` tag in every
+`ctx` — would be more self-documenting, but touches the shared, already-tested engine and every
+existing `_call_escalate` call site for a distinction only this one live consumer currently needs;
+rejected as more invasive than the bug warrants. `ctx["amount"]` already exists for exactly the
+right reason (D38's amount-vs-limit gate) and happens to double as the discriminator — using it is
+not fragile parasitism, it is the same signal `run_capability_async` itself uses to decide whether
+to gate at all.
+
+**Verified live, not just reasoned about:** ran the exact element-missing scenario twice against
+the real ParaBank site — once before the fix (crash, `ResolutionError` propagating out of
+`asyncio.run`), once after (`REPLAY RESULT: FAILED step_index=3 step_action='click' ...`, matching
+`evidence/README.md`'s own documented expectation for this demo exactly). The evidence folder this
+bug was found while producing (`evidence/replay/transfer_funds-error-element-missing/`) is itself
+the fixed behavior's proof, not a fixture.
+
+**Cost, honestly stated:** the generic failure-notification branch (`await _show_decision("REPLAY
+needs your attention", reason)`) still blocks on a real human click of any of the three buttons —
+that is by design (D28: hold the session open for a human to see what happened), but it means an
+unattended/scripted replay that hits *any* hard failure on a risky-click step, or a checkpoint/
+retry-exhausted failure the engine also routes through `escalate`, will hang waiting for that click
+unless something is watching. Not a new gap this fix introduces — it is `escalate`'s existing,
+documented design for every hard failure — but the element-missing crash had been masking it: a
+script that crashes loudly is easier to notice than one that hangs quietly forever.
+
+**Brief ref:** 3.6 (a well-reasoned handoff mechanism), D28, D38, D79, D85, D88, D89, D92.
