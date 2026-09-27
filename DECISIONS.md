@@ -2689,3 +2689,103 @@ offline harness -- never a live Jupyter session; the main session performs the l
 
 **Brief ref:** 3.2 (reviewability/usability of a safety refusal), 3.4 (safe, never silently proceed
 without a real value), D26, D29, D32, D88, D90.
+
+## W. Phase 8: evidence capture
+
+### D92 — `evidence/`'s layout, and two small, additive capture helpers instead of changing the existing notebooks
+
+**Question:** Phase 8 (roadmap row 8, citing D13/D24/D30) needs `evidence/` to actually hold
+artifacts and logs for a discovery run and a replay run (Section 6's own deliverable, `DECISIONS.md`
+line 35), across both flows and all five error cases (D30). D24 sketched a layout
+(`log.jsonl`/`screenshots/`/`snapshot_step<N>.json`) before the Phase 3/4 rebuild existed; the actual
+shapes now on hand are more concrete and better suited to what's already produced: 03_recorder.py
+CAPTURE's own `events` list and `compile_run`'s `{"login", "task", "report"}`, and
+05_replay_live.py's own `Capability`/inputs/`ReplayResult`. How should the folder be laid out, and
+how should real runs get into it, given the hard rule that no agent may ever open a browser or touch
+ParaBank?
+
+**Options:**
+- (a) Reconstruct D24's original `log.jsonl`/screenshot layout from scratch, ignoring what the
+  current code actually produces.
+- (b) A layout shaped directly around the current `events`/`Capability`/`report`/`ReplayResult`
+  objects, written by two small, additive, offline-tested helper functions; nothing existing changed.
+- (c) Fold evidence-saving directly into `03_recorder.py`'s COMPILE cells and `05_replay_live.py`'s
+  `replay_live`, rewriting their own signatures/behavior.
+
+**Chosen:** (b).
+
+```
+evidence/
+  README.md
+  discovery/<run-name>/
+    goal.txt  events.json  capability.yaml  login_capability.yaml*  compile_report.json  transcript.log
+  replay/<capability-name>-<case>/
+    capability.yaml  inputs.json  result.json  transcript.log
+```
+(`*` only when a login capability was also compiled.) `<case>` is `success` or `error-<name>` for
+one of the five cases below. Two new functions, `notebooks/evidence_capture.py` (new file, pure
+Python, no browser import at all):
+- `save_discovery_evidence(name, goal, events, capability, report, transcript_lines, evidence_dir=EVIDENCE_DISCOVERY_DIR, *, login=None, secret_values=())`
+- `save_replay_evidence(cap, inputs, result, transcript_lines, evidence_dir=EVIDENCE_REPLAY_DIR, *, label=None, secret_values=())`
+
+Both take objects a real run already has in hand and only ever write files -- neither runs a
+discovery agent or a replay itself. `05_replay_live.py` gets one small, additive change: a new
+`evidence_dir: pathlib.Path | None = None` parameter on `replay_live` (default `None` = today's
+exact unchanged behavior, `logger=print`, nothing saved); when given, `logger` is teed into a
+transcript list and `save_replay_evidence` is called once the result is known.
+`run_capability_async`/`validate_inputs`/`compile_run`/`gather_missing_inputs` are not modified.
+
+**Reasoning:**
+- (a) would produce a layout disconnected from what the code actually emits, forcing an awkward
+  translation step (or new instrumentation) at exactly the point the existing objects already carry
+  everything needed. D24 was right about the goal (structured log + a richer failure signal); the
+  concrete shape just moved on since D24 was written, before the Phase 3/4 rebuild existed.
+- (c) would touch `compile_run`/`replay_live`, which this phase's own scoping rule forbids touching
+  beyond one additive, opt-in parameter -- and it would make every existing offline test of those
+  functions a place a future change could silently break evidence-saving too, for no benefit.
+- (b) is the smallest change that satisfies the requirement: two pure functions, independently
+  testable offline, that only add a new opt-in call site. A capability YAML saved into `evidence/` is
+  always a fresh copy, never written back into `artifacts/*.yaml` -- `save_capability`'s own
+  verified-overwrite guard is untouched and irrelevant here.
+
+**Secret-value guard:** D32 requires a secret's value never be written anywhere, only its name. This
+is already structural in this codebase's own data shapes -- a captured `type_secret` event's `value`
+field is the secret's NAME (03_recorder.py `_capture`'s own `"type_secret": lambda kw: kw.get("name")`),
+and a replay `inputs` dict never contains a secret at all (secrets are resolved separately via
+`resolve_secret`). Both helpers additionally take an explicit, optional `secret_values` tuple and
+refuse to write ANYTHING (matching `save_capability`'s own "refuse, never partially write" shape) if
+any of those values is found in what's about to be written -- defense in depth against a future bug,
+not a claim that one exists today.
+
+**The five error demos (D30, cited by Phase 8, not reproposed here):** account not found (business
+outcome), slow page (recoverable), session expired (recoverable), element missing (hard failure),
+transfer over limit (`NEEDS_APPROVAL`). `evidence/README.md` writes these out as a numbered
+checklist against the real, current capabilities (`artifacts/examples/get_account_balance.yaml` for
+case 1, `artifacts/transfer_funds.yaml`/`pay_bill.yaml` for the others), with two honest caveats
+recorded there rather than glossed over: (i) the live `PlaywrightReplaySurface.resolve()` (D88) has
+its own silent poll/retry and never raises the `TransientFailure` the offline `FakeSurface` tests
+exercise, so "slow page" demonstrates D88's live poll, not D26's `TransientFailure` path; (ii) a
+`recoverable`/`relogin` outcome-rule match is, by `04_replay_engine.py`'s own documented comment,
+only logged today, not actually acted on -- re-running the login capability and continuing is
+explicit unbuilt Phase 9 scope -- so "session expired" is expected to end `FAILED` at the next step,
+with the recoverable-match line in the transcript as the actual evidence of detection.
+
+**Verified offline** (`uv run python notebooks/evidence_capture.py`; this agent's own run, since
+this file imports nothing that touches a browser): fixtures built in the same style as
+`03_recorder.py`'s own OFFLINE fixtures (a login + balance-read event list, a real example
+`Capability` loaded read-only via `from_yaml`) and hand-built `ReplayResult`s for all four statuses
+(`SUCCESS`/`BUSINESS_OUTCOME`/`NEEDS_APPROVAL`/`FAILED`) round-trip correctly through both helpers;
+folder/file layout matches this design exactly; a `type_secret` event's `value` field is confirmed to
+be the secret's NAME (`"username"`/`"password"`) and no fixture ever contains a real secret VALUE;
+an adversarial fixture with a raw secret-like value injected, plus a matching `secret_values=(...)`,
+is confirmed to raise `EvidenceWriteError` and write NOTHING (no folder at all) for both helpers. All
+fixture output goes to a throwaway `tempfile.mkdtemp()` directory, never into the real `evidence/`
+folder. `05_replay_live.py`'s edit was checked with `ast.parse` only -- never executed, per this
+phase's hard rule (that file imports Playwright and needs a real browser + `.env`).
+
+**Not done, deliberately, by this task:** any real discovery or replay run. `evidence/` is committed
+with only `README.md` and two empty `discovery/`/`replay/` placeholder folders; `evidence/README.md`
+carries the exact numbered checklist of live runs the project owner (or a future live session) still
+needs to perform to populate it for real.
+
+**Brief ref:** 3.5, Section 6 (`/evidence/`), D24, D30, D32.

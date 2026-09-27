@@ -93,3 +93,14 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   whole run dying on a raw `InputValidationError` traceback. `04_replay_engine.py`'s own
   `validate_inputs` is completely unchanged; a no-human production replay still fails fast and
   loudly. See DECISIONS.md D91.
+  **2026-09-26 fix (2, Phase 8):** `replay_live()` also takes one new, opt-in `evidence_dir`
+  parameter (default `None` = unchanged behavior) that saves a `evidence/replay/` folder via the
+  new `save_replay_evidence` helper. See below and DECISIONS.md D92.
+
+## Phase 8: evidence
+- `evidence/` — the assignment's own required deliverable (Section 6): a saved artifact + logs from
+  a discovery run and a replay run. `evidence/README.md` explains the layout, the five error-demo
+  scenarios (D30), and the exact live runs still needed to fill it in — none run yet, by design
+  (never run by an agent). `notebooks/evidence_capture.py` — two small, additive, offline-tested
+  helpers, `save_discovery_evidence`/`save_replay_evidence`, pure Python, no browser import. See
+  DECISIONS.md D92.
