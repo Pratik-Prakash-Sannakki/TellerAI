@@ -1065,8 +1065,35 @@ def gather_missing_inputs(cap: "Capability", inputs: dict[str, str], *, input_fn
 
 print("pre-flight input gate ready (missing_required_inputs / gather_missing_inputs)")
 
+# %% Load evidence capture: save_replay_evidence (new, additive -- Phase 8, notebooks/evidence_capture.py)
+# Pure Python, no browser -- only DEFINITIONS are loaded here (Sections 1-4; that file's own
+# OFFLINE fixtures/tests, Sections 5-6, are skipped), the same exec-cells-into-namespace technique
+# already used above (`load_replay_engine`) and in 03_recorder.py/04_replay_engine.py themselves.
+# Schema loading inside evidence_capture.py is itself a no-op here: Capability/to_yaml/ReplayResult/
+# Failure are already in this namespace from `load_replay_engine()` above.
+def _find_repo_for_evidence() -> pathlib.Path:
+    here = pathlib.Path.cwd()
+    for p in [here, *here.parents]:
+        if (p / "notebooks" / "evidence_capture.py").exists():
+            return p
+    raise FileNotFoundError("cannot find notebooks/evidence_capture.py. Start the kernel in the repo.")
+
+
+def load_evidence_capture(wanted=("Section 1:", "Section 2:", "Section 3:", "Section 4:")) -> None:
+    repo = _find_repo_for_evidence()
+    text = (repo / "notebooks" / "evidence_capture.py").read_text()
+    for cell in re.split(r"(?m)^# %%", text)[1:]:
+        header, _, body = cell.partition("\n")
+        if header.strip().startswith(wanted):
+            exec(compile(body, f"evidence_capture.py [{header.strip()}]", "exec"), globals())
+
+
+load_evidence_capture()
+print("evidence capture ready:", save_discovery_evidence.__name__, save_replay_evidence.__name__)
+
 # %% Run helper: replay a saved capability against the real browser
-async def replay_live(cap_path, inputs: dict[str, str], *, auto_approve_limit: float = 500.0) -> "ReplayResult":
+async def replay_live(cap_path, inputs: dict[str, str], *, auto_approve_limit: float = 500.0,
+                       evidence_dir: pathlib.Path | None = None) -> "ReplayResult":
     """Load a capability YAML and replay it for real, printing the result. `secrets` is always
     `resolve_secret` (D32): a secret VALUE is never printed, logged, or placed in anything this
     function returns or prints -- only its NAME ever appears, if at all.
@@ -1074,14 +1101,31 @@ async def replay_live(cap_path, inputs: dict[str, str], *, auto_approve_limit: f
     2026-09-26 fix: before anything else -- before `run_capability_async`, before any browser
     action, before login, before any step runs -- `gather_missing_inputs` checks `cap.inputs`
     against the caller's own `inputs` and interactively prompts for anything required that is
-    missing. A no-op when nothing is missing; see the markdown cell above for the full design."""
+    missing. A no-op when nothing is missing; see the markdown cell above for the full design.
+
+    2026-09-26 fix (2): one new, opt-in `evidence_dir` parameter (Phase 8, D92). Default `None` is
+    today's exact unchanged behavior -- `logger=print`, nothing saved. Only when a path is given
+    does this also tee every `logger` line into a transcript and call `save_replay_evidence`
+    (`notebooks/evidence_capture.py`) once the result is known, writing a self-contained folder
+    under `evidence_dir`. `run_capability_async` itself is not touched."""
     cap = from_yaml(pathlib.Path(cap_path).read_text())
     inputs = gather_missing_inputs(cap, inputs)
+    transcript: list[str] = []
+
+    def _tee_logger(msg):
+        transcript.append(str(msg))
+        print(msg)
+
+    logger = _tee_logger if evidence_dir is not None else print
     result = await run_capability_async(
         cap, live_surface, inputs, resolve_secret,
-        auto_approve_limit=auto_approve_limit, escalate=make_escalate(cap), logger=print,
+        auto_approve_limit=auto_approve_limit, escalate=make_escalate(cap), logger=logger,
     )
-    print("REPLAY RESULT:", result.status, result.outputs or result.outcome or result.reason or result.failure)
+    result_line = f"REPLAY RESULT: {result.status} {result.outputs or result.outcome or result.reason or result.failure}"
+    print(result_line)
+    if evidence_dir is not None:
+        transcript.append(result_line)
+        save_replay_evidence(cap, inputs, result, transcript, evidence_dir)
     return result
 
 
