@@ -104,3 +104,22 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   (never run by an agent). `notebooks/evidence_capture.py` — two small, additive, offline-tested
   helpers, `save_discovery_evidence`/`save_replay_evidence`, pure Python, no browser import. See
   DECISIONS.md D92.
+
+## Phase 9: `src/cua/` port, CLI, tests, README, REPORT
+- `src/cua/` — a real, importable, pip/uv-installable package: `schema.py` (Section 1/D63-D66
+  Capability models), `recorder.py` (COMPILE half only — pure Python, no Playwright import),
+  `replay.py` (sync + async engines, D77/D85), `agent.py` (the discovery agent as a
+  `DiscoveryAgent` class + `build_agent()` factory, D2-D69), `live.py` (`PlaywrightReplaySurface`,
+  `make_escalate`, the D91 pre-flight gate), `cli.py` (`cua discover`/`cua replay`, with the
+  recorder's CAPTURE-half event-wrapping glue living here rather than in `cua.recorder`, per this
+  phase's own scoping), and a new shared `config.py` deduplicating `BASE`/`SECRETS`/`host_allowed`
+  across what used to be three separate notebook copies. `pyproject.toml` gained a
+  `[project.scripts] cua = "cua.cli:main"` entry point and `[tool.pytest.ini_options] testpaths =
+  ["tests"]` (found necessary live: unscoped pytest discovery picked up a git-ignored
+  `notebooks/scratch/*_test.py` file that launches a real browser on import). `tests/` is a real
+  pytest suite (143 tests) porting every notebook's offline check, zero API key/browser/network.
+  A genuine, pre-existing, unrelated bug was found (not fixed, per this phase's own rule not to
+  touch notebook logic): `02_artifact_schema.py`'s own Section 2b checks crash with `IndexError`
+  today, since an example artifact they index into was simplified by the later D63-D66 rebuild.
+  See DECISIONS.md section W (D93), and `REPORT.md` (the assignment's own 7-heading report) /
+  `README.md` (setup + demo path) at the repo root.

@@ -2789,3 +2789,96 @@ carries the exact numbered checklist of live runs the project owner (or a future
 needs to perform to populate it for real.
 
 **Brief ref:** 3.5, Section 6 (`/evidence/`), D24, D30, D32.
+
+## W. Phase 9: porting the notebooks into `src/cua/`
+
+(Numbering confirmed against `git log`/`grep "^### D"` immediately before writing this: D92 is the
+current highest number. This section continues from D93.)
+
+### D93 — Package layout, a shared `config.py`, pytest scoped to `tests/`, and where the CAPTURE-half glue lives
+
+**Question:** Porting five notebooks (`agent.ipynb`, `02_artifact_schema.py`, `03_recorder.py`,
+`04_replay_engine.py`, `05_replay_live.py`) into `src/cua/` is a straight logic port, but a few
+real packaging decisions still had to be made: how to avoid re-duplicating the same config/JS
+constants a third time now that plain imports are available; how to structure the stateful
+`DiscoveryAgent` given the notebooks' own reliance on module-level globals across cells; where the
+recorder's CAPTURE-half event-wrapping glue (`extract_value`/`open_path`/`finish_business_outcome`,
+the `.coroutine` wrapper, `request_value`/`request_missing_values` synthesis) should live, given
+this port's own hard requirement that `cua.recorder` stay pure Python with no Playwright import;
+and a real, unrelated bug found while writing the test suite.
+
+**Chosen, one decision at a time:**
+
+1. **A new `src/cua/config.py`** holds `BASE`/`ALLOWED_HOSTS`/`SECRETS`/`APP_ID`/
+   `SESSION_EXPIRED_TEXT`/`MODEL`/`resolve_secret`/`host_allowed` — the identical config cell
+   duplicated three times across `agent.ipynb` Setup 1, `03_recorder.py` OFFLINE 1 + BROWSER 1, and
+   `05_replay_live.py` Setup 1/3. A notebook cell cannot import another notebook, so the
+   duplication there was necessary; a real package can just import one module. This is a pure
+   packaging improvement (CLAUDE.md's own rule, "ParaBank values live in config... only", is
+   satisfied more strongly, not differently) — no rule, guard, or constant value changed.
+2. **`DiscoveryAgent` (`src/cua/agent.py`) is a class, not a set of functions closing over module
+   globals.** Every mutable global the notebook relied on (`TYPED`, `GIVEN`, `RESULT`, `DECLINED`,
+   `LOGIN_ATTEMPTS`/`LOGIN_BLOCKED`, `HANDBACK`) is now an instance attribute of one
+   `DiscoveryAgent`, built by an `async def build_agent(page=None, ...)` factory (no top-level
+   `await`, matching the async-def-wrapping pattern already used elsewhere this session for running
+   these notebooks as scripts). Every safety rule, JS string, and order of operations is unchanged;
+   only the state's home changed, from module globals to `self`.
+3. **`cua.live.PlaywrightReplaySurface` takes a `DiscoveryAgent` instance directly, rather than
+   duplicating `PlaywrightSurface`/lock JS/`human_takeover`/`needs_human` a second time the way
+   `05_replay_live.py` necessarily does.** The notebook's own duplication of these was a real
+   constraint (a notebook exec context cannot import another notebook's cells except by re-running
+   their source, which `04_replay_engine.py`'s/`03_recorder.py`'s own `load_schema()` technique
+   already does for the schema); a package has no such constraint. Replay never calls any of
+   `DiscoveryAgent`'s LLM-tool methods (`click`, `type_text`, ...) — it only reuses the same
+   lower-level mechanics underneath them (`.surface`, `.human_takeover`, `.needs_human`,
+   `.current_value`, `.approval_info`), exactly the subset `05_replay_live.py`'s own "Setup 6"
+   comment names by hand ("the tool-INDEPENDENT mechanics only").
+4. **The recorder's CAPTURE-half event-wrapping glue is NOT part of `cua.recorder`'s importable
+   API.** `cua.recorder` (the COMPILE half: `compile_run`, `synthesize_human_entries`,
+   `save_capability`, ...) has no `import playwright` anywhere in it, matching this port's own
+   scoping instruction. The three additive tools (`extract_value`, `open_path`,
+   `finish_business_outcome`) and the `.coroutine`-wrapping event logger live in `src/cua/cli.py`
+   instead, built directly against a `DiscoveryAgent` instance and calling `cua.recorder`'s pure
+   functions (`classify_status`, `norm_url`, `synthesize_human_entries`) to produce the same event
+   shape `03_recorder.py`'s own BROWSER cells produce. This was an explicit instruction ("Leave the
+   CAPTURE half... as agent-side code your discover CLI command orchestrates... rather than
+   something with an independent importable API of its own") rather than a judgment call: the
+   alternative (a `cua.recorder.build_capture_tools(agent)` function) would have made `cua.recorder`
+   depend on `cua.agent`/Playwright transitively, defeating the "pure Python, no Playwright import"
+   property this phase explicitly asked `cua.recorder`/`cua.replay` to keep.
+5. **`pyproject.toml` scopes pytest discovery to `testpaths = ["tests"]`.** Found directly, not
+   guessed: running `uv run pytest` with no scoping, in THIS working directory (not a fresh clone),
+   collected and executed `notebooks/scratch/_live_preflight_gate_test.py` — a git-ignored,
+   per-developer scratch file (matching pytest's own default `*_test.py` discovery pattern) left
+   over from an earlier live session, whose top-level code launches a real Chromium browser and
+   hits the real `parabank.parasoft.com` on import. This is exactly what this phase's own hard
+   rules forbid ("You must NEVER launch a browser, touch ParaBank, or use an API key"). A fresh
+   clone would never have this file (`notebooks/scratch/` is git-ignored), so the *deliverable*
+   ("fresh clone, `uv run pytest` passes with no key") was never actually at risk — but the
+   discovery scope was still the right fix regardless: this port's own test suite lives entirely in
+   `tests/`, and pytest should never depend on what a contributor happens to have sitting,
+   uncommitted, in a git-ignored scratch directory.
+6. **A genuine, pre-existing, unrelated bug found while porting `tests/test_schema.py`:**
+   `notebooks/02_artifact_schema.py`'s own Section 2b offline checks assume
+   `artifacts/examples/get_account_balance.yaml` has 3 `outcome_rules` (indices 1 and 2 used for a
+   "recoverable rule without action"/"hard rule with an action" check) — true when that cell was
+   written, no longer true after the example was simplified to one business rule during the D63-D66
+   schema rebuild. Confirmed directly, not assumed: `uv run python notebooks/02_artifact_schema.py`
+   crashes today with `IndexError: list index out of range` at that exact cell, meaning this
+   notebook currently does NOT print "ALL CHECKS PASSED" if run top to bottom. Not fixed in the
+   notebook (out of scope: "do not modify any notebook's actual logic," and the notebook was
+   already broken before this port touched anything). `tests/test_schema.py` instead builds a
+   fixture with the 3-rule shape the check actually needs, so the SAME two `Capability`-level
+   validation rules are tested (not weakened, not skipped) without depending on the example
+   artifact's current, simplified shape.
+
+**Reasoning:** every one of 1-4 is a structural packaging choice with no effect on any rule,
+guard, safety check, or business decision described elsewhere in this file — verified by porting
+every offline check from all five notebooks into `tests/` (143 tests, `uv run pytest`, 0 failures,
+zero API key/browser/network) and cross-checking each assertion's expected value against the
+notebook's own. 5 and 6 are both real findings from doing the port, not hypothetical: 5 is a live
+safety-relevant discovery (a real, if inadvertent, path to a browser launch during `pytest`), and
+6 is a real, reproducible bug in existing, unmodified notebook code.
+
+**Brief ref:** Section 6 (README: how to run without live services), Section 7 (code quality),
+CLAUDE.md's own hard rules for this task (never launch a browser, never touch a notebook's logic).
