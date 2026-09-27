@@ -3039,3 +3039,35 @@ both exist -- is NOT done, and is flagged here rather than silently left to recu
 **Brief ref:** D45 (login split), D89 (the first instance of the label trap), D91 (the pre-flight
 gate this flag composes with cleanly -- both run before any browser action a capability's own steps
 would take).
+
+## Y. Phase 9 live bugfix: `extract_value` called repeatedly instead of once during `cua discover`
+
+### D98 — `cli.py`'s own `extract_value`/`open_path` were missing `agent.py`'s own parallel-tool-call lock
+
+**Question:** `03_recorder.py`'s BROWSER 9 wraps `extract_value`/`open_path`/`finish_business_outcome`
+the same way `agent.py`'s own `build_tools()` wraps every one of its base tools: with a lock
+(`one_at_a_time`, closing over `agent._act_lock`) that serializes tool execution when the model
+requests more than one tool call in the same turn. This lock exists specifically because a prior
+live bug showed PARALLEL tool calls (`langgraph`'s own tool-execution node runs multiple
+same-turn tool calls concurrently via `asyncio.gather`) corrupting agent state during login. Does
+`src/cua/cli.py`'s own port of these three tools (`_new_tools`) carry the same lock?
+
+**Found:** no. `_new_tools` defined `extract_value`/`open_path`/`finish_business_outcome` as plain
+`@tool(parse_docstring=True)` functions with no `one_at_a_time` wrapper at all -- a real,
+structural gap between this port and `03_recorder.py`'s BROWSER 9, in the same family as D95/D96/D97
+(a live-only gap the 143-test offline suite cannot see, since none of these tools' bodies are
+exercised without a real page).
+
+**Chosen:** restore the lock. `_new_tools` now defines its own `one_at_a_time` (identical shape to
+`agent.py`'s, closing on the SAME `agent._act_lock` instance) and applies it to `extract_value` and
+`open_path` (not `finish_business_outcome`, matching `03_recorder.py`'s BROWSER 9 exactly -- that
+one ends the run, nothing else can race it meaningfully the way a login field or a navigation can).
+
+**Verified:** `uv run pytest` still 143/143 (this cannot be exercised offline; the lock only
+matters under real concurrent tool calls against a real page). Re-tested live after this fix: the
+`extract_value`-called-repeatedly bug (see D99) still reproduced identically (3 calls) -- this was
+a real, worth-keeping fix for a real gap, but NOT the cause of that bug. Kept regardless; see D99
+for the actual cause and fix.
+
+**Brief ref:** D73 (the three new tools), agent.ipynb's own login-race-condition history (the
+original reason `one_at_a_time` exists at all).

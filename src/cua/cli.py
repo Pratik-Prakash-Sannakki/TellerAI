@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import re
 import sys
 from pathlib import Path
@@ -57,10 +58,26 @@ async def _describe_ref(page, ref) -> dict | None:
 
 def _new_tools(agent: agent_mod.DiscoveryAgent):
     """The three additive tools the recorder's compiler needs (D73), ported from
-    `03_recorder.py` BROWSER 9, operating on `agent` instead of module globals."""
+    `03_recorder.py` BROWSER 9, operating on `agent` instead of module globals.
+
+    D98: `extract_value`/`open_path` must share `agent._act_lock`, the SAME lock every one of
+    `agent.build_tools()`'s own tools already uses (`agent.py`'s own `one_at_a_time`) -- without
+    it, a model turn that requests these tools alongside others runs them concurrently
+    (`langgraph.prebuilt.tool_node`'s own `asyncio.gather`), which is exactly the "parallel tool
+    calls corrupt state" class of bug `one_at_a_time` was built to close in the first place (see
+    `agent.ipynb`'s own login-race-condition history). This port had dropped the decorator
+    entirely on these three tools; restored here, locking on the identical `agent._act_lock`."""
     from langchain.tools import tool
 
+    def one_at_a_time(fn):
+        @functools.wraps(fn)
+        async def wrapper(*a, **k):
+            async with agent._act_lock:
+                return await fn(*a, **k)
+        return wrapper
+
     @tool(parse_docstring=True)
+    @one_at_a_time
     async def extract_value(label: str, save_as: str, value_type: str, description: str) -> list:
         """Read a value shown next to a label on the page (e.g. 'Balance:') and record it as an output.
 
@@ -83,6 +100,7 @@ def _new_tools(agent: agent_mod.DiscoveryAgent):
         return agent._blocks(f"Read '{label}'.", await agent.surface.observe())
 
     @tool(parse_docstring=True)
+    @one_at_a_time
     async def open_path(path: str) -> list:
         """Navigate directly to a page on this site by its path, when no link on the page goes there.
 

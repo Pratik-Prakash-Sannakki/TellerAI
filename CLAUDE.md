@@ -141,3 +141,7 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   exact same "Balance" header trap a second time (repointed to `Total`); the underlying pattern —
   nothing validates a `labeled_value` extract's live type at compile time — is still open. See
   DECISIONS.md D97.
+  **2026-09-27 fix (3):** `cli.py`'s own `extract_value`/`open_path` were missing the same
+  `one_at_a_time` lock every one of `agent.py`'s own base tools already carries — restored, locking
+  on the identical `agent._act_lock`. See DECISIONS.md D98 (part of an ongoing investigation into a
+  separate, still-open `extract_value`-called-repeatedly bug; this fix did not close it).
