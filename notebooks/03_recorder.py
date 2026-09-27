@@ -3205,6 +3205,7 @@ print("TypeSafe tool router middleware ready (activates only if TYPESAFE_API_KEY
 
 # %% BROWSER 12: system prompt and agent, with TypeSafe wired in exactly as agent.ipynb's STEP 4
 # does (model router + tool router, both gated by TYPESAFE_API_KEY; off by default)
+from deepagents import create_deep_agent   # D95: present in agent.ipynb's own STEP 4, missing here
 from langgraph.checkpoint.memory import MemorySaver
 
 # Same numbered rules as agent.ipynb's SYSTEM_PROMPT (STEP 4), items 1-9 unchanged verbatim,

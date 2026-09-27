@@ -2945,3 +2945,32 @@ documented design for every hard failure — but the element-missing crash had b
 script that crashes loudly is easier to notice than one that hangs quietly forever.
 
 **Brief ref:** 3.6 (a well-reasoned handoff mechanism), D28, D38, D79, D85, D88, D89, D92.
+
+### D95 — `03_recorder.py`'s BROWSER 12 cell used `create_deep_agent` without ever importing it
+
+**Question:** Producing a real discovery-side evidence capture (D92's checklist item 1) meant
+actually running `03_recorder.py`'s CAPTURE half end to end for the first time this session
+outside of the two RUN cells the notebook's own author had already exercised. `recorder_agent =
+create_deep_agent(...)` (BROWSER 12) raised `NameError: name 'create_deep_agent' is not defined`.
+`agent.ipynb`'s own STEP 4 has `from deepagents import create_deep_agent` right above its own
+`create_deep_agent(...)` call; BROWSER 12's own header comment says it's "copied verbatim" from
+that cell, but the import line itself was never carried over — a real, reproducible gap in the
+CAPTURE half that nothing had exercised until this run needed the agent to actually exist.
+
+**Chosen:** add the one missing import line, in place, where `agent.ipynb` has it.
+
+**Reasoning:** this is a one-line omission with a one-line fix — no design question here. Worth
+recording only because it is a genuine bug this session found live (not a hypothetical), in a file
+whose CAPTURE half is otherwise still lightly exercised end to end compared to its COMPILE half
+(D70's own honest gap: "capture has touched a real browser at least once... but never got far
+enough to prove a real capture-to-compile round trip end to end" — this run is the first time it
+has, successfully, past that point).
+
+**Verified:** re-ran all 32 `OFFLINE` cells (unaffected, still pass byte-identical) plus a full
+live `BROWSER` run afterward — real login, real `type_secret` x2, real click, real `extract_value`,
+real `compile_run` producing both a `login_parabank`-shaped and a task capability, saved as real
+`evidence/discovery/20260927-get-account-balance-discovery/` (see D92's own `evidence/` section for
+the layout; `events.json` confirmed to carry only secret NAMEs, `"username"`/`"password"`, never
+values).
+
+**Brief ref:** D70 (the honest gap this closes), D92 (the evidence this run produced).

@@ -73,6 +73,10 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   constant). `artifacts/pay_bill.yaml` was regenerated again: its 5 human-entered fields
   (address/city/state/zip_code/phone) are now declared inputs, not literals. See DECISIONS.md
   section U (D90).
+  **2026-09-27 fix:** BROWSER 12's `create_deep_agent(...)` call was missing its own import
+  (`from deepagents import create_deep_agent`, present in `agent.ipynb`'s STEP 4, never copied
+  over) — found running the CAPTURE half live end to end for the first time this session. See
+  DECISIONS.md D95.
 
 ## Phase 4 notebooks
 - `04_replay_engine.py` — the replay engine. Loads the Phase 2 v2 schema, resolves primary/fallback
