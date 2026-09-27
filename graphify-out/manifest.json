@@ -1,0 +1,506 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1790542625.2826118,
+    "seen": 1790542666.6655989,
+    "ast_hash": "43d7fda10823e6181bcb542cd960cf98",
+    "semantic_hash": "43d7fda10823e6181bcb542cd960cf98"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery-v2/compile_report.json": {
+    "mtime": 1790483482.9001734,
+    "seen": 1790542666.665602,
+    "ast_hash": "e3a2a7633869ef466be1ab66aee4ed9e",
+    "semantic_hash": "e3a2a7633869ef466be1ab66aee4ed9e"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery-v2/events.json": {
+    "mtime": 1790483482.8998945,
+    "seen": 1790542666.6656032,
+    "ast_hash": "62f91aa2d290e1065f25e36bd6f96864",
+    "semantic_hash": "62f91aa2d290e1065f25e36bd6f96864"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery/compile_report.json": {
+    "mtime": 1790481980.8361037,
+    "seen": 1790542666.665604,
+    "ast_hash": "e3a2a7633869ef466be1ab66aee4ed9e",
+    "semantic_hash": "e3a2a7633869ef466be1ab66aee4ed9e"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery/events.json": {
+    "mtime": 1790481980.836369,
+    "seen": 1790542666.665605,
+    "ast_hash": "9f7a44af66358763d7b1f4f11a1e6eac",
+    "semantic_hash": "9f7a44af66358763d7b1f4f11a1e6eac"
+  },
+  "evidence/replay/get_account_balance-error-account-not-found/inputs.json": {
+    "mtime": 1790481980.8383229,
+    "seen": 1790542666.665605,
+    "ast_hash": "abecc4dfe35ddfabd94192c9ae57b2ab",
+    "semantic_hash": "abecc4dfe35ddfabd94192c9ae57b2ab"
+  },
+  "evidence/replay/get_account_balance-error-account-not-found/result.json": {
+    "mtime": 1790481980.8385754,
+    "seen": 1790542666.6656058,
+    "ast_hash": "2101d861637927fe7fddcd9289477b6e",
+    "semantic_hash": "2101d861637927fe7fddcd9289477b6e"
+  },
+  "evidence/replay/get_account_balance-error-slow-page/inputs.json": {
+    "mtime": 1790481980.839697,
+    "seen": 1790542666.6656058,
+    "ast_hash": "99914b932bd37a50b983c5e7c90ae93b",
+    "semantic_hash": "99914b932bd37a50b983c5e7c90ae93b"
+  },
+  "evidence/replay/get_account_balance-error-slow-page/result.json": {
+    "mtime": 1790481980.8401978,
+    "seen": 1790542666.665607,
+    "ast_hash": "7c99d3515ad2cd8c532a7bf514d080f1",
+    "semantic_hash": "7c99d3515ad2cd8c532a7bf514d080f1"
+  },
+  "evidence/replay/transfer_funds-error-element-missing/inputs.json": {
+    "mtime": 1790481980.8409126,
+    "seen": 1790542666.665607,
+    "ast_hash": "871fe89df038c2156c3e6a3af044d64a",
+    "semantic_hash": "871fe89df038c2156c3e6a3af044d64a"
+  },
+  "evidence/replay/transfer_funds-error-element-missing/result.json": {
+    "mtime": 1790481980.8411717,
+    "seen": 1790542666.665608,
+    "ast_hash": "c7f1093884a7218f57f052c36366d257",
+    "semantic_hash": "c7f1093884a7218f57f052c36366d257"
+  },
+  "evidence/replay/transfer_funds-error-session-expired/inputs.json": {
+    "mtime": 1790481980.8417468,
+    "seen": 1790542666.665609,
+    "ast_hash": "871fe89df038c2156c3e6a3af044d64a",
+    "semantic_hash": "871fe89df038c2156c3e6a3af044d64a"
+  },
+  "evidence/replay/transfer_funds-error-session-expired/result.json": {
+    "mtime": 1790481980.8419828,
+    "seen": 1790542666.665609,
+    "ast_hash": "d0f521d54fd25b3df88666bc18383b3a",
+    "semantic_hash": "d0f521d54fd25b3df88666bc18383b3a"
+  },
+  "evidence/replay/transfer_funds-error-transfer-over-limit/inputs.json": {
+    "mtime": 1790481980.8425934,
+    "seen": 1790542666.66561,
+    "ast_hash": "9a23497d76b64512267298447b5d806d",
+    "semantic_hash": "9a23497d76b64512267298447b5d806d"
+  },
+  "evidence/replay/transfer_funds-error-transfer-over-limit/result.json": {
+    "mtime": 1790481980.8433144,
+    "seen": 1790542666.66561,
+    "ast_hash": "2028a9745309a4b31def7206a5b20a19",
+    "semantic_hash": "2028a9745309a4b31def7206a5b20a19"
+  },
+  "evidence/replay/transfer_funds-success/inputs.json": {
+    "mtime": 1790481980.8440213,
+    "seen": 1790542666.665611,
+    "ast_hash": "871fe89df038c2156c3e6a3af044d64a",
+    "semantic_hash": "871fe89df038c2156c3e6a3af044d64a"
+  },
+  "evidence/replay/transfer_funds-success/result.json": {
+    "mtime": 1790481980.8442194,
+    "seen": 1790542666.665611,
+    "ast_hash": "52f32b3e833ada04831d59093125f5e5",
+    "semantic_hash": "52f32b3e833ada04831d59093125f5e5"
+  },
+  "notebooks/01_browser_and_observe.py": {
+    "mtime": 1789857030.3435185,
+    "seen": 1790542666.665612,
+    "ast_hash": "d769e6bf4cc423330624a32f23d2efce",
+    "semantic_hash": "d769e6bf4cc423330624a32f23d2efce"
+  },
+  "notebooks/02_artifact_schema.py": {
+    "mtime": 1790108138.1333237,
+    "seen": 1790542666.665612,
+    "ast_hash": "5248089d809dfe9a3d5cf370c28a0177",
+    "semantic_hash": "5248089d809dfe9a3d5cf370c28a0177"
+  },
+  "notebooks/03_recorder.py": {
+    "mtime": 1790487310.8446307,
+    "seen": 1790542666.6656132,
+    "ast_hash": "48902e53f0d2ddbc5bb0b3b9ef005550",
+    "semantic_hash": "48902e53f0d2ddbc5bb0b3b9ef005550"
+  },
+  "notebooks/04_replay_engine.py": {
+    "mtime": 1790454422.4489841,
+    "seen": 1790542666.6656132,
+    "ast_hash": "f3737194d4a0d9c18cdac038d779b90d",
+    "semantic_hash": "f3737194d4a0d9c18cdac038d779b90d"
+  },
+  "notebooks/05_replay_live.py": {
+    "mtime": 1790481980.8528614,
+    "seen": 1790542666.6656141,
+    "ast_hash": "cdb7440acd1fde7f7165a8d94b437bde",
+    "semantic_hash": "cdb7440acd1fde7f7165a8d94b437bde"
+  },
+  "notebooks/evidence_capture.py": {
+    "mtime": 1790481980.8559291,
+    "seen": 1790542666.665618,
+    "ast_hash": "229e5a39d1344fe918b9b93b0924a566",
+    "semantic_hash": "229e5a39d1344fe918b9b93b0924a566"
+  },
+  "pyproject.toml": {
+    "mtime": 1790481980.8563852,
+    "seen": 1790542666.665618,
+    "ast_hash": "433d8ef7f3bcf33c1a00c55ac0c7e351",
+    "semantic_hash": "433d8ef7f3bcf33c1a00c55ac0c7e351"
+  },
+  "src/cua/__init__.py": {
+    "mtime": 1790481980.8567045,
+    "seen": 1790542666.665619,
+    "ast_hash": "51d4004388edb96b5a1d6a7b0ada1534",
+    "semantic_hash": "51d4004388edb96b5a1d6a7b0ada1534"
+  },
+  "src/cua/agent.py": {
+    "mtime": 1790541396.0280166,
+    "seen": 1790542666.665619,
+    "ast_hash": "e5124adfa573723c3a12f61badd071cd",
+    "semantic_hash": "e5124adfa573723c3a12f61badd071cd"
+  },
+  "src/cua/cli.py": {
+    "mtime": 1790541412.405029,
+    "seen": 1790542666.6656199,
+    "ast_hash": "65e64bbb4aebbc289444061d61c6c8d7",
+    "semantic_hash": "65e64bbb4aebbc289444061d61c6c8d7"
+  },
+  "src/cua/config.py": {
+    "mtime": 1790481980.8578868,
+    "seen": 1790542666.6656199,
+    "ast_hash": "d7b6d30cbbe08e9d55b0b39392dfb93d",
+    "semantic_hash": "d7b6d30cbbe08e9d55b0b39392dfb93d"
+  },
+  "src/cua/live.py": {
+    "mtime": 1790481980.8582788,
+    "seen": 1790542666.665621,
+    "ast_hash": "4ad903dc74db74f48693578f34c285c6",
+    "semantic_hash": "4ad903dc74db74f48693578f34c285c6"
+  },
+  "src/cua/recorder.py": {
+    "mtime": 1790487350.3214777,
+    "seen": 1790542666.665621,
+    "ast_hash": "7108a1c841a7444876ca408186d5918e",
+    "semantic_hash": "7108a1c841a7444876ca408186d5918e"
+  },
+  "src/cua/replay.py": {
+    "mtime": 1790481980.8590753,
+    "seen": 1790542666.665622,
+    "ast_hash": "0e3c8c0ebff3b93ecd52fed1cc547aa2",
+    "semantic_hash": "0e3c8c0ebff3b93ecd52fed1cc547aa2"
+  },
+  "src/cua/schema.py": {
+    "mtime": 1790481980.8594174,
+    "seen": 1790542666.665622,
+    "ast_hash": "a91e7a351974d6ff23fe48831b731229",
+    "semantic_hash": "a91e7a351974d6ff23fe48831b731229"
+  },
+  "tests/test_agent.py": {
+    "mtime": 1790541589.0960915,
+    "seen": 1790542666.665623,
+    "ast_hash": "b03aaab976b77c8dd3b5ac83c4567207",
+    "semantic_hash": "b03aaab976b77c8dd3b5ac83c4567207"
+  },
+  "tests/test_cli.py": {
+    "mtime": 1790541549.5692244,
+    "seen": 1790542666.665623,
+    "ast_hash": "1da237a63593a7f278b5c4dfdf81290b",
+    "semantic_hash": "1da237a63593a7f278b5c4dfdf81290b"
+  },
+  "tests/test_live.py": {
+    "mtime": 1790481980.8602345,
+    "seen": 1790542666.6656241,
+    "ast_hash": "54a2e48aef314a29e691d484e9a12b3d",
+    "semantic_hash": "54a2e48aef314a29e691d484e9a12b3d"
+  },
+  "tests/test_recorder.py": {
+    "mtime": 1790487387.267232,
+    "seen": 1790542666.6656241,
+    "ast_hash": "7268e3727a72a7c17f626e1d5d9f0565",
+    "semantic_hash": "7268e3727a72a7c17f626e1d5d9f0565"
+  },
+  "tests/test_replay.py": {
+    "mtime": 1790481980.8609352,
+    "seen": 1790542666.665625,
+    "ast_hash": "c8cda5273ebf524237e1bcabac9c0791",
+    "semantic_hash": "c8cda5273ebf524237e1bcabac9c0791"
+  },
+  "tests/test_schema.py": {
+    "mtime": 1790481980.8613727,
+    "seen": 1790542666.665625,
+    "ast_hash": "655873e69267b311e1996e65aa8428c6",
+    "semantic_hash": "655873e69267b311e1996e65aa8428c6"
+  },
+  "CLAUDE.md": {
+    "mtime": 1790542625.2821972,
+    "seen": 1790545000.1837718,
+    "ast_hash": "a6a8f8afa22d2359017d7f38bad8a9e3",
+    "semantic_hash": "a6a8f8afa22d2359017d7f38bad8a9e3"
+  },
+  "DECISIONS.md": {
+    "mtime": 1790541670.6242507,
+    "seen": 1790545000.183774,
+    "ast_hash": "e03a723daac49bd4b4d5771ac2154cf6",
+    "semantic_hash": "e03a723daac49bd4b4d5771ac2154cf6"
+  },
+  "PHASE1.md": {
+    "mtime": 1790481980.8328443,
+    "seen": 1790545000.183774,
+    "ast_hash": "6f3886b9f68708c746dae7f1868d83c3",
+    "semantic_hash": "6f3886b9f68708c746dae7f1868d83c3"
+  },
+  "PHASE2.md": {
+    "mtime": 1790481980.8331714,
+    "seen": 1790545000.183775,
+    "ast_hash": "6ed58fbba06092d54531185ee5e1119a",
+    "semantic_hash": "6ed58fbba06092d54531185ee5e1119a"
+  },
+  "PHASE3.md": {
+    "mtime": 1790463548.8858411,
+    "seen": 1790545000.183775,
+    "ast_hash": "7aac3da808be103335fd63c15a1c9a73",
+    "semantic_hash": "7aac3da808be103335fd63c15a1c9a73"
+  },
+  "PHASE4.md": {
+    "mtime": 1790465667.0518332,
+    "seen": 1790545000.183777,
+    "ast_hash": "ebd08acd9b9c1fdd15ebe03e0f70bbb8",
+    "semantic_hash": "ebd08acd9b9c1fdd15ebe03e0f70bbb8"
+  },
+  "PHASE5.md": {
+    "mtime": 1790481980.833603,
+    "seen": 1790545000.183777,
+    "ast_hash": "23294b17f6af7587d47d31588ede02be",
+    "semantic_hash": "23294b17f6af7587d47d31588ede02be"
+  },
+  "README.md": {
+    "mtime": 1790481980.8340628,
+    "seen": 1790545000.183778,
+    "ast_hash": "92f23c0bf823eea100eae2530527bca4",
+    "semantic_hash": "92f23c0bf823eea100eae2530527bca4"
+  },
+  "REPORT.md": {
+    "mtime": 1790481980.8344445,
+    "seen": 1790545000.183778,
+    "ast_hash": "b9349cbedbdf33da2ec38c6f541e3f06",
+    "semantic_hash": "b9349cbedbdf33da2ec38c6f541e3f06"
+  },
+  "artifacts/balance_check.yaml": {
+    "mtime": 1790486620.021852,
+    "seen": 1790545000.183779,
+    "ast_hash": "196ed23a6eb877d5e928eb7f9d2ef6db",
+    "semantic_hash": "196ed23a6eb877d5e928eb7f9d2ef6db"
+  },
+  "artifacts/examples/get_account_balance.yaml": {
+    "mtime": 1790483275.2506068,
+    "seen": 1790545000.183779,
+    "ast_hash": "40cbf529bd124949597e74e8a4556221",
+    "semantic_hash": "40cbf529bd124949597e74e8a4556221"
+  },
+  "artifacts/examples/transfer_funds.yaml": {
+    "mtime": 1790483275.2508965,
+    "seen": 1790545000.1837802,
+    "ast_hash": "78124e2ac3ecf803a2de7d3371832c26",
+    "semantic_hash": "78124e2ac3ecf803a2de7d3371832c26"
+  },
+  "artifacts/get_account_balance.yaml": {
+    "mtime": 1790483275.251301,
+    "seen": 1790545000.1837802,
+    "ast_hash": "9a27f12c2d5342ca003c0e960d0bb65d",
+    "semantic_hash": "9a27f12c2d5342ca003c0e960d0bb65d"
+  },
+  "artifacts/get_account_balance_discovery_demo.yaml": {
+    "mtime": 1790483943.7149086,
+    "seen": 1790545000.1837802,
+    "ast_hash": "326cdd29fbabf99e347323321c2cfd10",
+    "semantic_hash": "326cdd29fbabf99e347323321c2cfd10"
+  },
+  "artifacts/login_parabank.yaml": {
+    "mtime": 1790488336.7318583,
+    "seen": 1790545000.1837811,
+    "ast_hash": "daf8f2394ee361def5228c5abcb140eb",
+    "semantic_hash": "daf8f2394ee361def5228c5abcb140eb"
+  },
+  "artifacts/my_cap.yaml": {
+    "mtime": 1790487752.7514808,
+    "seen": 1790545000.1837811,
+    "ast_hash": "12479980b1567ebbbeabc90079cfb7d0",
+    "semantic_hash": "12479980b1567ebbbeabc90079cfb7d0"
+  },
+  "artifacts/my_def.yaml": {
+    "mtime": 1790488336.738608,
+    "seen": 1790545000.1837819,
+    "ast_hash": "4a18127467cb57ab427564b65f99e173",
+    "semantic_hash": "4a18127467cb57ab427564b65f99e173"
+  },
+  "artifacts/my_seep.yaml": {
+    "mtime": 1790488002.6399772,
+    "seen": 1790545000.1837819,
+    "ast_hash": "b9924f920cb49c0b20fd5ac241b566eb",
+    "semantic_hash": "b9924f920cb49c0b20fd5ac241b566eb"
+  },
+  "artifacts/pay_bill.yaml": {
+    "mtime": 1790483275.2519166,
+    "seen": 1790545000.1837828,
+    "ast_hash": "fdd7566f3e84a42f1a0ff05f17342253",
+    "semantic_hash": "fdd7566f3e84a42f1a0ff05f17342253"
+  },
+  "artifacts/transfer_funds.yaml": {
+    "mtime": 1790483296.7623172,
+    "seen": 1790545000.1837828,
+    "ast_hash": "ee12fb5daaef0d40f1e7efbe5b89c618",
+    "semantic_hash": "ee12fb5daaef0d40f1e7efbe5b89c618"
+  },
+  "assigment -compuse/Untitled.md": {
+    "mtime": 1790543471.4217052,
+    "seen": 1790545000.183784,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "assigment -compuse/Welcome.md": {
+    "mtime": 1790543440.1066873,
+    "seen": 1790545000.183785,
+    "ast_hash": "5dce4937496ad2d20178a7578f1a1368",
+    "semantic_hash": "5dce4937496ad2d20178a7578f1a1368"
+  },
+  "docs/superpowers/plans/2026-09-19-roadmap-and-phase1.md": {
+    "mtime": 1789856988.6148107,
+    "seen": 1790545000.183785,
+    "ast_hash": "cbcafb8ede38e155620d556373e220ff",
+    "semantic_hash": "cbcafb8ede38e155620d556373e220ff"
+  },
+  "docs/superpowers/plans/2026-09-20-phase2-artifact-schema.md": {
+    "mtime": 1789943095.8260067,
+    "seen": 1790545000.183786,
+    "ast_hash": "08d26ba371ce67c241151a5b211e9dfc",
+    "semantic_hash": "08d26ba371ce67c241151a5b211e9dfc"
+  },
+  "docs/superpowers/plans/2026-09-20-phase3-recorder.md": {
+    "mtime": 1789946720.0066264,
+    "seen": 1790545000.183786,
+    "ast_hash": "17fb821f4a5197f5f3d2eab3f5597fe3",
+    "semantic_hash": "17fb821f4a5197f5f3d2eab3f5597fe3"
+  },
+  "docs/superpowers/plans/2026-09-22-phase2-v2-and-replay.md": {
+    "mtime": 1790107949.99747,
+    "seen": 1790545000.183787,
+    "ast_hash": "4c266d8d25d842bce95ef9899170e796",
+    "semantic_hash": "4c266d8d25d842bce95ef9899170e796"
+  },
+  "docs/superpowers/plans/2026-09-25-phase3-recorder-v2.md": {
+    "mtime": 1790369403.1408813,
+    "seen": 1790545000.183787,
+    "ast_hash": "9b6028aa2babef85b127f22fceea549a",
+    "semantic_hash": "9b6028aa2babef85b127f22fceea549a"
+  },
+  "docs/superpowers/plans/2026-09-26-phase4-live-wiring.md": {
+    "mtime": 1790453055.8276298,
+    "seen": 1790545000.183788,
+    "ast_hash": "e57210f02db8f09665f2342c88829f17",
+    "semantic_hash": "e57210f02db8f09665f2342c88829f17"
+  },
+  "docs/superpowers/plans/2026-09-26-recorder-human-entry-fix.md": {
+    "mtime": 1790453970.6775036,
+    "seen": 1790545000.183788,
+    "ast_hash": "b3fe8c986fe509fc649f6805a07f4cb8",
+    "semantic_hash": "b3fe8c986fe509fc649f6805a07f4cb8"
+  },
+  "evidence/README.md": {
+    "mtime": 1790481980.83492,
+    "seen": 1790545000.183789,
+    "ast_hash": "f115402d1eac60ed4b43e9c35989e006",
+    "semantic_hash": "f115402d1eac60ed4b43e9c35989e006"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery-v2/capability.yaml": {
+    "mtime": 1790483482.899993,
+    "seen": 1790545000.183789,
+    "ast_hash": "5d1130cfa122067c0e9fe3a6afe9ac53",
+    "semantic_hash": "5d1130cfa122067c0e9fe3a6afe9ac53"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery-v2/goal.txt": {
+    "mtime": 1790483482.899759,
+    "seen": 1790545000.18379,
+    "ast_hash": "21f6287006074b7c6b518cbdccdf922e",
+    "semantic_hash": "21f6287006074b7c6b518cbdccdf922e"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery-v2/login_capability.yaml": {
+    "mtime": 1790483482.9000857,
+    "seen": 1790545000.18379,
+    "ast_hash": "697ea8c46443f697ac0bc88c7d1b1d9b",
+    "semantic_hash": "697ea8c46443f697ac0bc88c7d1b1d9b"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery/capability.yaml": {
+    "mtime": 1790481980.8357732,
+    "seen": 1790545000.1837912,
+    "ast_hash": "5d1130cfa122067c0e9fe3a6afe9ac53",
+    "semantic_hash": "5d1130cfa122067c0e9fe3a6afe9ac53"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery/goal.txt": {
+    "mtime": 1790481980.8368552,
+    "seen": 1790545000.183792,
+    "ast_hash": "21f6287006074b7c6b518cbdccdf922e",
+    "semantic_hash": "21f6287006074b7c6b518cbdccdf922e"
+  },
+  "evidence/discovery/20260927-get-account-balance-discovery/login_capability.yaml": {
+    "mtime": 1790481980.8372865,
+    "seen": 1790545000.183792,
+    "ast_hash": "697ea8c46443f697ac0bc88c7d1b1d9b",
+    "semantic_hash": "697ea8c46443f697ac0bc88c7d1b1d9b"
+  },
+  "evidence/replay/get_account_balance-error-account-not-found/capability.yaml": {
+    "mtime": 1790481980.8379912,
+    "seen": 1790545000.1837928,
+    "ast_hash": "0e035da7f59c6c4c8af1f1aa73e76d3f",
+    "semantic_hash": "0e035da7f59c6c4c8af1f1aa73e76d3f"
+  },
+  "evidence/replay/get_account_balance-error-slow-page/capability.yaml": {
+    "mtime": 1790481980.8394575,
+    "seen": 1790545000.1837928,
+    "ast_hash": "5606cbec6df4bbf4dc48b8ab6e03b6b9",
+    "semantic_hash": "5606cbec6df4bbf4dc48b8ab6e03b6b9"
+  },
+  "evidence/replay/transfer_funds-error-element-missing/capability.yaml": {
+    "mtime": 1790481980.8407445,
+    "seen": 1790545000.183794,
+    "ast_hash": "ee12fb5daaef0d40f1e7efbe5b89c618",
+    "semantic_hash": "ee12fb5daaef0d40f1e7efbe5b89c618"
+  },
+  "evidence/replay/transfer_funds-error-session-expired/capability.yaml": {
+    "mtime": 1790481980.8415947,
+    "seen": 1790545000.183794,
+    "ast_hash": "ee12fb5daaef0d40f1e7efbe5b89c618",
+    "semantic_hash": "ee12fb5daaef0d40f1e7efbe5b89c618"
+  },
+  "evidence/replay/transfer_funds-error-transfer-over-limit/capability.yaml": {
+    "mtime": 1790481980.8423297,
+    "seen": 1790545000.183795,
+    "ast_hash": "ee12fb5daaef0d40f1e7efbe5b89c618",
+    "semantic_hash": "ee12fb5daaef0d40f1e7efbe5b89c618"
+  },
+  "evidence/replay/transfer_funds-success/capability.yaml": {
+    "mtime": 1790481980.8438694,
+    "seen": 1790545000.183795,
+    "ast_hash": "ee12fb5daaef0d40f1e7efbe5b89c618",
+    "semantic_hash": "ee12fb5daaef0d40f1e7efbe5b89c618"
+  },
+  "notebooks/FINDINGS.md": {
+    "mtime": 1790463052.5089638,
+    "seen": 1790545000.183796,
+    "ast_hash": "adc4dc6362adc782f94500ffdd1e43ca",
+    "semantic_hash": "adc4dc6362adc782f94500ffdd1e43ca"
+  },
+  "Assignment A \u2014 Computer-Use Automation System (1).pdf": {
+    "mtime": 1789771668.9550574,
+    "seen": 1790545000.183797,
+    "ast_hash": "88eee858d066fe48eed3ff17fbec0edc",
+    "semantic_hash": "88eee858d066fe48eed3ff17fbec0edc"
+  },
+  "ARCHITECTURE.md": {
+    "mtime": 1790545805.863011,
+    "seen": 1790545822.116329,
+    "ast_hash": "867eea61375fb424ba1e4348da29402b",
+    "semantic_hash": ""
+  },
+  "notebooks/agent_2_legacy_surface.py": {
+    "mtime": 1790546389.1222594,
+    "seen": 1790546411.423179,
+    "ast_hash": "efe7598c8b7380b5f78d38b4023a2d4e",
+    "semantic_hash": ""
+  }
+}
