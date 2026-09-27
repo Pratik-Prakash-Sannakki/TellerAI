@@ -307,6 +307,12 @@ _VALUE_OF = {
 }
 _SPECIAL_WRAPPED = {"finish", "request_value", "request_missing_values", "extract_value", "finish_business_outcome"}
 
+# D76 (also D99): these four tool names predate agent.ipynb's own JOB_EXTRA_TOOLS mapping and must
+# never be silently stripped by the TypeSafe job router just because the mapping predates them --
+# folded into `agent_mod.NEVER_HIDE` via `build_typesafe_middleware`'s `extra_never_hide` param,
+# matching `03_recorder.py`'s OFFLINE 13b extension exactly.
+_RECORDER_NEVER_HIDE_EXTRA = {"request_missing_values", "extract_value", "open_path", "finish_business_outcome"}
+
 RECORDER_SYSTEM_PROMPT = agent_mod.SYSTEM_PROMPT.replace(
     "- finish(summary, values): report the result, logout and then stop.\n",
     "- extract_value(label, save_as, value_type, description): read one specific value shown next"
@@ -356,7 +362,12 @@ def _infer_input_type(value: str) -> str:
 async def _run_discover(args: argparse.Namespace) -> int:
     agent_run = await agent_mod.build_agent(goal_text=args.goal, auto_limit=args.auto_approve_limit)
     tools, events = _build_capture(agent_run)
-    lc_agent = agent_mod.build_langchain_agent(tools, system_prompt=RECORDER_SYSTEM_PROMPT)
+    # D99: build_langchain_agent used to be called with NO middleware argument at all, so it
+    # silently defaulted to [] on every `cua discover` run regardless of TYPESAFE_API_KEY --
+    # 03_recorder.py's own BROWSER 12 always builds this list (empty when no key, TypeSafe
+    # tool-router + model-router when one is set) and passes it into its create_deep_agent call.
+    middleware = agent_mod.build_typesafe_middleware(agent_run, extra_never_hide=_RECORDER_NEVER_HIDE_EXTRA)
+    lc_agent = agent_mod.build_langchain_agent(tools, system_prompt=RECORDER_SYSTEM_PROMPT, middleware=middleware)
 
     import uuid
 

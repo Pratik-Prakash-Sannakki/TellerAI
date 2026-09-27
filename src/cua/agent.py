@@ -27,9 +27,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import functools
+import os
 from dataclasses import dataclass, field
 
-from cua.config import ALLOWED_HOSTS, BASE, MODEL, SECRETS, host_allowed, resolve_secret
+from cua.config import ALLOWED_HOSTS, BASE, HAIKU_MODEL, MODEL, SECRETS, SONNET_MODEL, host_allowed, resolve_secret
 
 __all__ = [
     "Observation",
@@ -40,6 +41,13 @@ __all__ = [
     "format_elements",
     "build_agent",
     "build_langchain_agent",
+    "build_typesafe_middleware",
+    "job_tool_names",
+    "confidence_gate",
+    "NEVER_HIDE",
+    "JOB_EXTRA_TOOLS",
+    "JOB_CRITERIA",
+    "JOB_CONFIDENCE_THRESHOLD",
     "SYSTEM_PROMPT",
     "OBSERVE_JS",
     "DRAW_JS",
@@ -1045,3 +1053,119 @@ def build_langchain_agent(tools: list, *, model: str = MODEL, system_prompt: str
         checkpointer=MemorySaver(),
         middleware=middleware or [],
     )
+
+
+# ---------------------------------------------------------------------------
+# Optional TypeSafe tool-selection + model-routing middleware (D50, D52, D76).
+#
+# D99: `build_langchain_agent`'s own `middleware` parameter (above) has existed since this was
+# ported, but nothing in `src/cua/` ever actually BUILT a middleware list from it -- `cua.cli`'s
+# `_run_discover` called `build_langchain_agent(tools, system_prompt=RECORDER_SYSTEM_PROMPT)` with
+# no `middleware` argument at all, so it silently defaulted to `[]` on every single `cua discover`
+# run, REGARDLESS of whether `TYPESAFE_API_KEY` was set in `.env`. `03_recorder.py`'s own BROWSER
+# 11/12 (the reference implementation) builds `recorder_middleware` from
+# `TypeSafeToolRouterMiddleware`/`ModelRouterMiddleware` and passes it into its own
+# `create_deep_agent(..., middleware=recorder_middleware)` call. `src/cua/config.py` already had
+# `TYPESAFE_API_KEY`/`HAIKU_MODEL`/`SONNET_MODEL` defined (D93's shared config module) -- only the
+# middleware CLASSES and the job-mapping/confidence-gate logic that decide what to build from them
+# were never ported. This is that port: `job_tool_names`/`confidence_gate`/`NEVER_HIDE`/
+# `JOB_EXTRA_TOOLS`/`JOB_CRITERIA` are copied verbatim from `03_recorder.py`'s OFFLINE 13b (itself
+# copied from agent.ipynb's STEP 3d/3e), and `build_typesafe_middleware()` reproduces BROWSER 12's
+# own `if TYPESAFE_API_KEY: ... else: ...` construction exactly, as a single, reusable, offline-
+# testable function instead of inline notebook-cell code. Still off by default: with no
+# `TYPESAFE_API_KEY` in `.env`, this returns `[]` and the agent behaves exactly as before.
+NEVER_HIDE = {"observe", "click", "type_secret", "finish"}   # always allowed, whatever the job
+
+JOB_EXTRA_TOOLS = {
+    "login": {"type_secret"},
+    "fill_form": {"type_text", "select_option"},
+    "read_value": {"page_text"},
+    "need_human": {"request_value", "ask_human"},
+}
+JOB_CRITERIA = {
+    "login": "The page shows a username or password field, or we have not logged in yet.",
+    "fill_form": "A form is on screen and a field still needs a value typed or a dropdown chosen.",
+    "read_value": "We need to read a value already on the page, such as a balance or a confirmation message.",
+    "need_human": "We are unsure which element to use, or a value we need was not given by the user.",
+}
+JOB_CONFIDENCE_THRESHOLD = 0.8
+
+
+def job_tool_names(job: str, never_hide: frozenset[str] | set[str] = NEVER_HIDE) -> set[str]:
+    """Tools this job needs, plus the always-allowed set. Pure: no network, no LLM."""
+    return set(never_hide) | JOB_EXTRA_TOOLS.get(job, set())
+
+
+def confidence_gate(base_tools: set[str], job: str, confidence: float,
+                     never_hide: frozenset[str] | set[str] = NEVER_HIDE,
+                     threshold: float = JOB_CONFIDENCE_THRESHOLD) -> set[str]:
+    """Narrow base_tools to this job's tools, but only if the classifier is confident.
+    Below the threshold, fail OPEN: return base_tools unchanged rather than guess wrong."""
+    if confidence < threshold:
+        return base_tools
+    return base_tools & job_tool_names(job, never_hide)
+
+
+def build_typesafe_middleware(agent: "DiscoveryAgent", *, extra_never_hide: set[str] | None = None) -> list:
+    """Build the D50/D52 TypeSafe middleware list (tool router + model router), matching
+    `03_recorder.py`'s BROWSER 11/12 wiring exactly. Returns `[]` if `TYPESAFE_API_KEY` is not set
+    in `.env` -- the caller's agent then behaves exactly as before this function existed (one
+    model, full tool list, D50's own "off by default" contract).
+
+    `extra_never_hide` folds in caller-specific tool names that must never be stripped by the job
+    router (D76: `03_recorder.py`'s own `extract_value`/`open_path`/`finish_business_outcome`/
+    `request_missing_values`, which predate agent.ipynb's `JOB_EXTRA_TOOLS` mapping) -- `cua.cli`
+    passes these for `cua discover`'s CAPTURE-mode tool list; a caller building a plain (non-
+    capture) agent can omit it and get agent.ipynb's original 4-tool `NEVER_HIDE` unchanged."""
+    key = os.getenv("TYPESAFE_API_KEY", "")
+    if not key:
+        print("model router OFF: no TYPESAFE_API_KEY in .env. Using MODEL only:", MODEL)
+        return []
+
+    from langchain.agents.middleware import AgentMiddleware
+    from langchain_typesafe import Choice, TypeSafeClassifier
+    from langchain_typesafe.experimental.middleware import ModelChoice, ModelRouterMiddleware
+
+    never_hide = NEVER_HIDE | (extra_never_hide or set())
+
+    class TypeSafeToolRouterMiddleware(AgentMiddleware):
+        """Classifies the step's job with TypeSafe's Choice primitive and narrows the tool
+        list to it. Sends the current page path and the last tool result's text to
+        api.typesafe.ai (D50/D52 caveat: never enable on a run that may show real account
+        data). Any error here (network, auth, timeout) fails OPEN: the request goes through
+        unmodified."""
+
+        def __init__(self, classifier, never_hide: set[str] = never_hide):
+            self.classifier = classifier
+            self.never_hide = never_hide   # instance attribute, not just a closure -- testable directly
+
+        async def awrap_model_call(self, request, handler):
+            try:
+                state = f"page={page_name_from_url(agent.page.url)!r}. last result: {str(request.messages[-1].content)[:400]!r}"
+                response = await self.classifier.ainvoke(
+                    {"state": state, "questions": {"job": Choice(instructions="What kind of step is this?", criteria=JOB_CRITERIA)}}
+                )
+                answer = response.choices["job"]
+                named = {t.name for t in request.tools if hasattr(t, "name")}
+                keep = confidence_gate(named, answer.choice, answer.confidence, self.never_hide)
+                request = request.override(tools=[t for t in request.tools if not hasattr(t, "name") or t.name in keep])
+                print(f"typesafe job -> {answer.choice!r} confidence={answer.confidence:.2f} kept={sorted(keep)}")
+            except Exception as exc:
+                print(f"typesafe job router FAILED, continuing with no change: {type(exc).__name__}: {exc}")
+            return await handler(request)
+
+    recorder_router = ModelRouterMiddleware(
+        choices={
+            "fast": ModelChoice(
+                model=HAIKU_MODEL,
+                criteria="A single simple step: reading the page, or one obvious click, type, or select with no ambiguity.",
+            ),
+            "powerful": ModelChoice(
+                model=SONNET_MODEL,
+                criteria="Anything else: planning, choosing between several similar elements, forms, or any step before a risky click.",
+            ),
+        },
+        instructions="Pick the cheapest model that can do the step correctly. If unsure, pick 'powerful'.",
+    )
+    print(f"model router ON (TypeSafe): fast={HAIKU_MODEL} | powerful={SONNET_MODEL}")
+    return [TypeSafeToolRouterMiddleware(TypeSafeClassifier()), recorder_router]

@@ -145,3 +145,12 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   `one_at_a_time` lock every one of `agent.py`'s own base tools already carries — restored, locking
   on the identical `agent._act_lock`. See DECISIONS.md D98 (part of an ongoing investigation into a
   separate, still-open `extract_value`-called-repeatedly bug; this fix did not close it).
+  **2026-09-27 fix (4):** the real cause of that bug — `03_recorder.py`'s BROWSER 11/12 TypeSafe
+  tool-router/model-router middleware (D50, D52, D76) was never ported to `src/cua/` at all. `cli.py`'s
+  `_run_discover` called `build_langchain_agent(tools, system_prompt=RECORDER_SYSTEM_PROMPT)` with no
+  `middleware` argument, so `cua discover` ran with neither layer, on every invocation, regardless of
+  `TYPESAFE_API_KEY`. `agent.py` gained `job_tool_names`/`confidence_gate`/`NEVER_HIDE`/
+  `JOB_EXTRA_TOOLS`/`JOB_CRITERIA` (ported verbatim from `03_recorder.py`'s OFFLINE 13b) and a new
+  `build_typesafe_middleware()` that reproduces BROWSER 12's construction exactly; `cli.py` now calls
+  it and passes the result through. Still off by default (unchanged behavior with no key). See
+  DECISIONS.md D99, including what this fix's offline tests do and do not prove.

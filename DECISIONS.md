@@ -3071,3 +3071,91 @@ for the actual cause and fix.
 
 **Brief ref:** D73 (the three new tools), agent.ipynb's own login-race-condition history (the
 original reason `one_at_a_time` exists at all).
+
+### D99 — TypeSafe tool-router/model-router middleware (D50, D52, D76) was never ported to `src/cua/` at all; `cua discover` silently ran with zero of it, regardless of `TYPESAFE_API_KEY`
+
+**Symptom:** `uv run cua discover "Log in and read the balance of account 18672. Use extract_value
+to save it as 'balance'." --name balance_check` reproduced live 3 times in a row: the agent called
+`extract_value(save_as='balance', ...)` 2, then 3, then 3 times in the same run, so `compile_run`
+correctly refused (`duplicate output name 'balance'`) rather than silently pick one. The exact same
+goal text, run via a hand-built script that executes `03_recorder.py`'s own BROWSER cells directly
+(bypassing `src/cua/` entirely), succeeded cleanly twice in a row, with exactly one `extract_value`
+call each time. Prompt wording was already tried twice and ruled out (a MORE constrained wording
+made it worse, 2 calls became 3) -- the two code paths must differ structurally.
+
+**Investigation:** `03_recorder.py`'s BROWSER 11/12 build `recorder_middleware` from
+`TypeSafeToolRouterMiddleware` (D52's per-step tool-selection classifier) and `ModelRouterMiddleware`
+(D50's Haiku/Sonnet router), gated on `TYPESAFE_API_KEY`, and pass it into their own
+`create_deep_agent(..., middleware=recorder_middleware)` call. `src/cua/agent.py`'s
+`build_langchain_agent(tools, *, model=MODEL, system_prompt=SYSTEM_PROMPT, middleware=None)`
+defaults `middleware` to `[]` when the caller passes none. `src/cua/cli.py`'s `_run_discover` -- the
+CLI's only caller of `build_langchain_agent` -- called it as
+`agent_mod.build_langchain_agent(tools, system_prompt=RECORDER_SYSTEM_PROMPT)`, with NO `middleware`
+argument at all. Confirmed directly, not assumed: `grep -rn "TypeSafe\|Choice\|ModelRouter\|
+confidence_gate\|JOB_CRITERIA" src/cua/*.py` found ZERO matches outside a comment in
+`recorder.py` and `config.py`'s own already-present (but unused) `TYPESAFE_API_KEY`/`HAIKU_MODEL`/
+`SONNET_MODEL` constants (D93's shared-config module -- the config values were ported, the classes
+and job-mapping logic that consume them never were). So `cua discover` ran with NEITHER layer, on
+every single invocation, regardless of whether `TYPESAFE_API_KEY` was set in `.env` -- not "off by
+default" (D50/D52's own intended behavior), but structurally incapable of ever being on. This is
+confirmed to be another gap in the same family as D95/D96/D97/D98: something `03_recorder.py`'s
+BROWSER cells do that the Phase 9 port silently dropped.
+
+**Note on the causal mechanism:** D76 already folds `extract_value`/`open_path`/
+`finish_business_outcome`/`request_missing_values` into `NEVER_HIDE` (tools the job router must
+never strip, whatever the classified job) -- so `TypeSafeToolRouterMiddleware` being active would
+NOT, by itself, ever remove `extract_value` from the model's tool list after a first successful
+call; that specific mechanism (a narrower tool list preventing re-selection) does not hold up under
+a direct reading of D76's own code. What IS confirmed, structurally, is that the two live-tested
+code paths are NOT equivalent: one runs the D50 model router (alternating Haiku/Sonnet per step,
+per TypeSafe's own step classification) and the D52 tool router (real per-step tool-list changes,
+even though `extract_value` itself always survives them) on every step; the other runs neither,
+ever. Given the two paths are confirmed structurally different and the notebook path is the one
+that has worked live twice, this port is brought into genuine alignment with it -- see the Hard
+rules in this task's own dispatch for why a further prompt-wording change was explicitly rejected
+as the lever to pull here instead.
+
+**Chosen:** `src/cua/agent.py` gains `NEVER_HIDE`/`JOB_EXTRA_TOOLS`/`JOB_CRITERIA`/
+`JOB_CONFIDENCE_THRESHOLD`/`job_tool_names`/`confidence_gate` (copied verbatim from
+`03_recorder.py`'s OFFLINE 13b, itself copied from agent.ipynb's STEP 3d/3e) and a new
+`build_typesafe_middleware(agent, *, extra_never_hide=None)` function that reproduces BROWSER 12's
+own `if TYPESAFE_API_KEY: ... else: ...` construction exactly, as a single reusable, offline-
+testable call instead of inline notebook-cell code. `src/cua/cli.py`'s `_run_discover` now calls
+`agent_mod.build_typesafe_middleware(agent_run, extra_never_hide=_RECORDER_NEVER_HIDE_EXTRA)` (a
+new module-level constant holding D76's own four recorder-only tool names) and passes the result
+into `build_langchain_agent`'s `middleware=` argument. Still off by default: with no
+`TYPESAFE_API_KEY`, `build_typesafe_middleware` returns `[]` and behavior is byte-for-byte unchanged
+from before this fix.
+
+**Verified offline (no network, no key, no browser):** `uv run pytest` -- 158/158 passed (143
+existing + 15 new), zero regressions. New tests in `tests/test_agent.py` port every one of
+`03_recorder.py`'s OFFLINE 13b/13c assertions (`confidence_gate`'s narrowing, fail-open-below-
+threshold, boundary-inclusive, never-hide-survives-a-reduced-base-set, unknown-job, and D76's own
+never-hide extension) against `cua.agent`'s copy, plus direct tests of `build_typesafe_middleware`
+itself: returns `[]` with no key (and with an empty-string key), and -- with a fake, non-network
+placeholder key (`monkeypatch.setenv`, never a real key) -- returns exactly the two middleware
+objects `03_recorder.py`'s BROWSER 12 builds (`isinstance` against `AgentMiddleware`/
+`ModelRouterMiddleware`, `TypeSafeClassifier()`'s own constructor makes no network call, only
+builds httpx clients). New `tests/test_cli.py` exercises `_run_discover` itself end to end,
+offline: `agent_mod.build_agent` (needs a real browser) and `agent_mod.build_langchain_agent`
+(needs a real model call inside `ainvoke`) are monkeypatched to offline stand-ins that capture
+their arguments; `agent_mod.build_typesafe_middleware` is left real, gated only by the
+`TYPESAFE_API_KEY` env var. Confirms directly: with no key, `_run_discover` passes `middleware=[]`
+(unchanged prior behavior); with a fake key set, it passes a 2-item middleware list of the correct
+types, and the tool router's own `.never_hide` includes all four D76 recorder-only tool names --
+proving the exact kwarg that was previously never passed at all is now correctly threaded through.
+
+**What this does NOT prove, and could not prove under this task's own hard rules (never launch a
+browser, never use a real API key):** that TypeSafe being active actually stops the model from
+calling `extract_value` more than once live. The offline tests above prove the WIRING now matches
+`03_recorder.py`'s reference implementation structurally (same classes constructed, same gating,
+same never-hide set) -- they cannot and do not simulate what a real model does differently when
+`ModelRouterMiddleware` is alternating it between Haiku and Sonnet per step, or when
+`TypeSafeToolRouterMiddleware` is narrowing its non-`extract_value` tool options each turn. That
+live confirmation is explicitly left to the user to run (see this task's own final report for the
+exact command and what output would confirm it).
+
+**Brief ref:** D50 (model router), D52 (tool router), D76 (recorder's own never-hide extension),
+D93 (the shared `config.py` that already had the unused `TYPESAFE_API_KEY`/`HAIKU_MODEL`/
+`SONNET_MODEL` constants sitting in it), D95/D96/D97/D98 (the rest of this same family of
+Phase-9-port-dropped-something-live-only-reveals bugs).

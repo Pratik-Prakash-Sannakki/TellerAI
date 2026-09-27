@@ -12,10 +12,19 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from cua.agent import (
+    JOB_CONFIDENCE_THRESHOLD,
+    JOB_CRITERIA,
+    JOB_EXTRA_TOOLS,
+    NEVER_HIDE,
     DiscoveryAgent,
     PlaywrightSurface,
+    build_typesafe_middleware,
+    confidence_gate,
     format_elements,
+    job_tool_names,
     login_check,
     missing_field_labels,
     page_name_from_url,
@@ -146,3 +155,106 @@ def test_playwright_surface_name_of_looks_up_last_elements():
     surface.last_elements = [{"ref": 1, "role": "textbox", "name": "Username", "value": ""}]
     assert surface.name_of(1) == "Username"
     assert surface.name_of(99) is None
+
+
+# ---------- D50/D52/D76/D99: TypeSafe job mapping, confidence gate, middleware construction ----------
+# Ported directly from `03_recorder.py`'s own OFFLINE 13b/13c offline checks (same values, same
+# expected sets), proving `cua.agent`'s copy of this logic behaves identically to the reference
+# notebook's. Zero network, zero API key -- `confidence_gate`/`job_tool_names` are pure.
+_ALL_TOOL_NAMES = {"observe", "click", "type_text", "type_secret", "select_option", "page_text",
+                    "request_value", "request_missing_values", "ask_human", "finish"}
+
+
+def test_never_hide_matches_agent_ipynb_original_four():
+    assert NEVER_HIDE == {"observe", "click", "type_secret", "finish"}
+
+
+def test_confidence_gate_narrows_when_confident():
+    assert confidence_gate(_ALL_TOOL_NAMES, "login", 0.9) == NEVER_HIDE | {"type_secret"}
+    assert confidence_gate(_ALL_TOOL_NAMES, "fill_form", 0.85) == NEVER_HIDE | {"type_text", "select_option"}
+    assert confidence_gate(_ALL_TOOL_NAMES, "read_value", 0.8) == NEVER_HIDE | {"page_text"}
+    assert confidence_gate(_ALL_TOOL_NAMES, "need_human", 0.99) == NEVER_HIDE | {"request_value", "ask_human"}
+
+
+def test_confidence_gate_fails_open_below_threshold():
+    assert confidence_gate(_ALL_TOOL_NAMES, "login", 0.59) == _ALL_TOOL_NAMES
+
+
+def test_confidence_gate_boundary_is_inclusive():
+    assert confidence_gate(_ALL_TOOL_NAMES, "login", JOB_CONFIDENCE_THRESHOLD) == NEVER_HIDE | {"type_secret"}
+
+
+def test_confidence_gate_never_hide_survives_an_already_reduced_base_set():
+    reduced = _ALL_TOOL_NAMES - {"request_value", "ask_human"}
+    assert NEVER_HIDE <= confidence_gate(reduced, "fill_form", 0.9)
+
+
+def test_confidence_gate_unknown_job_returns_never_hide_only():
+    assert confidence_gate(_ALL_TOOL_NAMES, "not_a_real_job", 0.95) == NEVER_HIDE
+
+
+def test_job_criteria_has_all_four_jobs_and_matches_job_extra_tools():
+    assert set(JOB_CRITERIA) == set(JOB_EXTRA_TOOLS) == {"login", "fill_form", "read_value", "need_human"}
+
+
+def test_confidence_gate_extra_never_hide_survives_confident_narrowing():
+    """D76's own extension, ported: caller-specific tool names (cua.cli's recorder-only tools)
+    passed as `never_hide` must survive confidence_gate under every job, confident or not --
+    matching 03_recorder.py's own D76 offline check exactly."""
+    new_tools = {"request_missing_values", "extract_value", "open_path", "finish_business_outcome"}
+    all_tools = _ALL_TOOL_NAMES | new_tools
+    never_hide = NEVER_HIDE | new_tools
+    for job in ("login", "fill_form", "read_value", "need_human", "not_a_real_job"):
+        assert new_tools <= confidence_gate(all_tools, job, 0.99, never_hide), f"job {job!r} must not strip the new tools"
+
+
+# ---------- D99: build_typesafe_middleware itself (the actual bug fix) ----------
+def _typesafe_agent() -> DiscoveryAgent:
+    page = SimpleNamespace(url="https://parabank.parasoft.com/parabank/overview.htm")
+    return DiscoveryAgent(page, given_text="Log in and read the balance of account 18672.")
+
+
+def test_build_typesafe_middleware_is_off_by_default(monkeypatch):
+    """No TYPESAFE_API_KEY in the environment: returns [] -- the caller's agent then behaves
+    exactly as before this function existed (D50's own 'off by default' contract, unchanged)."""
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    assert build_typesafe_middleware(_typesafe_agent()) == []
+
+
+def test_build_typesafe_middleware_empty_key_is_also_off(monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "")
+    assert build_typesafe_middleware(_typesafe_agent()) == []
+
+
+def test_build_typesafe_middleware_builds_both_layers_when_key_set(monkeypatch):
+    """THE fix under test: when TYPESAFE_API_KEY is set, this must build the SAME two middleware
+    objects `03_recorder.py`'s BROWSER 12 builds (`recorder_middleware = [TypeSafeToolRouterMiddleware(...),
+    recorder_router]`) -- never a real network call, just object construction. A fake key value is
+    used (per this task's own hard rule: never a real TYPESAFE_API_KEY) -- `TypeSafeClassifier()`'s
+    constructor only builds httpx clients, it makes no request at construction time."""
+    from langchain.agents.middleware import AgentMiddleware
+    from langchain_typesafe.experimental.middleware import ModelRouterMiddleware
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "not-a-real-key-offline-test-only")
+    middleware = build_typesafe_middleware(_typesafe_agent())
+
+    assert len(middleware) == 2
+    tool_router, model_router = middleware
+    assert isinstance(tool_router, AgentMiddleware)
+    assert type(tool_router).__name__ == "TypeSafeToolRouterMiddleware"
+    assert isinstance(model_router, ModelRouterMiddleware)
+
+
+def test_build_typesafe_middleware_extra_never_hide_reaches_the_tool_router(monkeypatch):
+    """D76's extension must actually reach the constructed middleware, not just exist as a
+    parameter -- read directly off the constructed instance's own `.never_hide` attribute (not
+    re-derived independently), proving `extra_never_hide` was actually threaded through."""
+    monkeypatch.setenv("TYPESAFE_API_KEY", "not-a-real-key-offline-test-only")
+    extra = {"extract_value", "open_path", "finish_business_outcome", "request_missing_values"}
+    middleware = build_typesafe_middleware(_typesafe_agent(), extra_never_hide=extra)
+    tool_router = middleware[0]
+
+    assert tool_router.never_hide == NEVER_HIDE | extra
+    all_tools = _ALL_TOOL_NAMES | extra
+    kept = confidence_gate(all_tools, "read_value", 0.99, tool_router.never_hide)
+    assert extra <= kept, "extract_value and friends must survive a confident, unrelated job classification"
