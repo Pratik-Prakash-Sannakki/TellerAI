@@ -35,6 +35,7 @@ Notebook: `agent.ipynb` (agent + Playwright on ParaBank). Setup and screenshot p
 | 5 | **Bill payment sent with no approval (twice)** | Pause depended on an element flag, the framework's `when` rule, and cell order. Send Payment slipped through. The approval bar also said "Transfer" (hard-coded), so the human approved something else | Approval moved into the `click` tool: every button except a short safe list asks a human first. Bar shows the real button and the values entered |
 | 6 | Human "Take over" opened the Playwright Inspector (code) | `page.pause()` is a developer tool | Own red bar with a "Done, hand back" button |
 | 7 | ParaBank test-user credentials were in `.env.example` (committed locally, never pushed) | Copied in during notebook work | Local history rewritten before anything was pushed; `.env.example` blank; `.gitignore` hardened; `nbstripout` added |
+| 8 | Handoff for missing values happened on the overview page, not the task page (Bill Pay, Transactions). The human had to navigate | The prompt said "if a value is missing, call ask_human", so the agent asked right after login, before opening the form | New `request_value(ref)` tool: the agent points at the field on the task page, so the page is right by construction. `ask_human` and `request_value` refuse on start pages. Prompt: open the task page first, then ask |
 
 ## Design changes (also recorded in DECISIONS.md, section K)
 

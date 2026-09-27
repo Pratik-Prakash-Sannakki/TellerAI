@@ -19,3 +19,5 @@ notebooks/scratch/
 
 # --- local ---
 .DS_Store
+.claude/
+graphify-out/

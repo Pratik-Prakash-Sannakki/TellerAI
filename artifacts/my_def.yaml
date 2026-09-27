@@ -1,0 +1,244 @@
+# DRAFT written by the recorder (src/cua port). A reviewer must read it before it is verified.
+schema_version: 1
+name: my_def
+version: 1
+status: draft
+description: pay bill to electricity company
+base_url: https://parabank.parasoft.com/parabank
+risk_level: risky
+inputs:
+- name: address
+  type: string
+  description: Address, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: city
+  type: string
+  description: City, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: state
+  type: string
+  description: State, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: zip_code
+  type: string
+  description: Zip Code, entered by a human during discovery -- provide the real value for each run.
+  required: true
+  pattern: ^.{1,80}$
+- name: phone
+  type: string
+  description: 'Phone #, entered by a human during discovery -- provide the real value for each run.'
+  required: true
+  pattern: ^.{1,80}$
+- name: account
+  type: string
+  description: 'Account #, entered by a human during discovery -- provide the real value for each run.'
+  required: true
+  pattern: ^.{1,80}$
+- name: verify_account
+  type: string
+  description: 'Verify Account #, entered by a human during discovery -- provide the real value for each
+    run.'
+  required: true
+  pattern: ^.{1,80}$
+- name: amount
+  type: string
+  description: 'Amount: $, entered by a human during discovery -- provide the real value for each run.'
+  required: true
+  pattern: ^.{1,80}$
+outputs: []
+secrets: []
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /overview.htm
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: link
+      name: Bill Pay
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+  risk: safe
+- action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Payee Name:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 1
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: Electricity Company
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Address:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 2
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{address}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'City:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 3
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{city}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'State:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 4
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{state}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Zip Code:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 5
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{zip_code}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Phone #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 6
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{phone}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Account #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 7
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{account}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Verify Account #:'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 8
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{verify_account}}'
+- why: Value entered by a human during discovery; the agent did not have this value.
+  action: type
+  target:
+    primary:
+      strategy: label
+      label: 'Amount: $'
+      stability: medium
+      note: Label text next to the field; unlikely to change independently of the field itself.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 9
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{amount}}'
+- why: Point of no return. A human approved it in discovery. Replay decides by policy.
+  action: click
+  target:
+    primary:
+      strategy: role
+      role: button
+      name: Send Payment
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 10
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  risk: risky
+checkpoint:
+  url_contains: billpay.htm
+  text_present: Bill Payment Complete
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.

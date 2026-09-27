@@ -1,0 +1,45 @@
+# DRAFT written by the recorder (src/cua port). A reviewer must read it before it is verified.
+schema_version: 1
+name: my_seep
+version: 1
+status: draft
+description: Log in and read the balance of account 18672. Use extract_value to save it as 'balance'.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: safe
+inputs: []
+outputs: []
+secrets: []
+steps:
+- why: Opened directly by the agent.
+  action: navigate
+  path: /overview.htm
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: link
+      name: Find Transactions
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+  risk: safe
+- why: Opened directly by the agent.
+  action: navigate
+  path: /activity.htm?id=18672
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: link
+      name: Log Out
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+  risk: safe
+checkpoint:
+  url_contains: index.htm
+  text_present: Customer Login
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.
