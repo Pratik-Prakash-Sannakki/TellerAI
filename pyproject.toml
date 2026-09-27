@@ -14,9 +14,28 @@ dependencies = [
     "typesafe-sdk>=0.7.1",
 ]
 
+[project.scripts]
+cua = "cua.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cua"]
+
 [dependency-groups]
 dev = [
     "ipykernel>=7.3.0",
     "jupytext>=1.19.5",
     "nbstripout>=0.9.1",
+    "pytest>=8.0.0",
 ]
+
+[tool.pytest.ini_options]
+# Scope discovery to tests/ only. Without this, pytest's default discovery walks the whole repo
+# and will import notebooks/scratch/*_test.py -- git-ignored, per-developer scratch files that
+# can (and, found live during this port, do) run top-level browser code on import. tests/ is the
+# only place this port's own test suite lives; this also means `uv run pytest` never depends on
+# what happens to be sitting in a contributor's local, git-ignored scratch directory.
+testpaths = ["tests"]
