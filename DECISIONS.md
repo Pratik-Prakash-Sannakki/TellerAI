@@ -3159,3 +3159,35 @@ exact command and what output would confirm it).
 D93 (the shared `config.py` that already had the unused `TYPESAFE_API_KEY`/`HAIKU_MODEL`/
 `SONNET_MODEL` constants sitting in it), D95/D96/D97/D98 (the rest of this same family of
 Phase-9-port-dropped-something-live-only-reveals bugs).
+
+### D100 — D99 confirmed live, and the "Balance" header trap has now recurred a third time
+
+**Live verification (D99):** `cua discover "Log in and read the balance of account 13899. Use
+extract_value to save it as 'balance'." --name balance_check` now prints `model router ON
+(TypeSafe): fast=... | powerful=...` and `typesafe job -> '...' confidence=... kept=[...]` lines on
+every step (never printed through the CLI path before D99), and -- the actual symptom this whole
+investigation started from -- `captured 7 events` with exactly ONE `extract_value` call, compiling
+cleanly with no "duplicate output name" error. Three consecutive live attempts before this one
+failed for an unrelated reason: ParaBank's own login page returned "An internal error has occurred
+and has been logged" three times in a row, correctly triggering the D69 login-attempt-guard refusal
+(a real external outage/reset, not a code bug -- resolved by re-registering the same `.env`
+credentials, per the project owner's own standing instruction to do this without asking again when
+it happens, since ParaBank's public sandbox periodically resets test accounts).
+
+**A third occurrence of the D89 label trap, found in the very run that proved D99 fixed:** the
+freshly-compiled `balance_check.yaml`'s extract step used `label: Balance*` (this time the agent
+copied the real page text including the footnote asterisk, unlike D97's discovery, which used the
+plain "Balance" -- either string still names the table's column HEADER, whose own next-sibling cell
+is the "Available Amount" header, not any real value). Repointed to `Total`, identical fix to D89
+and D97, verified live: `REPLAY RESULT: SUCCESS {'balance': '$500000.50'}`.
+
+**This is now the third time this exact shape of bug has been hand-fixed in three different files**
+(the original pre-existing `get_account_balance.yaml`, D89; a fresh discovery capture, D97; another
+fresh discovery capture, D100/this entry). The general fix flagged in D97 -- teaching `compile_run`
+to notice a `labeled_value` extract step whose recorded value doesn't look like the declared output
+type, or to prefer a footer/total-row match over a header match when a page structurally has both
+-- is still not done. Recorded here explicitly as a real, recurring, un-fixed gap rather than
+letting a third silent one-off patch quietly stand in for a real fix.
+
+**Brief ref:** D89, D97 (the first two occurrences and the still-open general fix), D99 (what this
+entry verifies live).
