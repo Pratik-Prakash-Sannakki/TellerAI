@@ -3345,3 +3345,79 @@ tests mirroring the notebook's own fixture 17a/b/c).
 still open), D16/D46 (why the resolved value itself is still never logged), D68 (the existing
 `_refuse_if_duplicate_label` this sits next to and mirrors in shape), D93/D99 (the precedent for
 flagging an unported gap explicitly rather than silently leaving it unmentioned).
+
+### D102 — D101's own stated gap closed: `cua discover`'s live CAPTURE path (`agent.py` + `cli.py`) now computes and threads `label_header`/`value_header`, protecting real discovery runs, not just `03_recorder.py` captures
+
+**Question:** D101 built a real, general, offline-tested compile-time refusal for the D89/D97/D100
+header trap, but explicitly and honestly flagged that it protected nothing a real `cua discover`
+run produces: `src/cua/agent.py`'s own `READ_LABELED_JS` copy (what `cli.py`'s capture glue
+actually evaluates against the live page) and `src/cua/cli.py`'s `_wrap_extract_value`/`_new_tools`
+were both left untouched by that task's own scoping (it was deliberately confined to
+`recorder.py`/`03_recorder.py`). Since all three real occurrences of this bug (D89, D97, D100)
+happened via `cua discover`, `compile_run`'s new check was, until this task, a no-op on every real
+run -- exactly as if D101 had never shipped, from the live user's point of view. Close that gap.
+
+**Chosen (a faithful port, not a redesign, of D101's own mechanism):**
+1. `src/cua/agent.py`'s `READ_LABELED_JS` gained the identical `valueElementOf`/`headerLike`
+   additions and the two new return fields (`label_header`, `value_header`) that
+   `notebooks/03_recorder.py` BROWSER 8 already has -- copied verbatim, same escaping, same
+   fallback order, so the two strings are BYTE-IDENTICAL (proven by a new
+   `tests/test_agent.py::test_read_labeled_js_matches_notebooks_03_recorder_byte_for_byte`, the
+   same D78-style duplication discipline this project already applies to `DESCRIBE_JS`/
+   `HEADING_JS`/`OBSERVE_JS` across `agent.ipynb`/`03_recorder.py`/`05_replay_live.py`/`agent.py`).
+2. `src/cua/cli.py`'s `_wrap_extract_value` (the CAPTURE-side glue an actual `cua discover` run
+   uses to build its `extract_value` event) now stores `event["label_header"] =
+   res.get("label_header", False)` and `event["value_header"] = res.get("value_header", False)` off
+   the SAME `page.evaluate(agent_mod.READ_LABELED_JS, label)` call it already made (previously kept
+   only for `label_count`) -- exact key names `src/cua/recorder.py`'s `_extract_target`/
+   `build_steps` already read (`e.get("value_header", False)`), confirmed by a new end-to-end test
+   that runs `_wrap_extract_value` against a fake `page.evaluate` result and feeds the resulting
+   event straight into `compile_run`, proving the whole chain -- not just the JS text, not just the
+   event dict in isolation -- actually refuses (or doesn't) exactly as D101 designed.
+3. **The bonus discovery-time refusal WAS also ported**, into `_new_tools`'s own `extract_value`
+   tool body in `cli.py` (the tool the model itself calls): after the existing `no value found` and
+   `value does not look like a {value_type}` refusals, a third check refuses immediately when
+   `res.get("value_header")` is true, using this module's own established `agent._blocks(...)`
+   return pattern (matching every other refusal already in that function), not the notebook's
+   module-global `_blocks`/`surface` style. This changes nothing about the tool's return type
+   (still `list[dict]` via `agent._blocks`, same as its two sibling refusals) -- confirmed by a new
+   test that the non-header, successful case is completely unaffected (`test_new_tools_extract_
+   value_still_succeeds_for_a_non_header_value`). Chosen because it gives the AGENT itself a chance
+   to pick a different label live, in the same run, rather than only discovering the problem after
+   the whole run is over and compile_run refuses -- the same reasoning D101 itself gave for adding
+   this to `03_recorder.py` BROWSER 9, applied identically here.
+
+**Verified offline (no browser, no ParaBank, no API key):**
+- `tests/test_agent.py`: `READ_LABELED_JS == <03_recorder.py's own text, transcribed verbatim>` --
+  byte-identical, not just whitespace-normalized (no reason for them to differ; both files embed
+  this JS the same way, a plain non-raw triple-quoted Python string). A second test greps the
+  ported string for `valueElementOf`/`headerLike`/`label_header`/`value_header` so a
+  byte-identical-but-stale copy-paste into both places at once would still be caught.
+- `tests/test_cli.py`, six new tests: `_wrap_extract_value` threads `label_header=True,
+  value_header=True` (and, separately, defaults both to `False` when the JS result omits them
+  entirely -- the shape of every event captured before this fix) onto the built event; feeding that
+  exact event into `cua.recorder.compile_run` raises `CompileError` naming "itself a table/grid
+  header cell" for the header case and compiles cleanly for the non-header case; `_new_tools`'s own
+  `extract_value` tool refuses live (`agent._blocks`, message starts `FAILED to read 'Field A'`)
+  for a header resolution and still succeeds (`Read 'Balance:'.`) for a normal one.
+- `uv run pytest`: 164 -> 172 passed (8 new tests: 2 in `test_agent.py`, 6 in `test_cli.py`), zero
+  regressions.
+- Re-ran `notebooks/03_recorder.py`'s own OFFLINE-cell harness (exec-only-OFFLINE-cells technique,
+  D70) end to end: all fixtures pass unchanged, including the three D101 fixtures (17a/17b/17c) --
+  confirms this task's changes to `agent.py`/`cli.py` had no accidental cross-import effect on the
+  notebook, as expected (separate files) but verified rather than assumed.
+
+**What the main session should verify live, now that this is actually end-to-end testable:** run
+`cua discover` with a goal that would previously have picked a table-header label on a page like
+ParaBank's Accounts Overview (e.g. "Log in and read the Balance of account X using extract_value")
+and confirm ONE of two things now happens instead of a fourth silent bad capability shipping: (a)
+the agent's own `extract_value` tool call is refused live (`FAILED to read '...': the value next to
+this label is itself a table/grid header cell...`) and the agent picks a different label
+(`Total`/an account-detail page) in the SAME run, or (b) if it still somehow gets past that (e.g. a
+future page shape this discipline doesn't anticipate), `compile_run` refuses the whole capability
+at the end with D101's own message, and `cua discover` exits 1 printing that refusal -- never a
+`.yaml` written with a `labeled_value` step pointed at a header cell.
+
+**Brief ref:** D89, D97, D100, D101 (this task's own stated follow-up, closed here), D78 (the
+precedent for keeping this project's shared browser-side JS byte-identical across files by
+construction), D93/D99 (the precedent for a flagged port landing in a later task).

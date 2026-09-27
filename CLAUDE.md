@@ -168,3 +168,9 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   always does; the CAPTURE side that would need to populate `value_header` for real `cua discover`
   runs lives in `cli.py`/`agent.py`, both out of this fix's scope — see DECISIONS.md D101 for the
   exact follow-up still needed there.
+  **2026-09-27 fix (6, D102):** D101's own follow-up, closed. `src/cua/agent.py`'s `READ_LABELED_JS`
+  now carries the identical `label_header`/`value_header` structural fields as `03_recorder.py`'s
+  copy (byte-identical, tested), and `cli.py`'s `_wrap_extract_value` threads both onto the real
+  `cua discover` capture event; `_new_tools`'s own `extract_value` tool also gained D101's bonus
+  live refusal. `cua discover` is now actually protected against the D89/D97/D100 header trap, not
+  just `03_recorder.py` captures. See DECISIONS.md D102.
