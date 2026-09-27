@@ -73,6 +73,13 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   constant). `artifacts/pay_bill.yaml` was regenerated again: its 5 human-entered fields
   (address/city/state/zip_code/phone) are now declared inputs, not literals. See DECISIONS.md
   section U (D90).
+  **2026-09-27 fix (D101):** the D89/D97/D100 "labeled_value resolves to a table HEADER, not a
+  value" bug, made general. `READ_LABELED_JS` (BROWSER 8) now also reports `label_header`/
+  `value_header` — purely structural (`<th>`/`role=columnheader`/`<thead>` ancestor, never any
+  cell's own text) — and `compile_run` (`_extract_target`, OFFLINE 3) refuses a `labeled_value`
+  step whose captured resolution is itself a header cell. Known, stated limit: `src/cua/cli.py`'s
+  own capture path (what `cua discover` actually uses) is not yet ported to compute these flags —
+  see DECISIONS.md D101 for the exact follow-up needed.
   **2026-09-27 fix:** BROWSER 12's `create_deep_agent(...)` call was missing its own import
   (`from deepagents import create_deep_agent`, present in `agent.ipynb`'s STEP 4, never copied
   over) — found running the CAPTURE half live end to end for the first time this session. See
@@ -154,3 +161,10 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
   `build_typesafe_middleware()` that reproduces BROWSER 12's construction exactly; `cli.py` now calls
   it and passes the result through. Still off by default (unchanged behavior with no key). See
   DECISIONS.md D99, including what this fix's offline tests do and do not prove.
+  **2026-09-27 fix (5, D101):** `src/cua/recorder.py`'s `_extract_target`/`build_steps` now refuse a
+  `labeled_value` extract step whose captured event says its resolution is structurally a table/grid
+  header cell (`value_header`, a new optional event field) — the general form of D89/D97/D100's
+  recurring "Balance" header trap. Kept in sync with `03_recorder.py`'s COMPILE half, as this port
+  always does; the CAPTURE side that would need to populate `value_header` for real `cua discover`
+  runs lives in `cli.py`/`agent.py`, both out of this fix's scope — see DECISIONS.md D101 for the
+  exact follow-up still needed there.

@@ -3191,3 +3191,157 @@ letting a third silent one-off patch quietly stand in for a real fix.
 
 **Brief ref:** D89, D97 (the first two occurrences and the still-open general fix), D99 (what this
 entry verifies live).
+
+### D101 — The D89/D97/D100 header trap, made general: `compile_run` refuses a `labeled_value` extract step whose captured resolution is structurally a header cell
+
+**Question:** D89/D97/D100 each hand-fixed the SAME shape of bug (a `labeled_value` extract step
+whose `label` matches a table COLUMN HEADER, whose own "next cell after it" is a SECOND header, not
+any row's real value) in three different files. Design a fix that makes this class of bug impossible
+to ship silently a fourth time — general, not keyed to `"Balance"`/`"Total"`/`"Available Amount"` or
+any other site's own vocabulary, since a different site's table could use different words for the
+identical header-vs-footer DOM shape.
+
+**Where this actually happens, confirmed by reading the code (not guessed):**
+- `notebooks/03_recorder.py`'s `READ_LABELED_JS` (BROWSER 8) matches an element by its bare TEXT,
+  then reads "the cell after it" — a plain DOM traversal that cannot tell a header from a data row
+  on its own; it was never meant to.
+- `value_matches_type` (OFFLINE 2, `src/cua/recorder.py`'s copy identical) runs ONLY at DISCOVERY
+  time, against whatever the agent's own `extract_value` call happened to read at that moment. Per
+  D97/D100's own account, this check passed live even though the resolved text was a second header —
+  most plausibly because the agent declared `value_type: string` (`VALUE_TYPES["string"] = r"\S.*"`
+  matches almost any non-empty text, so the check is effectively a no-op for that type). This
+  confirms the task's own framing: a discovery-time success does not prove anything about what a
+  later, independent, LLM-free replay of the exact same locator will mechanically produce.
+- `compile_run`/`build_steps` (OFFLINE 5, `_extract_target` in OFFLINE 3) build the `labeled_value`
+  step straight from the event's own recorded `label`/`label_count` — **zero validation of what the
+  locator will resolve to**, structural or otherwise, before writing the final `Capability`. This is
+  the actual gap: the ONLY existing check (`value_matches_type`) checks the discovery-time READING,
+  never the TARGETING.
+- Crucially: **the captured `extract_value` event, in both `03_recorder.py`'s own BROWSER 10 and
+  `src/cua/cli.py`'s `_wrap_extract_value`, stores `el: None`** — unlike every OTHER captured tool
+  (`click`/`type_text`/`select_option`), which get a rich `DESCRIBE_JS` descriptor keyed off a
+  numbered `data-cua-ref`. `extract_value` matches by label TEXT, not by a numbered ref, so it never
+  had any DOM-structure signal captured for it at all, ever — the true root cause of why nothing
+  before this could have caught the shape of this bug even in principle: the information needed to
+  tell a header from a data cell was never captured in the first place, on either code path.
+
+**Candidates weighed:**
+- **(a) Compile-time structural check** using whatever the captured event already stores. Rejected
+  in its literal form: as just confirmed, `extract_value` events carry `el: None` and nothing else
+  DOM-structural — there is currently NOTHING for a purely-after-the-fact compile-time inspection to
+  look at. This is not "the check is hard to write"; it is "the input the check would need does not
+  exist in today's event schema." **Adopted in a revised form**: extend CAPTURE (not compile) to
+  record a new, purely structural signal for `extract_value` events specifically, then have
+  `compile_run` check *that* — see "Chosen" below.
+- **(b) A second, independent re-resolution via `READ_LABELED_JS` at compile time, compared against
+  the agent's own reading.** Rejected: `compile_run` (both copies) is deliberately pure Python with
+  no Playwright import — `src/cua/recorder.py`'s own module docstring states this is a hard
+  requirement of the port, and `03_recorder.py`'s own OFFLINE/BROWSER split exists specifically so
+  the COMPILE half never touches a live page. Wiring a live re-resolution into `compile_run` itself
+  would break that boundary for every caller, offline test included (the task's own hard rule:
+  "doesn't require a live browser to test"). The *spirit* of (b) — read something independently and
+  compare — is instead achieved by doing the independent structural read ONCE, at CAPTURE time
+  (already live, already necessarily available at that moment), and handing compile_run only the
+  small boolean RESULT of that comparison, never a browser handle. This keeps `compile_run` pure
+  while still getting (b)'s real benefit (a signal compile_run itself did not have to invent).
+- **(c) Warn, not refuse, to avoid blocking a legitimate capture on a false positive.** Weighed
+  seriously against refusing outright. The chosen structural test (below) requires the CAPTURED
+  RESOLUTION itself — not merely the label — to be a header cell; by HTML/ARIA semantics a `<th>`,
+  a `role="columnheader"` element, or anything inside a `<thead>` describes a column for every row,
+  it can never legitimately be filled in as one record's own per-run value, on this or any site. A
+  common accessible-table pattern that might look superficially similar — `<th scope="row">Name</th>
+  <td>real data</td>` — does NOT trip this check, because the check only ever looks at the RESOLVED
+  VALUE side, which is a plain `<td>` there, not the label side (verified in the new fixtures below).
+  Given the false-positive risk is this low, and given the task's own explicit framing ("impossible
+  to ship silently a fourth time" — a warning is still shippable, and D89/D97/D100 all show real
+  reports going unread until a human noticed the bug live), a REFUSAL is the more honest choice than
+  a warning here, and is bounded by (a) above: `_refuse_if_header_value` no-ops silently whenever
+  `value_header` is absent from an event (never guesses from missing data, never crashes on an
+  unrecognized page shape).
+
+**Chosen (a hybrid: (a)'s mechanism, (b)'s independent-read spirit, applied at capture time; (c)'s
+false-positive analysis used to justify refusing rather than merely warning):**
+1. `notebooks/03_recorder.py`'s `READ_LABELED_JS` (BROWSER 8) gains a second, additive function,
+   `valueElementOf`, that walks the EXACT SAME fallback order as the existing `valueOf` (fully
+   unchanged, still the only thing that decides what TEXT gets read) but returns the ELEMENT instead
+   of its text, plus a `headerLike(node)` helper: `true` iff the node is a `<th>`, has
+   `role="columnheader"`, or has a `<thead>` ancestor — DOM tag/role/ancestor only, never any cell's
+   own text, so it generalizes to any site's own header vocabulary by construction. The JS now
+   returns `{value, matches, label_header, value_header}` — `value_header` is `headerLike()` applied
+   to whatever `valueOf` actually read from (the precise, general form of "this resolved to a
+   header, not a value"); `label_header` is the same test on the matched label's own cell (kept for
+   a clearer message, not load-bearing for the refusal itself).
+2. `_extract_value_wrapped` (BROWSER 10) stores both flags on the event: `"label_header":
+   res.get("label_header", False), "value_header": res.get("value_header", False)`. Both are plain
+   booleans about DOM shape, never a cell's own text or the extracted value — no new sensitive data
+   crosses into a saved event or artifact (D16/D46 unchanged: the actual value is still never
+   logged).
+3. As a bonus, low-risk, same-mechanism discovery-time gate: BROWSER 9's `extract_value` tool now
+   also refuses immediately (`FAILED to read ... itself a table/grid header cell ...`) when
+   `res["value_header"]` is true, so a live discovery run is steered away from ever producing this
+   event at all, not just caught later at compile time.
+4. `_extract_target(label, label_count, value_header=False)` (OFFLINE 3, `src/cua/recorder.py`
+   identical) gains a new pure helper, `_refuse_if_header_value(label, value_header)`, called
+   alongside the existing `_refuse_if_duplicate_label`: raises `CompileError` naming D101 when
+   `value_header` is true, otherwise a silent no-op (including when the key is simply absent, e.g.
+   every event captured before this fix). `build_steps`'s `extract_value` branch passes
+   `e.get("value_header", False)` through. This is pure Python, zero DOM, works identically whether
+   the input events came from a live capture or a hand-built offline fixture.
+
+**A real, honest limit — this fix does NOT close the loop for `cua discover` today.** `src/cua/
+cli.py`'s own `_wrap_extract_value` (the CAPTURE-side glue the actual live `cua discover` command
+uses — D97's and D100's own real bug reports both came from THIS path, not from `03_recorder.py`'s
+BROWSER cells) builds its event from `agent.py`'s own copy of `READ_LABELED_JS`, unchanged by this
+fix. This task's own hard rules place `src/cua/agent.py`, `src/cua/live.py`, and by its own explicit
+scoping statement `src/cua/cli.py` itself out of bounds ("your change belongs entirely in the two
+recorder.py/03_recorder.py files"). The result: `compile_run`'s new check is real, general, and
+fully exercised by the new offline fixtures below, and it protects anything compiled through
+`03_recorder.py`'s own COMPILE half (including, going forward, any events saved from a live
+`03_recorder.py` capture run) — but a `cua discover` run today still produces events with no
+`label_header`/`value_header` keys at all, so `_refuse_if_header_value` will (correctly, per its own
+graceful-degradation rule) no-op on them, exactly as it did before this fix. **Closing this
+requires a follow-up, out of THIS task's scope**: port the identical `valueElementOf`/`headerLike`
+addition into `src/cua/agent.py`'s `READ_LABELED_JS` and into `src/cua/cli.py`'s
+`_wrap_extract_value`/`_new_tools.extract_value`, mirroring exactly what BROWSER 8/9/10 do here —
+the same kind of "flagged, ported later" gap this project has already closed once before (D93 flagged
+an unported module, D99 later fixed it in a separate task). Recorded here explicitly, not silently
+assumed fixed, per this task's own instruction to say plainly what remains.
+
+**Verified offline (no browser, no ParaBank, no API key, per this task's own hard rule):** three new
+fixtures added to both `03_recorder.py` (OFFLINE 3b, and a new OFFLINE 13j) and `tests/
+test_recorder.py`, deliberately using "Field A" / "Field B" / "Field C", never "Balance"/
+"Available Amount"/"Total", to prove the check is generic:
+- A `<thead>` trap (`label_header=True, value_header=True`) — `_extract_target`/`compile_run` both
+  refuse, naming D101.
+- A `<tfoot>`-shaped real value (`label_header=False, value_header=False`) — compiles cleanly, not
+  flagged (D89's own "Total" row, generalized).
+- `get_account_balance.yaml`'s own already-working "Balance:"-on-a-detail-page shape (fixture 1,
+  unchanged, no `value_header` key present at all) — compiles exactly as before, proving no
+  regression and confirming the graceful default-to-`False` behavior on absent data.
+
+`03_recorder.py`'s OFFLINE cells (run top to bottom, stopping before BROWSER 1, per this task's own
+hard rule against launching a browser) end with `ALL OFFLINE CHECKS PASSED`. `uv run pytest`: 164
+passed (158 before this task + 6 new: 3 unit-level `_extract_target` tests, 3 `compile_run`-level
+tests mirroring the notebook's own fixture 17a/b/c).
+
+**What the main session should verify live, afterward, since none of this could be tested live here:**
+1. Run `cua discover` with a goal shaped like D97/D100's own ("read the balance of account
+   <id>") against the real Accounts Overview page one more time. If the agent still picks a
+   header-matching label, the compiled capability will NOT be flagged today (the known, stated gap
+   above) — confirm this is still true, and that it fails the exact same way it always has (not a
+   new, different failure).
+2. If the agent instead picks `Total`, or any other genuinely correct label, on its own: confirm
+   the capability compiles cleanly with no false warning or refusal (this would already work under
+   today's `cua discover` path regardless of this fix, since no `value_header` key ever reaches it —
+   but worth reconfirming nothing else regressed).
+3. As the actual close of this loop: port BROWSER 8/9/10's `valueElementOf`/`headerLike`/
+   `value_header` additions into `src/cua/agent.py`'s `READ_LABELED_JS` and `src/cua/cli.py`'s
+   `_wrap_extract_value`/`_new_tools.extract_value`, then re-run a live `cua discover` against a
+   goal that would previously have hit the header trap, and confirm it is now either refused at
+   discovery time (BROWSER 9's own bonus gate, ported) or refused at compile time (`compile_run`,
+   already fixed here) — never silently compiled a fourth time.
+
+**Brief ref:** D89, D97, D100 (the three prior occurrences and the general fix each one flagged as
+still open), D16/D46 (why the resolved value itself is still never logged), D68 (the existing
+`_refuse_if_duplicate_label` this sits next to and mirrors in shape), D93/D99 (the precedent for
+flagging an unported gap explicitly rather than silently leaving it unmentioned).
