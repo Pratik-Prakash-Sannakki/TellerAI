@@ -97,6 +97,19 @@ def _new_tools(agent: agent_mod.DiscoveryAgent):
             return agent._blocks(f"FAILED to read '{label}': no value found next to that label.", await agent.surface.observe())
         if not recorder.value_matches_type(res["value"], value_type):
             return agent._blocks(f"FAILED to read '{label}': the value does not look like a {value_type}.", await agent.surface.observe())
+        # D101: refuse immediately, at discovery time, when the thing just read is ITSELF a
+        # table/grid header cell (structural, not text-based) -- the general shape of D89/D97/D100's
+        # recurring "Balance" -> "Available Amount" bug. A header cell describes a column for every
+        # row; it is never one record's own value, however plausible its text happens to look at
+        # this moment. Ported from `03_recorder.py` BROWSER 9's identical check, using this
+        # module's own `agent._blocks(...)` return pattern rather than the notebook's module-global
+        # `_blocks`/`surface`.
+        if res.get("value_header"):
+            return agent._blocks(
+                f"FAILED to read '{label}': the value next to this label is itself a table/grid header "
+                "cell, not real row data. Pick a different label whose value is genuine data.",
+                await agent.surface.observe(),
+            )
         return agent._blocks(f"Read '{label}'.", await agent.surface.observe())
 
     @tool(parse_docstring=True)
@@ -185,6 +198,9 @@ def _wrap_extract_value(tool_obj, agent, events) -> None:
 
     async def wrapped(label: str, save_as: str, value_type: str, description: str):
         before_url, before_heading = agent.page.url, await _current_heading(agent.page)
+        # Only label_count and the two D101 structural flags are kept -- the VALUE itself is never
+        # logged (D46/D16). label_header/value_header are booleans about DOM shape (tag/role/
+        # ancestor), never the cell's own text, so they carry no sensitive data either.
         res = await agent.page.evaluate(agent_mod.READ_LABELED_JS, label)   # label_count only -- the VALUE is never logged
         result = await original(label=label, save_as=save_as, value_type=value_type, description=description)
         message = _first_line(result)
@@ -196,6 +212,7 @@ def _wrap_extract_value(tool_obj, agent, events) -> None:
             "approved": False, "el": None,
             "label": label, "save_as": save_as, "value_type": value_type, "description": description,
             "label_count": res.get("matches", 1),
+            "label_header": res.get("label_header", False), "value_header": res.get("value_header", False),
         })
         return result
 

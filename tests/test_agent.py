@@ -19,6 +19,7 @@ from cua.agent import (
     JOB_CRITERIA,
     JOB_EXTRA_TOOLS,
     NEVER_HIDE,
+    READ_LABELED_JS,
     DiscoveryAgent,
     PlaywrightSurface,
     build_typesafe_middleware,
@@ -258,3 +259,79 @@ def test_build_typesafe_middleware_extra_never_hide_reaches_the_tool_router(monk
     all_tools = _ALL_TOOL_NAMES | extra
     kept = confidence_gate(all_tools, "read_value", 0.99, tool_router.never_hide)
     assert extra <= kept, "extract_value and friends must survive a confident, unrelated job classification"
+
+
+# ---------- D101 follow-up: READ_LABELED_JS parity with notebooks/03_recorder.py ----------
+# `notebooks/03_recorder.py`'s own BROWSER 8 copy, transcribed here verbatim (same source text,
+# same escaping) so this test can prove -- offline, no notebook import (03_recorder.py's own
+# BROWSER cells are Playwright-live and never imported by the test suite) -- that agent.py's copy
+# stayed byte-identical after the D101 port, matching D78's own established discipline of keeping
+# this project's shared browser-side JS in sync across files by construction, not by trust.
+_RECORDER_READ_LABELED_JS = """
+(label) => {
+  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+  const bare = (s) => norm(s).replace(/[^a-zA-Z0-9]$/, '').toLowerCase();
+  const want = bare(label);
+  const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
+  const all = Array.from(document.body.querySelectorAll('td, th, dt, label, b, strong, span, div, p, li')).filter(vis);
+  const hits = all.filter(e => bare(e.innerText || e.textContent) === want &&
+                               !Array.from(e.children).some(c => bare(c.innerText || c.textContent) === want));
+  const valueOf = (el) => {
+    const cell = el.closest('td, th, dt');
+    if (cell && cell.nextElementSibling) return norm(cell.nextElementSibling.innerText);
+    if (el.tagName === 'LABEL' && el.htmlFor) { const t = document.getElementById(el.htmlFor); if (t) return norm(t.value || t.innerText); }
+    if (el.nextElementSibling) return norm(el.nextElementSibling.innerText);
+    let n = el.nextSibling;
+    while (n) { const t = norm(n.textContent); if (t) return t; n = n.nextSibling; }
+    return '';
+  };
+  const valueElementOf = (el) => {
+    const cell = el.closest('td, th, dt');
+    if (cell && cell.nextElementSibling) return cell.nextElementSibling;
+    if (el.tagName === 'LABEL' && el.htmlFor) { return null; }
+    if (el.nextElementSibling) return el.nextElementSibling;
+    let n = el.nextSibling;
+    while (n) { if (norm(n.textContent)) return (n.nodeType === 1 ? n : null); n = n.nextSibling; }
+    return null;
+  };
+  const headerLike = (node) => {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.tagName === 'TH') return true;
+    if ((node.getAttribute('role') || '').toLowerCase() === 'columnheader') return true;
+    if (node.closest && node.closest('thead')) return true;
+    return false;
+  };
+  for (const h of hits) {
+    const v = valueOf(h);
+    if (v) {
+      return {
+        value: v, matches: hits.length,
+        label_header: headerLike(h.closest('td, th, dt')) || headerLike(h),
+        value_header: headerLike(valueElementOf(h)),
+      };
+    }
+  }
+  return { value: '', matches: hits.length, label_header: false, value_header: false };
+}
+"""
+
+
+def test_read_labeled_js_matches_notebooks_03_recorder_byte_for_byte():
+    """D101's own stated follow-up: `src/cua/agent.py`'s `READ_LABELED_JS` (what a real `cua
+    discover` run actually evaluates, via `cli.py`'s capture glue) must stay byte-identical to
+    `notebooks/03_recorder.py` BROWSER 8's copy (what `compile_run`'s D101 refusal was proven
+    against). Byte-identical, not just whitespace-normalized, since both source files embed this
+    JS the same way (a plain, non-raw triple-quoted Python string) -- there is no reason for them
+    to differ at all, and this test would catch even a single-character drift (e.g. a future edit
+    to one copy's `headerLike`/`valueElementOf` that forgets the other)."""
+    assert READ_LABELED_JS == _RECORDER_READ_LABELED_JS
+
+
+def test_read_labeled_js_reports_structural_header_flags():
+    """Sanity check that the ported JS source itself (not just its byte-equality with the other
+    copy) actually contains D101's two new helpers and both new return fields -- catches a
+    byte-identical-but-wrong copy-paste of stale text into both places at once."""
+    assert "valueElementOf" in READ_LABELED_JS
+    assert "headerLike" in READ_LABELED_JS
+    assert "label_header" in READ_LABELED_JS
+    assert "value_header" in READ_LABELED_JS

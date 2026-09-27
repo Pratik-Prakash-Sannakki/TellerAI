@@ -382,6 +382,15 @@ HEADING_JS = """
 
 # D87: bare() strips ONE trailing non-alphanumeric "decoration" character (not just a colon), so
 # a declared label like "Balance" matches a real page's "Balance*" (a footnote asterisk).
+# D101: `label_header`/`value_header` are a purely STRUCTURAL signal (DOM tag/role/ancestor only --
+# never any cell's own text) added so `cua.recorder.compile_run` can later refuse a `labeled_value`
+# extract step whose captured resolution is itself a header cell, not real row data -- the general
+# shape of D89/D97/D100's recurring "Balance"/"Balance*" -> "Available Amount" bug. `valueOf`'s own
+# reading logic (the text a REPLAY-equivalent read actually returns) is completely unchanged below;
+# `valueElementOf` is a second, additive function that walks the exact same fallback order to name
+# the ELEMENT `valueOf` read from, purely so `headerLike()` can be asked about it. This string must
+# stay byte-identical to `notebooks/03_recorder.py`'s own copy (D78-style duplication discipline;
+# see `tests/test_agent.py`'s parity test).
 READ_LABELED_JS = """
 (label) => {
   const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
@@ -400,8 +409,33 @@ READ_LABELED_JS = """
     while (n) { const t = norm(n.textContent); if (t) return t; n = n.nextSibling; }
     return '';
   };
-  for (const h of hits) { const v = valueOf(h); if (v) return { value: v, matches: hits.length }; }
-  return { value: '', matches: hits.length };
+  const valueElementOf = (el) => {
+    const cell = el.closest('td, th, dt');
+    if (cell && cell.nextElementSibling) return cell.nextElementSibling;
+    if (el.tagName === 'LABEL' && el.htmlFor) { return null; }
+    if (el.nextElementSibling) return el.nextElementSibling;
+    let n = el.nextSibling;
+    while (n) { if (norm(n.textContent)) return (n.nodeType === 1 ? n : null); n = n.nextSibling; }
+    return null;
+  };
+  const headerLike = (node) => {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.tagName === 'TH') return true;
+    if ((node.getAttribute('role') || '').toLowerCase() === 'columnheader') return true;
+    if (node.closest && node.closest('thead')) return true;
+    return false;
+  };
+  for (const h of hits) {
+    const v = valueOf(h);
+    if (v) {
+      return {
+        value: v, matches: hits.length,
+        label_header: headerLike(h.closest('td, th, dt')) || headerLike(h),
+        value_header: headerLike(valueElementOf(h)),
+      };
+    }
+  }
+  return { value: '', matches: hits.length, label_header: false, value_header: false };
 }
 """
 
