@@ -281,8 +281,32 @@ def derive_target(el: dict, inputs: dict[str, str], warnings: list[str]) -> Targ
     return Target(primary=primary, fallback=fallback)
 
 
-def _extract_target(label: str, label_count: int) -> Target:
+def _refuse_if_header_value(label: str, value_header: bool) -> None:
+    """D101: a `labeled_value` extract step whose CAPTURED resolution is itself a table/grid HEADER
+    cell -- a structural DOM signal (`<th>`, `role=columnheader`, or a `<thead>` ancestor; see
+    `notebooks/03_recorder.py` BROWSER 8's `READ_LABELED_JS`) -- can never be a genuine per-row/
+    per-record value: a header cell names a column for every row, it is never one record's own
+    data. This is the general shape of D89/D97/D100's recurring bug (there: label `Balance`/
+    `Balance*`, whose 'next cell' was the `Available Amount` column header, not any account's own
+    balance) -- refused here regardless of what specific words a given site's own headers happen to
+    use; this function never looks at the label's or value's TEXT, only at the `value_header`
+    structural flag captured with the event.
+
+    `value_header` is missing (`False` by default) for any event captured before this flag existed,
+    or from a capture path that does not yet compute it -- this degrades to a silent no-op in that
+    case, same as before this fix, rather than ever guessing from absent data."""
+    if value_header:
+        raise CompileError(
+            f"labeled_value target label={label!r}: the value this locator resolved to at capture "
+            "time is itself a table/grid header cell, not real row data (D101, the general form of "
+            "D89/D97/D100's recurring bug). Pick a label whose value is genuine data -- e.g. a "
+            "footer/total row, or a non-tabular detail field -- not a column header."
+        )
+
+
+def _extract_target(label: str, label_count: int, value_header: bool = False) -> Target:
     _refuse_if_duplicate_label(label, label_count, "labeled_value")
+    _refuse_if_header_value(label, value_header)
     return Target(primary=LabeledValueLocator(
         label=label, stability="medium",
         note="Label text is stable across releases; a labeled-value read does not depend on page position.",
@@ -626,7 +650,10 @@ def build_steps(events: list[dict], specs: dict, warnings: list[str], constants:
                 e.get("description") or f"The value shown next to '{e['label']}'.",
                 inputs,
             )
-            steps.append(Extract(target=_extract_target(label, e.get("label_count", 1)), save_as=e["save_as"]))
+            steps.append(Extract(
+                target=_extract_target(label, e.get("label_count", 1), e.get("value_header", False)),
+                save_as=e["save_as"],
+            ))
             outputs.append(OutputParam(
                 name=e["save_as"], type=e.get("value_type", "string"),
                 description=desc,

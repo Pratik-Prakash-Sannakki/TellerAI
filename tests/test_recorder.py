@@ -18,6 +18,7 @@ from cua.recorder import (
     CompileError,
     HUMAN_ENTRY_WHY,
     HUMAN_INPUT_PATTERN,
+    _extract_target,
     classify_status,
     clean_events,
     compile_run,
@@ -157,6 +158,25 @@ def test_derive_target_nothing_to_identify_is_refused():
         {"role": "generic", "name": "", "name_source": "none", "label": None, "text": None,
          "tag": "div", "type": None, "submit": False, "options": None, "container": None, "nth": None,
          "name_count": 1, "label_count": 1}, {}, []), "no accessible name, label, text, or container")
+
+
+# ---------- D101: labeled_value target resolves to a header cell (general form of D89/D97/D100) ----------
+def test_extract_target_refuses_when_resolved_value_is_a_header_cell():
+    # Deliberately "Field A", not "Balance"/"Available Amount" -- proves the check is generic,
+    # keyed off the structural `value_header` flag, never off the label's own text.
+    _expect_raises(lambda: _extract_target("Field A", 1, True), "itself a table/grid header cell")
+
+
+def test_extract_target_does_not_flag_a_real_value():
+    t = _extract_target("Field A", 1, False)
+    assert t.primary.strategy == "labeled_value"
+
+
+def test_extract_target_defaults_to_not_flagged_when_signal_absent():
+    # No `value_header` argument at all -- the shape of every event captured before D101, and of
+    # any capture path that does not yet compute it. Must default safely, never guess or crash.
+    t = _extract_target("Field A", 1)
+    assert t.primary.strategy == "labeled_value"
 
 
 # ---------- OFFLINE 4b: clean-up ----------
@@ -324,6 +344,49 @@ def test_compile_run_good_balance_flow_login_split():
     assert any(r.kind == "recoverable" and r.action == "relogin" for r in task.outcome_rules)
     assert (0, "observe", "not an action") in report["dropped"]
     assert from_yaml(to_yaml(task)) == task and from_yaml(to_yaml(login)) == login
+
+
+def test_compile_run_refuses_labeled_value_header_trap_d101():
+    # D89/D97/D100's exact real shape (a <thead> column header whose "next cell" is a SECOND
+    # header, not any row's real value), reconstructed with deliberately different words ("Field
+    # A" / "Field B") to prove the fix is general, not keyed to this project's own page's words.
+    events = [
+        *_balance_events()[:4],
+        _e(4, "extract_value", "/overview.htm", "/overview.htm",
+           label="Field A", save_as="field_a", value_type="string",
+           description="Whatever is shown next to Field A.",
+           label_header=True, value_header=True,
+           message="Read 'Field A'.", before_heading="Accounts Overview", after_heading="Accounts Overview"),
+        _e(5, "finish", "/overview.htm", "/overview.htm",
+           summary="Read it.", values={"field_a": "Field B"}, message="Recorded. Stop now."),
+    ]
+    with pytest.raises(CompileError, match="itself a table/grid header cell"):
+        compile_run(events, {"name": "header_trap", "description": "x", "inputs": {}})
+
+
+def test_compile_run_does_not_flag_a_footer_row_value_d101():
+    # The table's own FOOTER row uses the IDENTICAL labeled_value mechanism and correctly resolves
+    # to real data (D89's own "Total" row, generalized here as "Field C"). Must not be flagged.
+    events = [
+        *_balance_events()[:4],
+        _e(4, "extract_value", "/overview.htm", "/overview.htm",
+           label="Field C", save_as="field_c", value_type="currency",
+           description="Whatever is shown next to Field C.",
+           label_header=False, value_header=False,
+           message="Read 'Field C'.", before_heading="Accounts Overview", after_heading="Accounts Overview"),
+        _e(5, "finish", "/overview.htm", "/overview.htm",
+           summary="Read it.", values={"field_c": "$500.00"}, message="Recorded. Stop now."),
+    ]
+    result = compile_run(events, {"name": "footer_ok", "description": "x", "inputs": {}})
+    assert result["task"].outputs[0].name == "field_c"
+
+
+def test_compile_run_plain_label_value_pair_unaffected_by_d101():
+    # `get_account_balance.yaml`'s own real, already-working shape (fixture 1's own "Balance:" on
+    # an account DETAIL page, not a table) -- its extract event has no `value_header` key at all,
+    # the shape every event had before D101. Must not regress.
+    assert "value_header" not in _balance_events()[5]
+    assert compile_run(_balance_events(), BAL_SPEC)["task"].outputs[0].name == "balance"
 
 
 def test_compile_run_dead_end_click_is_removed():

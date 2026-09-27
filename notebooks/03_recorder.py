@@ -287,8 +287,33 @@ def derive_target(el: dict, inputs: dict[str, str], warnings: list[str]) -> "Tar
     return Target(primary=primary, fallback=fallback)
 
 
-def _extract_target(label: str, label_count: int) -> "Target":
+def _refuse_if_header_value(label: str, value_header: bool) -> None:
+    """D101: a `labeled_value` extract step whose CAPTURED resolution is itself a table/grid HEADER
+    cell -- a structural DOM signal (`<th>`, `role=columnheader`, or a `<thead>` ancestor; see
+    BROWSER 8's `READ_LABELED_JS`) -- can never be a genuine per-row/per-record value: a header cell
+    names a column for every row, it is never one record's own data. This is the general shape of
+    D89/D97/D100's recurring bug (there: label `Balance`/`Balance*`, whose 'next cell' was the
+    `Available Amount` column header, not any account's own balance) -- refused here regardless of
+    what specific words a given site's own headers happen to use; this function never looks at the
+    label's or value's TEXT, only at the `value_header` structural flag captured with the event.
+
+    `value_header` is missing (`False` by default, from `event.get("value_header", False)`) for any
+    event captured before this flag existed, or from any capture path that does not yet compute it
+    (see D101's own decision entry for exactly which path that is right now) -- this degrades to a
+    silent no-op in that case, same as before this fix, rather than ever guessing from absent data.
+    """
+    if value_header:
+        raise CompileError(
+            f"labeled_value target label={label!r}: the value this locator resolved to at capture "
+            "time is itself a table/grid header cell, not real row data (D101, the general form of "
+            "D89/D97/D100's recurring bug). Pick a label whose value is genuine data -- e.g. a "
+            "footer/total row, or a non-tabular detail field -- not a column header."
+        )
+
+
+def _extract_target(label: str, label_count: int, value_header: bool = False) -> "Target":
     _refuse_if_duplicate_label(label, label_count, "labeled_value")
+    _refuse_if_header_value(label, value_header)
     return Target(primary=LabeledValueLocator(
         label=label, stability="medium",
         note="Label text is stable across releases; a labeled-value read does not depend on page position.",
@@ -343,6 +368,24 @@ print("locator (duplicate label): correctly refused, not silently saved")
 # duplicate label on an EXTRACT target -> same refusal, via _extract_target
 expect_raises(lambda: _extract_target("Balance:", 2), "no `within` scope for a 'labeled_value'")
 print("locator (duplicate labeled_value): correctly refused")
+
+# D101: a labeled_value target whose captured RESOLUTION is itself a header cell (a structural
+# signal, never the label's own text) is refused. Deliberately "Field A", not "Balance"/"Available
+# Amount", to prove the check is generic, not keyed to this project's own real page's vocabulary.
+expect_raises(lambda: _extract_target("Field A", 1, True), "itself a table/grid header cell")
+print("locator (labeled_value resolves to a header cell): correctly refused (D101)")
+
+# The identical label, but the captured resolution is real data (value_header=False, the ordinary
+# and by far the most common case) -- compiles fine, not flagged.
+t = _extract_target("Field A", 1, False)
+assert t.primary.strategy == "labeled_value"
+print("locator (labeled_value resolves to real data): ok, not flagged (D101)")
+
+# value_header simply absent (the shape of every event captured before D101, and of any capture
+# path that does not yet compute it) -- must default to "not flagged", never crash, never guess.
+t = _extract_target("Field A", 1)
+assert t.primary.strategy == "labeled_value"
+print("locator (no value_header signal at all): ok, defaults to not-flagged (D101)")
 
 # an attribute-only name (fromAccountId) is NOT an accessible name -> no role locator built from it
 attr_only = {"role": "textbox", "name": "fromAccountId", "name_source": "attr", "label": "From account #:",
@@ -898,7 +941,10 @@ def build_steps(events: list[dict], specs: dict, warnings: list[str], constants:
                 e.get("description") or f"The value shown next to '{e['label']}'.",
                 inputs,
             )
-            steps.append(Extract(target=_extract_target(label, e.get("label_count", 1)), save_as=e["save_as"]))
+            steps.append(Extract(
+                target=_extract_target(label, e.get("label_count", 1), e.get("value_header", False)),
+                save_as=e["save_as"],
+            ))
             outputs.append(OutputParam(
                 name=e["save_as"], type=e.get("value_type", "string"),
                 description=desc,
@@ -1780,6 +1826,54 @@ assert note_step.why is None                                   # never annotated
 assert "note" not in {i.name for i in agent_literal_task.inputs}   # never auto-declared
 print("fixture 16 (agent-typed literal matching no input -> still a plain literal constant, unaffected by D90):",
       agent_literal_result["report"]["constants"])
+
+# %% OFFLINE 13j: fixture 17 -- D101, the general labeled_value header-trap fix, end to end through
+# compile_run. Reconstructs D89/D97/D100's exact real shape -- a <thead> column header whose "next
+# cell" is a SECOND header, not any row's real value -- but with deliberately different words
+# ("Field A" / "Field B"), never "Balance"/"Available Amount", to prove the fix is general: it keys
+# off the `label_header`/`value_header` STRUCTURAL flags BROWSER 8/10 now capture (DOM tag/role/
+# ancestor only), never off which specific words a header uses.
+FIELD_HEADER_TABLE_EVENTS = [
+    *_balance_events()[:4],   # reuse fixture 1's own login events unchanged
+    _e(4, "extract_value", "/overview.htm", "/overview.htm",
+       label="Field A", save_as="field_a", value_type="string",
+       description="Whatever is shown next to Field A.",
+       label_header=True, value_header=True,   # the <thead> trap: both cells are headers
+       message="Read 'Field A'.", before_heading="Accounts Overview", after_heading="Accounts Overview"),
+    _e(5, "finish", "/overview.htm", "/overview.htm",
+       summary="Read it.", values={"field_a": "Field B"}, message="Recorded. Stop now."),
+]
+try:
+    compile_run(FIELD_HEADER_TABLE_EVENTS, {"name": "header_trap", "description": "x", "inputs": {}})
+    raise AssertionError("was NOT rejected")
+except CompileError as err:
+    assert "itself a table/grid header cell" in str(err), err
+    print("fixture 17a (D101, <thead> header trap, 'Field A'/'Field B'): correctly refused:", err)
+
+# The table's own FOOTER row uses the IDENTICAL labeled_value mechanism and correctly resolves to
+# real data -- D89's own "Total" row, generalized here as "Field C" to keep this fixture's own
+# vocabulary independent of D89's. Must NOT be flagged.
+FIELD_FOOTER_TABLE_EVENTS = [
+    *_balance_events()[:4],
+    _e(4, "extract_value", "/overview.htm", "/overview.htm",
+       label="Field C", save_as="field_c", value_type="currency",
+       description="Whatever is shown next to Field C.",
+       label_header=False, value_header=False,   # the <tfoot> row: a real value, not a header
+       message="Read 'Field C'.", before_heading="Accounts Overview", after_heading="Accounts Overview"),
+    _e(5, "finish", "/overview.htm", "/overview.htm",
+       summary="Read it.", values={"field_c": "$500.00"}, message="Recorded. Stop now."),
+]
+footer_result = compile_run(FIELD_FOOTER_TABLE_EVENTS, {"name": "footer_ok", "description": "x", "inputs": {}})
+assert footer_result["task"].outputs[0].name == "field_c"
+print("fixture 17b (D101, <tfoot> real value, 'Field C'): compiles fine, not flagged")
+
+# The plain, already-working label-next-to-value shape (fixture 1 above, `get_account_balance.yaml`'s
+# own "Balance:" on an account DETAIL page, not a table) has NEVER hit this bug and must not regress.
+# Its own extract event carries no `value_header` key at all -- the shape every event had before
+# D101 -- proving `.get("value_header", False)` defaults safely rather than guessing from absence.
+assert "value_header" not in _balance_events()[5]
+assert compile_run(_balance_events(), BAL_SPEC)["task"].outputs[0].name == "balance"
+print("fixture 17c (D101, plain label/value pair with no value_header key at all): unaffected")
 
 # %% OFFLINE 14: summary
 print("\nALL OFFLINE CHECKS PASSED")
@@ -2749,6 +2843,13 @@ HEADING_JS = """
 # only when it is not a letter/digit, so two genuinely different labels (e.g. "Balance" vs
 # "Available Amount") can never be conflated by this change; see OFFLINE proxy check right after
 # BROWSER 8 below.
+# D101: `label_header`/`value_header` are a purely STRUCTURAL signal (DOM tag/role/ancestor only --
+# never any cell's own text) added so `compile_run` can later refuse a `labeled_value` extract step
+# whose captured resolution is itself a header cell, not real row data -- the general shape of
+# D89/D97/D100's recurring "Balance"/"Balance*" -> "Available Amount" bug. `valueOf`'s own reading
+# logic (the text a REPLAY-equivalent read actually returns) is completely unchanged below;
+# `valueElementOf` is a second, additive function that walks the exact same fallback order to name
+# the ELEMENT `valueOf` read from, purely so `headerLike()` can be asked about it.
 READ_LABELED_JS = """
 (label) => {
   const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
@@ -2767,8 +2868,33 @@ READ_LABELED_JS = """
     while (n) { const t = norm(n.textContent); if (t) return t; n = n.nextSibling; }
     return '';
   };
-  for (const h of hits) { const v = valueOf(h); if (v) return { value: v, matches: hits.length }; }
-  return { value: '', matches: hits.length };
+  const valueElementOf = (el) => {
+    const cell = el.closest('td, th, dt');
+    if (cell && cell.nextElementSibling) return cell.nextElementSibling;
+    if (el.tagName === 'LABEL' && el.htmlFor) { return null; }
+    if (el.nextElementSibling) return el.nextElementSibling;
+    let n = el.nextSibling;
+    while (n) { if (norm(n.textContent)) return (n.nodeType === 1 ? n : null); n = n.nextSibling; }
+    return null;
+  };
+  const headerLike = (node) => {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.tagName === 'TH') return true;
+    if ((node.getAttribute('role') || '').toLowerCase() === 'columnheader') return true;
+    if (node.closest && node.closest('thead')) return true;
+    return false;
+  };
+  for (const h of hits) {
+    const v = valueOf(h);
+    if (v) {
+      return {
+        value: v, matches: hits.length,
+        label_header: headerLike(h.closest('td, th, dt')) || headerLike(h),
+        value_header: headerLike(valueElementOf(h)),
+      };
+    }
+  }
+  return { value: '', matches: hits.length, label_header: false, value_header: false };
 }
 """
 
@@ -2926,6 +3052,16 @@ async def extract_value(label: str, save_as: str, value_type: str, description: 
         return _blocks(f"FAILED to read '{label}': no value found next to that label.", await surface.observe())
     if not value_matches_type(res["value"], value_type):
         return _blocks(f"FAILED to read '{label}': the value does not look like a {value_type}.", await surface.observe())
+    # D101: refuse immediately, at discovery time, when the thing just read is ITSELF a table/grid
+    # header cell (structural, not text-based) -- the general shape of D89/D97/D100's recurring
+    # "Balance" -> "Available Amount" bug. A header cell describes a column for every row; it is
+    # never one record's own value, however plausible its text happens to look at this moment.
+    if res.get("value_header"):
+        return _blocks(
+            f"FAILED to read '{label}': the value next to this label is itself a table/grid header "
+            "cell, not real row data. Pick a different label whose value is genuine data.",
+            await surface.observe(),
+        )
     return _blocks(f"Read '{label}'.", await surface.observe())
 
 
@@ -3046,7 +3182,10 @@ _extract_value_original = extract_value.coroutine
 
 async def _extract_value_wrapped(label: str, save_as: str, value_type: str, description: str):
     before_url, before_heading = page.url, await current_heading()
-    res = await page.evaluate(READ_LABELED_JS, label)   # only for label_count -- the VALUE itself is never logged (D46/D16)
+    # Only label_count and the two D101 structural flags are kept -- the VALUE itself is never
+    # logged (D46/D16). label_header/value_header are booleans about DOM shape (tag/role/ancestor),
+    # never the cell's own text, so they carry no sensitive data either.
+    res = await page.evaluate(READ_LABELED_JS, label)
     result = await _extract_value_original(label=label, save_as=save_as, value_type=value_type, description=description)
     message = _first_line(result)
     EVENTS.append({
@@ -3057,6 +3196,7 @@ async def _extract_value_wrapped(label: str, save_as: str, value_type: str, desc
         "approved": False, "el": None,
         "label": label, "save_as": save_as, "value_type": value_type, "description": description,
         "label_count": res.get("matches", 1),
+        "label_header": res.get("label_header", False), "value_header": res.get("value_header", False),
     })
     return result
 
