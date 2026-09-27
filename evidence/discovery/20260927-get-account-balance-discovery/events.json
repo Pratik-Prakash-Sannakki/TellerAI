@@ -1,0 +1,180 @@
+[
+  {
+    "i": 0,
+    "tool": "observe",
+    "args": {},
+    "message": "Current page.",
+    "status": "ok",
+    "before": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "after": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "approved": false,
+    "el": null,
+    "value": null
+  },
+  {
+    "i": 1,
+    "tool": "type_secret",
+    "args": {
+      "ref": 9,
+      "name": "username"
+    },
+    "message": "Typed secret 'username' into [9].",
+    "status": "ok",
+    "before": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "after": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "approved": false,
+    "el": {
+      "role": "textbox",
+      "name": "username",
+      "name_source": "attr",
+      "label": null,
+      "text": null,
+      "tag": "input",
+      "type": "text",
+      "submit": false,
+      "options": null,
+      "container": {
+        "role": "form",
+        "name": null
+      },
+      "nth": 1,
+      "name_count": 1,
+      "label_count": 1
+    },
+    "value": "username"
+  },
+  {
+    "i": 2,
+    "tool": "type_secret",
+    "args": {
+      "ref": 10,
+      "name": "password"
+    },
+    "message": "Typed secret 'password' into [10].",
+    "status": "ok",
+    "before": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "after": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "approved": false,
+    "el": {
+      "role": "textbox",
+      "name": "password",
+      "name_source": "attr",
+      "label": null,
+      "text": null,
+      "tag": "input",
+      "type": "password",
+      "submit": false,
+      "options": null,
+      "container": {
+        "role": "form",
+        "name": null
+      },
+      "nth": 2,
+      "name_count": 1,
+      "label_count": 1
+    },
+    "value": "password"
+  },
+  {
+    "i": 3,
+    "tool": "click",
+    "args": {
+      "ref": 11
+    },
+    "message": "Clicked [11].",
+    "status": "ok",
+    "before": {
+      "url": "/index.htm",
+      "heading": "Customer Login"
+    },
+    "after": {
+      "url": "/overview.htm",
+      "heading": "Accounts Overview"
+    },
+    "approved": false,
+    "el": {
+      "role": "button",
+      "name": "Log In",
+      "name_source": "value",
+      "label": null,
+      "text": null,
+      "tag": "input",
+      "type": "submit",
+      "submit": true,
+      "options": null,
+      "container": {
+        "role": "form",
+        "name": null
+      },
+      "nth": 3,
+      "name_count": 1,
+      "label_count": 1
+    },
+    "value": null
+  },
+  {
+    "i": 4,
+    "tool": "extract_value",
+    "args": {
+      "label": "Balance",
+      "save_as": "balance",
+      "value_type": "currency"
+    },
+    "message": "FAILED to read 'Balance': the value does not look like a currency.",
+    "status": "ok",
+    "before": {
+      "url": "/overview.htm",
+      "heading": "Accounts Overview"
+    },
+    "after": {
+      "url": "/overview.htm",
+      "heading": "Accounts Overview"
+    },
+    "approved": false,
+    "el": null,
+    "label": "Balance",
+    "save_as": "balance",
+    "value_type": "currency",
+    "description": "Balance of account 18672",
+    "label_count": 1
+  },
+  {
+    "i": 5,
+    "tool": "finish",
+    "args": {},
+    "message": "Recorded. Stop now.",
+    "status": "ok",
+    "before": {
+      "url": "/overview.htm",
+      "heading": ""
+    },
+    "after": {
+      "url": "/overview.htm",
+      "heading": ""
+    },
+    "approved": false,
+    "el": null,
+    "summary": "Logged in and read balance of account 18672 from Accounts Overview page.",
+    "values": {
+      "balance": "$515.50"
+    }
+  }
+]

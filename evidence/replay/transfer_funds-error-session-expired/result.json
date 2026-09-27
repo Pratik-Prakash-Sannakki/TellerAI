@@ -1,0 +1,13 @@
+{
+  "run_id": "run",
+  "capability": "transfer_funds",
+  "capability_version": 1,
+  "status": "FAILED",
+  "outputs": {},
+  "failure": {
+    "step_index": 1,
+    "step_action": "click",
+    "expected": "primary: role='link' name='Transfer Funds'",
+    "observed": "neither primary nor fallback resolved"
+  }
+}

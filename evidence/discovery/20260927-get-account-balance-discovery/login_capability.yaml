@@ -1,0 +1,59 @@
+schema_version: 1
+name: login_parabank
+version: 1
+status: draft
+description: Log in to parabank with the stored credentials.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: safe
+inputs: []
+outputs: []
+secrets:
+- username
+- password
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /index.htm
+- action: type
+  target:
+    primary:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 1
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{secret:username}}'
+- action: type
+  target:
+    primary:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 2
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  value: '{{secret:password}}'
+- action: click
+  target:
+    primary:
+      strategy: role
+      role: button
+      name: Log In
+      stability: high
+      note: Accessible role and name; the most stable signal we have.
+    fallback:
+      strategy: structure
+      tag: input
+      within:
+        role: form
+      nth: 3
+      stability: low
+      note: Position inside its container, counting all elements of that tag; last resort only.
+  risk: safe
+checkpoint:
+  url_contains: overview.htm
+  text_present: Accounts Overview
+outcome_rules: []

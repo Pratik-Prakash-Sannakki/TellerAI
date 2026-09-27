@@ -1,0 +1,34 @@
+schema_version: 1
+name: get_account_balance_discovery_demo
+version: 1
+status: draft
+description: Read the current balance of one account, given its account id.
+base_url: https://parabank.parasoft.com/parabank
+risk_level: safe
+inputs: []
+outputs:
+- name: balance
+  type: currency
+  description: Balance of account {{account_id}}
+secrets: []
+steps:
+- why: Start page of this capability.
+  action: navigate
+  path: /overview.htm
+- action: extract
+  target:
+    primary:
+      strategy: labeled_value
+      label: Balance
+      stability: medium
+      note: Label text is stable across releases; a labeled-value read does not depend on page position.
+  save_as: balance
+checkpoint:
+  url_contains: overview.htm
+  text_present: Accounts Overview
+outcome_rules:
+- when:
+    text_present: Customer Login
+  kind: recoverable
+  action: relogin
+  message: The session expired. Run the login capability again and continue.
