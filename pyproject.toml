@@ -4,11 +4,14 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "deepagents>=0.7.15",
+    "langchain>=1.4.2",
     "langchain-anthropic>=1.7.2",
+    "langchain-typesafe>=0.0.1a3",
     "playwright>=1.63.0",
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
+    "typesafe-sdk>=0.7.1",
 ]
 
 [dependency-groups]
