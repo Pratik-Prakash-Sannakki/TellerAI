@@ -29,8 +29,13 @@ import base64
 import functools
 import os
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from cua.config import ALLOWED_HOSTS, BASE, HAIKU_MODEL, MODEL, SECRETS, SONNET_MODEL, host_allowed, resolve_secret
+from cua.config import ALLOWED_HOSTS, BASE, SECRETS, host_allowed, resolve_secret
+from cua.models import make_chat_model, model_name_for
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
 
 __all__ = [
     "Observation",
@@ -1071,17 +1076,21 @@ async def build_agent(page=None, goal_text: str = "", *, auto_limit: float | Non
     return agent
 
 
-def build_langchain_agent(tools: list, *, model: str = MODEL, system_prompt: str = SYSTEM_PROMPT,
-                           middleware: list | None = None):
+def build_langchain_agent(tools: list, *, model: "str | BaseChatModel | None" = None,
+                          system_prompt: str = SYSTEM_PROMPT, middleware: list | None = None):
     """Wrap a tool list in a deep agent (D4) with the standard checkpointer. Kept as a thin,
     separate function (not part of `build_agent`) so `cua discover`'s CAPTURE-mode tool list
     (the base tools plus the recorder's own additive tools) can share this exact call, matching
-    agent.ipynb's STEP 4 / 03_recorder.py's BROWSER 12."""
+    agent.ipynb's STEP 4 / 03_recorder.py's BROWSER 12.
+
+    `model` defaults to `make_chat_model("sonnet")` (the Iliad gateway). A chat-model instance
+    or a `provider:model` string is passed straight through: `create_deep_agent`'s own signature
+    is `model: str | BaseChatModel | None`."""
     from deepagents import create_deep_agent
     from langgraph.checkpoint.memory import MemorySaver
 
     return create_deep_agent(
-        model=model,
+        model=model if model is not None else make_chat_model("sonnet"),
         tools=tools,
         system_prompt=system_prompt,
         checkpointer=MemorySaver(),
@@ -1100,7 +1109,8 @@ def build_langchain_agent(tools: list, *, model: str = MODEL, system_prompt: str
 # 11/12 (the reference implementation) builds `recorder_middleware` from
 # `TypeSafeToolRouterMiddleware`/`ModelRouterMiddleware` and passes it into its own
 # `create_deep_agent(..., middleware=recorder_middleware)` call. `src/cua/config.py` already had
-# `TYPESAFE_API_KEY`/`HAIKU_MODEL`/`SONNET_MODEL` defined (D93's shared config module) -- only the
+# `TYPESAFE_API_KEY` (and, then, `HAIKU_MODEL`/`SONNET_MODEL` strings, now replaced by
+# `cua.models.make_chat_model`, the Iliad gateway) defined (D93's shared config module) -- only the
 # middleware CLASSES and the job-mapping/confidence-gate logic that decide what to build from them
 # were never ported. This is that port: `job_tool_names`/`confidence_gate`/`NEVER_HIDE`/
 # `JOB_EXTRA_TOOLS`/`JOB_CRITERIA` are copied verbatim from `03_recorder.py`'s OFFLINE 13b (itself
@@ -1153,7 +1163,7 @@ def build_typesafe_middleware(agent: "DiscoveryAgent", *, extra_never_hide: set[
     capture) agent can omit it and get agent.ipynb's original 4-tool `NEVER_HIDE` unchanged."""
     key = os.getenv("TYPESAFE_API_KEY", "")
     if not key:
-        print("model router OFF: no TYPESAFE_API_KEY in .env. Using MODEL only:", MODEL)
+        print("model router OFF: no TYPESAFE_API_KEY in .env. Using Sonnet only:", model_name_for("sonnet"))
         return []
 
     from langchain.agents.middleware import AgentMiddleware
@@ -1191,15 +1201,15 @@ def build_typesafe_middleware(agent: "DiscoveryAgent", *, extra_never_hide: set[
     recorder_router = ModelRouterMiddleware(
         choices={
             "fast": ModelChoice(
-                model=HAIKU_MODEL,
+                model=make_chat_model("haiku"),
                 criteria="A single simple step: reading the page, or one obvious click, type, or select with no ambiguity.",
             ),
             "powerful": ModelChoice(
-                model=SONNET_MODEL,
+                model=make_chat_model("sonnet"),
                 criteria="Anything else: planning, choosing between several similar elements, forms, or any step before a risky click.",
             ),
         },
         instructions="Pick the cheapest model that can do the step correctly. If unsure, pick 'powerful'.",
     )
-    print(f"model router ON (TypeSafe): fast={HAIKU_MODEL} | powerful={SONNET_MODEL}")
+    print(f"model router ON (TypeSafe): fast={model_name_for('haiku')} | powerful={model_name_for('sonnet')}")
     return [TypeSafeToolRouterMiddleware(TypeSafeClassifier()), recorder_router]

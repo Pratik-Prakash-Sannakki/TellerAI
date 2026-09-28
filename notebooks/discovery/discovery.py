@@ -1,15 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     cell_metadata_filter: title,-all
-#     formats: ipynb,py:percent
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.19.5
-# ---
-
 # %% [markdown]
 # # Pure-visual discovery
 #
@@ -3442,7 +3430,8 @@ class _UrlView:
 
 
 def build_middleware(st: AgentState) -> list:
-    """The TypeSafe tool router + model router (D50/D52), or [] with no TYPESAFE_API_KEY."""
+    """The TypeSafe tool router + model router (D50/D52), or [] with no TYPESAFE_API_KEY.
+    Its fast/powerful models are `cua.models.make_chat_model("haiku"/"sonnet")` (Iliad gateway)."""
     return build_typesafe_middleware(_UrlView(st), extra_never_hide=set(VISUAL_EXTRA_NEVER_HIDE))
 
 
@@ -4277,12 +4266,13 @@ print("Check by eye: Username / Password / Log In have numbers; the two EMPTY bo
 
 
 # %% BROWSER 5: build the agent (needs BROWSER 2 + 2b; p3b's build_tools / VISUAL_SYSTEM_PROMPT / build_middleware)
-import os
 import tempfile
 
 from IPython.display import Image, display
 
-RUN_MODEL = os.getenv("MODEL", "anthropic:claude-sonnet-5")   # model from the MODEL env var
+from cua.models import make_chat_model, model_name_for
+
+RUN_MODEL = model_name_for("sonnet")                         # Iliad gateway Sonnet (ILIAD_SONNET_MODEL)
 MAX_STEPS = 40                                               # step cap per run (tool calls)
 # Q-B: ParaBank's safe list lives HERE (the run cell), never in tool code. (page, OCR text) pairs.
 _MENU = ("Accounts Overview", "Transfer Funds", "Find Transactions", "Log Out")
@@ -4293,7 +4283,7 @@ SESSION_RUNS: list[pathlib.Path] = []                        # every run dir mad
 
 
 def _make_agent(st: AgentState) -> object:
-    return build_langchain_agent(build_tools(st), model=RUN_MODEL, system_prompt=VISUAL_SYSTEM_PROMPT,
+    return build_langchain_agent(build_tools(st), model=make_chat_model("sonnet"), system_prompt=VISUAL_SYSTEM_PROMPT,
                                  middleware=build_middleware(st))
 
 

@@ -242,7 +242,8 @@ class _UrlView:
 
 
 def build_middleware(st: AgentState) -> list:
-    """The TypeSafe tool router + model router (D50/D52), or [] with no TYPESAFE_API_KEY."""
+    """The TypeSafe tool router + model router (D50/D52), or [] with no TYPESAFE_API_KEY.
+    Its fast/powerful models are `cua.models.make_chat_model("haiku"/"sonnet")` (Iliad gateway)."""
     return build_typesafe_middleware(_UrlView(st), extra_never_hide=set(VISUAL_EXTRA_NEVER_HIDE))
 
 

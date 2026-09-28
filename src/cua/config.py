@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-MODEL = os.getenv("MODEL", "anthropic:claude-sonnet-5")
 BASE = "https://parabank.parasoft.com/parabank"
 ALLOWED_HOSTS = {"parabank.parasoft.com"}
 SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}   # names only (D32)
@@ -26,8 +25,13 @@ SESSION_EXPIRED_TEXT = "Customer Login"   # login page text, used for the relogi
 
 # Optional (D50): routes discovery steps to Haiku or Sonnet via TypeSafe. Off unless set.
 TYPESAFE_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
-HAIKU_MODEL = "anthropic:claude-haiku-4-5-20251001"
-SONNET_MODEL = "anthropic:claude-sonnet-5"
+
+# Company Iliad gateway (every LLM call goes here; see cua.models). The key is read only from
+# the ILIAD_API_KEY env var, inside cua.models -- never stored in this module. `or` so a blank
+# `.env` line (e.g. `ILIAD_BASE_URL=`) still means "use the default".
+ILIAD_BASE_URL = os.getenv("ILIAD_BASE_URL") or "https://iliad-emerging-api.abbvienet.com/anthropic"
+SONNET_MODEL_NAME = os.getenv("ILIAD_SONNET_MODEL") or "claude-sonnet-4-5-20250929"
+HAIKU_MODEL_NAME = os.getenv("ILIAD_HAIKU_MODEL") or "claude-haiku-4-5-20251001"
 
 
 def resolve_secret(name: str) -> str:
