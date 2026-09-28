@@ -18,7 +18,9 @@ Follow these in order for every request, no exceptions:
 - One phase at a time. No parallel work.
 - Notebook first. Production code only in Phase 9.
 - **Each phase runs in a fresh sub-agent.** Fan one out per phase.
-- Sub-agent writes the notebook. **The user runs it.** Sub-agent never runs it.
+- Sub-agent writes the notebook. **The user runs the BROWSER cells.** A sub-agent may run only
+  `# %% OFFLINE` cells, via `notebooks/discovery/run_offline.py` (secrets scrubbed, no `uv run`).
+- Notebook code is production design: no notebook-only shortcuts. Only test fixtures are test-only.
 - Stop after each notebook. Wait for the user before the next one.
 - Notebooks are jupytext `.py` files (`# %%` cells) in `notebooks/`.
 
