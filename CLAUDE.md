@@ -2,6 +2,14 @@
 
 Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
 
+## Every task: the 4-step workflow (standing rule, user-mandated)
+Follow these in order for every request, no exceptions:
+1. **Query the graph first.** Your first instinct is `graphify query "<question>"` (plus
+   `graphify explain "<node>"` / `graphify path "<A>" "<B>"`) to learn where things are.
+2. **Then semantic search.** Use your own search (Grep/Glob/LSP/Explore) to find the exact code.
+3. **Implement it.**
+4. **Update the graph after implementing.** Run `graphify update .` so the graph stays current.
+
 ## Read first
 - `DECISIONS.md` — every design decision (D1–D31).
 - `docs/superpowers/plans/2026-09-19-roadmap-and-phase1.md` — roadmap + Phase 1 plan.
@@ -14,9 +22,18 @@ Computer-use automation take-home (interface.ai). Python + uv. Target: ParaBank.
 - Stop after each notebook. Wait for the user before the next one.
 - Notebooks are jupytext `.py` files (`# %%` cells) in `notebooks/`.
 
+## Role: orchestrator (standing rule)
+- Fan out a sub-agent for every user request. Discovery queries always go to a sub-agent.
+- Main thread plans, delegates, and relays. Sub-agents do the digging.
+- Every sub-agent starts from graphify (`graphify query` / `path` / `explain`) for past work.
+  Raw file browsing comes only after the graph runs dry.
+
 ## How to talk to the user
-- Short. Simple English. No long paragraphs.
-- Explain jargon in one line, with an example.
+- Crisp. Bullets over paragraphs. Short sentences, plain English.
+- Summarise what was done. Leave out implementation walk-throughs.
+- The user already knows HTML, CSS, scraping, and this project's own code. Use those terms freely.
+- Explain only truly unfamiliar terms: one line plus an example, or a short note at the end.
+  If a term adds nothing, drop it.
 - Ask one question at a time.
 
 ## Rules
