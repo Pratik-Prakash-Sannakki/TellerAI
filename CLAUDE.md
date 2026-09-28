@@ -27,6 +27,13 @@ Follow these in order for every request, no exceptions:
 - Main thread plans, delegates, and relays. Sub-agents do the digging.
 - Every sub-agent starts from graphify (`graphify query` / `path` / `explain`) for past work.
   Raw file browsing comes only after the graph runs dry.
+- Every sub-agent that builds anything uses superpowers skills (via the Skill tool), in this order:
+  - Design not settled yet → `superpowers:brainstorming`.
+  - Design settled → `superpowers:writing-plans`, then stop for the user's review.
+  - Plan approved → `superpowers:executing-plans` or `superpowers:subagent-driven-development`,
+    with `superpowers:test-driven-development` for code.
+  - Before saying "done" → `superpowers:verification-before-completion`.
+- Put this rule in every build sub-agent's prompt, by name.
 
 ## How to talk to the user
 - Crisp. Bullets over paragraphs. Short sentences, plain English.
