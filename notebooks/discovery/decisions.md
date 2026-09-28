@@ -21,6 +21,12 @@ Status key: **DECIDED** = user-confirmed. **OPEN** = not answered yet. All quest
 | Tools | How to type into boxes with no number | `type_text` / `type_secret` take a number or a point | DECIDED |
 | Q13 | Scrolling | `scroll` tool + fresh look + renumber | DECIDED |
 | Q14 | Private data in saved pictures | Tight crop + blank out any other text | DECIDED |
+| Q15 | Sitemap before discovery | One cell: `ultimate-sitemap-parser`; found → page list to the agent, not found → carry on | DECIDED |
+| Q16 | Handoff UI and site lock | Control window + site locked for the whole run; humans act only through the window; no Take over | DECIDED |
+| Q17 | Which clicks need approval | Deny by default; only exact `safe_words` matches skip Approve | DECIDED |
+| Q18 | Where to prove it live | ParaBank only, purely visual; no local hostile page for now | DECIDED |
+| Q19 | What the builder may run | OFFLINE cells only, via `run_offline.py` | DECIDED |
+| Q20 | Where the new libraries go | A separate `discovery` dependency group | DECIDED |
 
 ---
 
@@ -29,16 +35,20 @@ Status key: **DECIDED** = user-confirmed. **OPEN** = not answered yet. All quest
 - **Pure visual everywhere, including ParaBank.** Screenshot, then OCR, then mouse/keyboard at
   coordinates. No DOM reads, no `page.evaluate`, no accessibility tree.
 - **OCR engine:** RapidOCR only (it runs the PaddleOCR models).
-- **Proof:** two runs, both pure visual: a hostile local page (framesets, nested tables, no
-  `id`s, no `<label>`s), and a ParaBank re-run.
+- **Proof:** ~~two runs, both pure visual: a hostile local page (framesets, nested tables, no
+  `id`s, no `<label>`s), and a ParaBank re-run.~~ Superseded by **Q18**: ParaBank only, for now.
 - **Playwright's role:** navigation, screenshot, mouse and keyboard only.
 - **Hard rules kept:**
   - `type_secret`: the model never sees the value; keys are sent via the keyboard.
   - `host_allowed`: gates every navigation.
-  - Risky-click gate (Approve / Reject / Take over): triggered by the element's OCR text
-    matched against a risky-word list. The list lives in **config**, never in agent code.
+  - Risky-click gate: ~~triggered by the element's OCR text matched against a risky-word
+    list~~. Superseded by **Q17**: deny by default, only `safe_words` skip approval. Approve /
+    Reject happens in the control window (**Q16**). There is no Take over.
 - **Notebook-first.** Built in `notebooks/discovery/discovery` first. `src/cua/` is untouched until a later
   port.
+- **Rule: the notebook is the production design (user, 2026-09-28).** Every mechanism in it is
+  what ships. No notebook-only stand-ins (e.g. `input()` prompts). Test-only fakes and fixtures
+  are clearly marked and never on the run path.
 
 ### The 3 rungs (how replay finds things)
 
@@ -226,3 +236,131 @@ in an earlier step) and save it into the capability file.
 - The rung-3 picture is cut (at discovery, before the action) tight to the element's own box.
 - Any OCR text inside the crop that isn't the element's own label is blanked out before saving.
 - Customer data never goes into saved files, the same rule as secrets.
+
+## Q15: sitemap before discovery — DECIDED
+
+**Question.** Can the agent be told a site's pages up front, so it can go straight to the right one?
+
+**Decision (user, 2026-09-28):**
+- One cell, run once before discovery, using `ultimate-sitemap-parser`:
+  `sitemap_tree_for_homepage(SITE)`, then `tree.all_pages()`. `SITE` comes from config.
+- Found: the allowed-host page paths (deny words removed, capped) are added to the agent's first
+  message as context. `open_path` accepts them.
+- Not found, or any error: nothing is added, and discovery carries on as usual.
+- Only allowed hosts are fetched. This is the one approved exception to "screen only", since it
+  fetches over HTTP, not the browser.
+- Legacy sites can't be assumed to have a sitemap. ParaBank has none (`/robots.txt` and
+  `/sitemap.xml` both 404 on 2026-09-28).
+
+## Q16: handoff UI and site lock — DECIDED
+
+**Question.** When a human must approve a click or give a missing value, where do they do it,
+and what stops anyone (agent or human) from touching anything else on the site?
+
+**Options considered**
+- A. The in-page bar (injected into the site). Rejected: fails on framesets, and injects into
+  the customer's site.
+- B. A notebook `input()` prompt. Rejected: not production.
+- C. A control window, but the site is not locked. A human could still click anything.
+- D. The control window + site lock, keeping Take over. Rejected: breaks zero trust.
+- E. **The control window + site lock, no Take over.**
+
+**Decision (user, 2026-09-28): E. Zero trust.**
+- The rule, in the user's words: "this is a banking application; I should not be allowed to
+  click or enter anything other than what I'm supposed to." No trust exception.
+- **Control window:** our own small page in a second browser window (`set_content`, no host).
+  Nothing is injected into the site, so it works on any site, framesets included.
+- **Site lock:** `SiteLock` sends DevTools `Input.setIgnoreInputEvents(ignore=true)` on the site
+  tab's own CDP session. On for the whole run, handoffs included. Lifted only for the instant of
+  our own mouse/keyboard call on the allowed target (unlock → act → relock, in `try/finally`).
+- **Humans act only through the control window.** Our code then does the action:
+  - Risky click: Approve / Reject only. Approve = our code clicks that exact target.
+  - Missing value: the field's crop + a value box (masked if sensitive). Our code clicks,
+    types, and re-reads it with OCR. The value never reaches the model or the log (the log gets
+    only `human_entry: true` + the field).
+  - Dropdown: the human types the option text; our code runs `choose_option`.
+  - `ask_human`: a typed text answer only, never access to the page.
+- **No Take over.** Anything the window can't express ends the run as `STUCK:`.
+- **Depends on the BROWSER 0 lock check:** it must prove the lock blocks real human input
+  before anything is built on it. If it fails, Q16 is reopened.
+
+## Q17: which clicks need approval — DECIDED
+
+**Question.** A risky-word list misses any risky button whose words aren't on it. How do we
+decide which clicks need a human's Approve?
+
+**Options considered**
+- A. A risky-word list (the old gate): only listed words need approval. Fails open.
+- B. **Deny by default, with a safe list.** Every click needs approval unless its text is on the
+  safe list.
+- C. B, plus every navigation link counted as safe automatically.
+
+**Decision (user, 2026-09-28): B.**
+- Every `click` / `click_at` needs Approve in the control window (Q16) unless its normalised OCR
+  text exactly matches an entry in `cfg.safe_words`.
+- `click_at` on a spot with no OCR text is never safe: it always needs approval.
+- `cfg.deny_words` are refused outright, before any approval.
+- `safe_words` lives in config per app. ParaBank's list (`log in`, `find transactions`, its menu
+  links) is set in the ParaBank run cell. Tools hold no site values.
+- A rejected target is remembered for the run (D33). The old risky-word list is dropped.
+
+## Q18: where to prove it live — DECIDED
+
+**Question.** The base plan had two proof runs: a hostile local page and ParaBank. Do we need
+both now?
+
+**Options considered:** A. Both runs. B. A local hostile page only. C. **ParaBank only, purely
+visual.**
+
+**Decision (user, 2026-09-28): C.**
+- Live proof is ParaBank only, purely visual. No local test page, no localhost exception.
+- The hostile local page is deferred, not dropped.
+- **Risk:** the engine is unproven on legacy markup (framesets, nested tables, no `<label>`s)
+  until that page is built.
+
+## Q19: what the builder may run — DECIDED
+
+**Question.** The builder sub-agent writes the notebook. May it run any of it?
+
+**Options considered:** A. **OFFLINE cells only, via a runner.** B. Nothing (the user runs
+everything). C. Everything, BROWSER cells included.
+
+**Decision (user, 2026-09-28): A.**
+- Runner: `notebooks/discovery/run_offline.py`. Runs only `# %% OFFLINE` cells, in order, in one
+  shared namespace, and stops at the first failing assert.
+- Keys scrubbed: no `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY` or `PARABANK_*` in `os.environ`.
+- Import guard: fails if an OFFLINE cell imports `playwright`.
+- Never a BROWSER cell, a browser, the model, the network, or `.env` values. One exception:
+  OFFLINE 6 runs real RapidOCR on a synthetic PNG (local, no network).
+- Run with the project's kernel interpreter by path, never `uv run`. A task is done only when
+  every `OK <cell>` line prints.
+
+## Q20: where the new libraries go — DECIDED
+
+**Question.** Discovery needs new libraries. Main dependencies, or kept apart?
+
+**Options considered:** A. **A separate `discovery` dependency group.** B. Main dependencies
+now.
+
+**Decision (user, 2026-09-28): A.**
+- `[dependency-groups] discovery = ["rapidocr>=3.9.2", "onnxruntime>=1.30.0", "numpy>=2",
+  "ultimate-sitemap-parser>=1.8.1"]`. Installed with `uv sync --group discovery`.
+- Moves to the main dependencies at the later `src/cua/` port.
+
+## Q21: live-session take over (reopens Q16) — DECIDED
+
+**Why reopened.** The spec (3.6) requires that a human can "take control of the live session",
+do the manual steps, "then hand control back", and that we "record what the human did". Q16-E
+(no take over) fails that requirement.
+
+**Decision (user, 2026-09-28): add ONE bounded take-over path; everything else in Q16 stays.**
+- Only when the agent is stuck (the tool `ask_human(question, take_over=True)` or a `STUCK:`
+  condition the control window can't express). Never for a risky click: those stay Approve / Reject.
+- The control window shows **who is in control** (`agent` / `human`) at all times.
+- Take over: our code unlocks the site for the human (the ONE exception to the whole-run lock),
+  shows "You are in control. Click Done to hand back." The human works on the SAME live session.
+- Done: our code re-locks the site FIRST, then takes a new look. The agent resumes on that session.
+- Recorded: an event `human_takeover` with the reason, the page URL + screenshot before and after,
+  and the duration. No typed values are captured (we can't see keystrokes, by design), so steps a
+  human did during a take over are marked `human_entry: true, recordable: false` (D82 rule).
+- Cost: zero trust is broken only while the human holds control, and the log shows it.

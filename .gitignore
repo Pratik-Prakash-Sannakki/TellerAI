@@ -29,3 +29,6 @@ graphify-out/.graphify_root
 graphify-out/.graphify_cached.json
 graphify-out/.graphify_uncached.txt
 graphify-out/.community_dump.txt
+
+# pure-visual discovery run output (screenshots, crops, event logs)
+notebooks/discovery/runs/
