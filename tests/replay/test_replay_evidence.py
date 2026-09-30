@@ -106,3 +106,8 @@ def test_checkpoint_miss_carries_expected_and_observed(ns, mk_look) -> None:
         asyncio.run(ns["walk"](cap, None, []))
     assert e.value.expected == "Transfer Complete!" and e.value.observed == lk.text[:200]
     assert ns["STATE"].step == 1 and ns["STATE"].action == "checkpoint"      # after the last step
+
+
+def test_a_short_number_is_masked_only_as_a_whole_number(ns) -> None:
+    redact = ns["redactor"]({"1", "15231"})
+    assert redact("rung1 attempt 1 #15231 $1.00 s1.png") == "rung1 attempt *** #*** *** s1.png"

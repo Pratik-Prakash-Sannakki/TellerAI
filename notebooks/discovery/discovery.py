@@ -32,7 +32,7 @@ import shutil
 import tempfile
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
@@ -185,6 +185,7 @@ class Look:
 
 OCR_ENGINE = RapidOCR()
 REFS = {"next": 1}
+NAVS = {"main": 0}      # main-frame navigations so far (a link back to the same URL is one too)
 
 
 def decode(png: bytes) -> np.ndarray:
@@ -240,6 +241,13 @@ async def take_look() -> Look:
     img, scale = to_canvas(img, points_w)
     elements = number(ocr(img))
     HANDOFF.look = Look(encode(img), draw_numbered(img, elements), elements, page.url, scale)
+    start = HANDOFF.log[0] if HANDOFF.log else {}
+    if start.get("tool") == "start":
+        start.setdefault("start_texts", page_texts(HANDOFF.look))     # the page a run begins on
+        start["looks"] = start.get("looks", 0) + 1                    # text on most looks is chrome
+        counts = start.setdefault("text_counts", {})
+        for t in {norm(t) for t in page_texts(HANDOFF.look)}:
+            counts[t] = counts.get(t, 0) + 1
     return HANDOFF.look
 
 
@@ -286,38 +294,70 @@ def blocks(prefix: str, look: Look) -> list[dict]:
 
 
 # %%
+NUMBER = re.compile(r"\$?\d[\d,]*(?:\.\d+)?")
+
+
+def _num(text: str) -> str:
+    n = text.lstrip("$").replace(",", "")
+    return n.rstrip("0").rstrip(".") if "." in n else n
+
+
+def redactor(values: set[str], mask: str = "***"):
+    """text -> text with every value masked. Numbers match however they are written
+    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill')."""
+    nums = {_num(v) for v in values if NUMBER.fullmatch(v.strip())}
+    words = sorted((v for v in values if len(v.strip()) > 1 and not NUMBER.fullmatch(v.strip())),
+                   key=len, reverse=True)
+    word_re = re.compile("|".join(rf"(?<!\w){re.escape(w.strip())}(?!\w)" for w in words), re.I) if words else None
+
+    def redact(text: str) -> str:
+        text = NUMBER.sub(lambda m: mask if _num(m.group()) in nums else m.group(), text)
+        return word_re.sub(mask, text) if word_re else text
+    return redact
+
+
+def clean_label(text: str, values: set[str]) -> str:
+    """OCR joins a label to the box beside it ('to account #16785') and reads a box border as '['
+    or '|'. Both are cut. '' when no word is left: then it is no label at all (a value, a number)."""
+    left = " ".join(redactor(values, " ")(re.sub(r"[\[\]|]", " ", text)).split())
+    return left if re.search(r"[^\W\d_]", left) else ""
+
+
 def element_at(look: Look, point: tuple[int, int]) -> Element | None:
     return next((e for e in look.elements if e.box.contains(*point)), None)
 
 
 def label_near(look: Look, point: tuple[int, int], radius: int = 250,
                skip: Element | None = None, avoid: set[str] | None = None) -> Element | None:
-    """The text above/left of the point that labels it. Never a value: it has a letter (not an
-    account number or amount) and is nothing typed or entered this run. A label on the point's own
-    row, to its left, wins (a wide form); else the nearest (a label above its box)."""
+    """The text above/left of the point that labels it, cleaned (clean_label): never a value
+    typed, entered, given or sent this run. A label on the point's own row, to its left, wins (a
+    wide form); else the nearest (a label above its box). Returned with its cleaned text."""
     px, py, avoid = *point, run_values() if avoid is None else avoid
     dist = lambda e: abs(e.box.center[0] - px) + abs(e.box.center[1] - py)  # noqa: E731
-    near = [e for e in look.elements if e is not skip and re.search(r"[^\W\d_]", e.text)
-            and norm(e.text) not in avoid and e.box.x1 <= px and e.box.y1 <= py and dist(e) <= radius]
+    near = [replace(e, text=t) for e in look.elements if e is not skip
+            and e.box.x1 <= px and e.box.y1 <= py and dist(e) <= radius and (t := clean_label(e.text, avoid))]
     same_row = [e for e in near if e.box.y1 <= py <= e.box.y2 and e.box.x2 <= px]
     return min(same_row or near, key=dist, default=None)
 
 
-def spot(look: Look, el: Element) -> dict:
-    """Text, box, and ordinal (the Nth element on screen with the same text), for replay's rungs."""
-    same = [e for e in look.elements if norm(e.text) == norm(el.text)]
+def spot(look: Look, el: Element, text=lambda t: t) -> dict:
+    """Text, box, and ordinal (the Nth element on screen whose `text(...)` is the same), for
+    replay's rungs."""
+    same = [e.ref for e in look.elements if norm(text(e.text)) == norm(el.text)]
     return {"text": el.text, "box": [el.box.x1, el.box.y1, el.box.x2, el.box.y2],
-            "ordinal": same.index(el) + 1}
+            "ordinal": same.index(el.ref) + 1}
 
 
 def where(look: Look, point: tuple[int, int], own: Element | None = None) -> dict:
     """R14: anchor label + offset (rung 2) and the clicked element (rung 1). The text under the
     point is never the anchor: in a box it could be a value."""
-    label = label_near(look, point, skip=element_at(look, point))
+    values = run_values()
+    label = label_near(look, point, skip=element_at(look, point), avoid=values)
     if label is None:
         return {"own": spot(look, own) if own else None}
     cx, cy = label.box.center
-    return {"own": spot(look, own) if own else None, "anchor": spot(look, label),
+    return {"own": spot(look, own) if own else None,
+            "anchor": spot(look, label, lambda t: clean_label(t, values)),
             "label": label.text, "offset": [point[0] - cx, point[1] - cy]}
 
 
@@ -401,19 +441,27 @@ def norm(text: str | None) -> str:
 
 
 def run_values() -> set[str]:
-    """Every value typed, entered or given this run, plus the secrets (in memory only)."""
+    """Every value typed, entered, given or sent this run, plus the secrets (in memory only)."""
     return {norm(v) for v in (*HANDOFF.typed_texts, *HANDOFF.given, *HANDOFF.entered.values(),
-                              *SECRETS.values()) if norm(v) and v != "******"}
+                              *HANDOFF.redact, *SECRETS.values()) if norm(v) and v != "******"}
 
 
 def flag_leaks(log: list[dict], values: set[str]) -> None:
-    """Mark (never store) an event whose label, anchor or own text is one of this run's values,
-    so the save refuses it. Run before the values are dropped."""
+    """Mark (never store) an event whose label, anchor, own text, hint or input name holds one of
+    this run's values anywhere inside it ('to account #16785'), so the save refuses it. Numbers
+    and words match as redactor does. Run before the values are dropped."""
+    redact = redactor(values)
     for ev in log:
+        label = ev.get("label") or ev["args"].get("hint")
         texts = (ev.get("label"), (ev.get("anchor") or {}).get("text"), (ev.get("own") or {}).get("text"),
-                 ev["args"].get("hint"))
-        if any(norm(t) in values for t in texts if t):
+                 ev["args"].get("hint"), input_name(label) if label else None)
+        if any(redact(t) != t for t in texts if t):
             ev["leak"] = True
+        for key in ("page_texts", "start_texts", "headings", "from_texts"):   # candidates: drop, not refuse
+            if key in ev:
+                ev[key] = [t for t in ev[key] if redact(t) == t]
+        if "text_counts" in ev:
+            ev["text_counts"] = {t: n for t, n in ev["text_counts"].items() if redact(t) == t}
 
 
 def current_page() -> str:
@@ -583,7 +631,8 @@ DROPDOWNS_JS = """() => [...document.querySelectorAll('select')].map(s => {
   const r = s.getBoundingClientRect();
   return {value: s.value, text: s.options[s.selectedIndex]?.text.trim() ?? '',
           options: [...s.options].map(o => o.text.trim()),
-          at: r.width && r.height ? [r.left + r.width / 2, r.top + r.height / 2] : null};
+          at: r.width && r.height ? [r.left + r.width / 2, r.top + r.height / 2] : null,
+          box: [r.left, r.top, r.right, r.bottom]};
 })"""
 
 
@@ -604,9 +653,36 @@ async def log_sent_dropdowns(look: Look, sent: dict[str, str]) -> None:
     for d in HANDOFF.dropdowns:            # read before the click: the page is not touched here
         if d["at"] and values & {d["value"], d["text"]}:
             point = (round(d["at"][0] / look.scale), round(d["at"][1] / look.scale))
+            here = {"url": look.url, "point": point, "field_box": [round(v / look.scale) for v in d["box"]]}
+            if any(is_select(ev) and same_spot(ev, here) for ev in HANDOFF.log):
+                continue                   # the agent already chose this one: never a second step
             spots = where(look, point)
             log("select_option", {"hint": spots.get("label") or "option"}, "sent dropdown", point,
-                cut_crop(look, point, None), dropdown=True, **spots)
+                cut_crop(look, point, None), dropdown=True, field_box=here["field_box"], **spots)
+
+
+FIELD_GAP = (40, 12)     # a dropdown is wide and short: points this close (x, y) are the same one
+
+
+def is_select(ev: dict) -> bool:
+    return ev["tool"] == "select_option" or (ev["tool"] == "request_value" and bool(ev.get("dropdown")))
+
+
+def field_area(ev: dict) -> tuple[int, int, int, int]:
+    """The field's own box when known (a sent dropdown), else a wide, short box around the point."""
+    if ev.get("field_box"):
+        return tuple(ev["field_box"])
+    (x, y), (dx, dy) = ev["point"], FIELD_GAP
+    return x - dx, y - dy, x + dx, y + dy
+
+
+def same_spot(a: dict, b: dict) -> bool:
+    """Two events on one field: same page, one's point inside the other's area. Position, not the
+    label: OCR reads one label two ways ('From account #[' and 'From account #')."""
+    inside = lambda p, r: r[0] <= p[0] <= r[2] and r[1] <= p[1] <= r[3]  # noqa: E731
+    return (urlparse(a["url"]).path == urlparse(b["url"]).path and a["point"] is not None
+            and b["point"] is not None
+            and (inside(a["point"], field_area(b)) or inside(b["point"], field_area(a))))
 
 
 async def dropdown_options(fields: dict[str, str], keys: list[str]) -> list[list[str]]:
@@ -733,9 +809,10 @@ async def guard_send(route) -> None:
                              "approve", image=shot if fields == original else None) != "approve":
             HANDOFF.verdict = DECLINED
             return await route.abort()
+        # e.g. a human's $100000: masked in evidence, and never part of a label
+        HANDOFF.redact |= {v for v in (*original.values(), *fields.values()) if v}
         if look:                                   # the page's dropdowns hold what was on screen
             await log_sent_dropdowns(look, original)
-        HANDOFF.redact |= {v for v in fields.values() if v}    # e.g. a human's $100000: masked in evidence
         HANDOFF.entered = {}
         HANDOFF.verdict = "SENT: a human approved both gates."
         log("send", {"path": urlparse(req.url).path}, "approved by human",
@@ -983,6 +1060,7 @@ LOCK = SiteLock(await page.context.new_cdp_session(page))
 await LOCK.set(True)
 await page.unroute("**/*")
 await page.route("**/*", guard_send)
+page.on("framenavigated", lambda f: NAVS.update(main=NAVS["main"] + (f == page.main_frame)))
 CONTROL = ControlWindow(control_page)
 await control_page.expose_function("cuaReply", CONTROL.on_reply)
 control_page.on("close", lambda _: CONTROL.on_reply(None))
@@ -997,7 +1075,7 @@ print("site locked | control window open")
 # %%
 ACT_LOCK = asyncio.Lock()
 FAILED = ("NO CHANGE", "NOTHING TYPED", "TYPED at", "STALE", "OUT OF VIEW", "REFUSED", "NOT YET",
-          "LOOK FIRST", "BAD TARGET", "SKIP")   # tool results that mean "that did not work"
+          "LOOK FIRST", "BAD TARGET", "SKIP", "HTTP ERROR")   # tool results meaning "that did not work"
 
 
 def one_at_a_time(fn):
@@ -1082,7 +1160,7 @@ async def click(ref: int | None = None, x: int | None = None, y: int | None = No
     if refusal := await gate_click(text, crop):
         log("click", args, refusal, point, crop, text=text, **spots)
         return blocks(refusal, before)
-    HANDOFF.allow_send = norm(text) in CFG.login_words
+    HANDOFF.allow_send, navs = norm(text) in CFG.login_words, NAVS["main"]
     try:
         after = await act(lambda: page.mouse.click(*to_page(point)))
     finally:
@@ -1098,7 +1176,10 @@ async def click(ref: int | None = None, x: int | None = None, y: int | None = No
     if norm(text) in CFG.login_words:
         HANDOFF.typed_secrets.clear()
         msg = after_login_click(after.text) or msg
-    log("click", args, msg, point, crop, text=text, **spots, **({"landed": landed(before, after)} if sent else {}))
+    log("click", args, msg, point, crop, text=text, **spots, from_texts=page_texts(before),
+        from_url=before.url, loaded=page.url != before.url, navigated=NAVS["main"] != navs,
+        new_texts=bool({norm(e.text) for e in after.elements} - {norm(e.text) for e in before.elements}),
+        **({"landed": landed(before, after)} if sent else {}))
     return blocks(msg, after)
 
 
@@ -1235,23 +1316,122 @@ async def open_path(path: str) -> list:
         refusal = f"REFUSED: '{path}' is not allowed."
     elif any(norm(v) not in norm(HANDOFF.goal) for _, v in parse_qsl(urlparse(url).query)):
         refusal = "REFUSED: query values must come from the goal."
-    log("open_path", {"path": path}, refusal or f"Opened {path}.")
     if refusal:
+        log("open_path", {"path": path}, refusal)
         return await reply(refusal)
-    await page.goto(url)
-    return blocks(f"Opened {path}.", await take_look())
+    left = page_texts(HANDOFF.look) if HANDOFF.look else []
+    response = await page.goto(url)                  # network metadata only, never the DOM
+    status = response.status if response else 0
+    msg = f"HTTP ERROR {status}: {path} does not exist." if status >= 400 else f"Opened {path}."
+    log("open_path", {"path": path}, msg, status=status, path=urlparse(url).path, from_texts=left)
+    return blocks(msg, await take_look())
+
+
+TABLE_GAP = 40     # px: a bigger vertical gap between two lines ends a table block
+KEY_REACH = 600    # px: a row key further left than this is not the value's own row key
+
+
+def is_word(text: str, values: set[str]) -> bool:
+    """A header or row key: has a letter and holds no run value (an account number never is)."""
+    return bool(re.search(r"[^\W\d_]", text)) and redactor(values)(text) == text
+
+
+def column_header(look: Look, el: Element) -> Element | None:
+    """The value's column, walked upwards while each text is within TABLE_GAP of the one below and
+    aligned with the value (one's centre inside the other's span): its topmost text, if it is a
+    word on a line with 2+ texts (a header row). A menu or title beside the column is not in it."""
+    aligned = lambda e: (e.box.x1 <= el.box.center[0] <= e.box.x2  # noqa: E731
+                         or el.box.x1 <= e.box.center[0] <= el.box.x2)
+    top, header = el, None
+    for e in sorted((e for e in look.elements if e.box.y2 <= el.box.y1 and aligned(e)),
+                    key=lambda e: -e.box.y2):
+        if top.box.y1 - e.box.y2 >= TABLE_GAP:
+            break
+        top = e
+    if top is not el and is_word(top.text, run_values()):
+        header = top
+    line = [e for e in look.elements if header and e.box.y1 < header.box.y2 and header.box.y1 < e.box.y2]
+    return header if len(line) >= 2 else None
+
+
+def row_block(look: Look, el: Element) -> list[Element] | None:
+    """The texts on el's row, left of it, up to its table's left edge: the first CLEAR gap (1.5x
+    every gap before it). None when no such edge is found among 2+ texts: a side menu as far away
+    as the next column looks like one more column, so it is unsure."""
+    row = sorted((e for e in look.elements if e.box.y1 < el.box.y2 and el.box.y1 < e.box.y2
+                  and e.box.x2 <= el.box.x1), key=lambda e: -e.box.x2)
+    edges = [el.box.x1, *(e.box.x1 for e in row)]
+    gaps = [edges[i] - e.box.x2 for i, e in enumerate(row)]
+    cut = next((i for i in range(1, len(gaps)) if gaps[i] >= 1.5 * max(gaps[:i])), None)
+    if cut is None and len(row) > 1:
+        return None
+    return row[:cut]
 
 
 def table_cell(look: Look, el: Element) -> dict | None:
-    """Row key + column header for a value in a table, if it clearly sits in one."""
-    row = [e for e in look.elements if e.box.y1 < el.box.y2 and el.box.y1 < e.box.y2]
-    above = [e for e in look.elements
-             if e.box.y2 <= el.box.y1 and e.box.x1 < el.box.x2 and el.box.x1 < e.box.x2]
-    if not above or len(row) < 2:
+    """Row key + column header, only for a value in a real table, else None (replay then uses the
+    anchor). The row key is the left-most text of the value's own table block (row_block): a word,
+    not a value, within KEY_REACH, under a text of the header line."""
+    header, block = column_header(look, el), row_block(look, el)
+    if header is None or not block:
         return None
-    header, key = min(above, key=lambda e: e.box.y1), min(row, key=lambda e: e.box.x1)
-    spans = sum(1 for e in row if header.box.x1 < e.box.x2 and e.box.x1 < header.box.x2)
-    return None if key is el or spans > 1 else {"row_key": key.text, "column": header.text}
+    key = block[-1]
+    heads = [h for h in look.elements if h is not header
+             and h.box.y1 < header.box.y2 and header.box.y1 < h.box.y2]
+    if (el.box.x1 - key.box.x1 > KEY_REACH or not is_word(key.text, run_values())
+            or not any(h.box.x1 < key.box.x2 and key.box.x1 < h.box.x2 for h in heads)):
+        return None
+    return {"row_key": key.text, "column": header.text}
+
+
+def read_target(look: Look, el: Element) -> dict:
+    """Where an extracted value is, for replay, never the value itself: its table cell when it
+    clearly sits in one; its anchor is its column header (+ offset) when it has one, else the
+    nearest label. A row's left-most text may be a menu link, so it is never the anchor."""
+    header = column_header(look, el)
+    if header is None:
+        return {"table": table_cell(look, el), **where(look, el.box.center)}
+    values = run_values()
+    (hx, hy), (px, py) = header.box.center, el.box.center
+    return {"table": table_cell(look, el), "own": None, "label": header.text,
+            "anchor": spot(look, header, lambda t: clean_label(t, values)), "offset": [px - hx, py - hy]}
+
+
+def headings(look: Look, skip: Element | None = None) -> list[str]:
+    """The look's words, tallest text first (a page heading is its biggest text)."""
+    words = [e for e in look.elements if e.text in page_texts(look, skip)]
+    return [e.text for e in sorted(words, key=lambda e: -(e.box.y2 - e.box.y1))][:5]
+
+
+def page_texts(look: Look, skip: Element | None = None) -> list[str]:
+    """The words on a look (never a value: letters, no run value in them), to pick a read-only
+    run's checkpoint from later. flag_leaks drops any that turn out to hold a value."""
+    redact = redactor(run_values())
+    return [e.text for e in look.elements if e is not skip and re.search(r"[^\W\d_]", e.text)
+            and redact(e.text) == e.text][:60]
+
+
+SHAPES = {     # a value's shape inside a longer box: generic, never a site's own format
+    "phone": r"\+?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}",
+    "currency": r"-?\$-?[\d,]*\d(?:\.\d{2})?|-?[\d,]*\d\.\d{2}",
+    "date": r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}",
+    "integer": r"-?\d+",
+    "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+    "id": r"[A-Za-z]*\d[\w-]*",
+}
+
+
+def value_in_box(text: str, value_type: str) -> tuple[str, str | None] | None:
+    """(value, pattern) for an extract: the whole box when it is exactly the type, else the first
+    match of the type's shape inside it ('www.x.com or call 888-305-0041' -> the phone), with that
+    shape saved so replay cuts it the same way. None when the box does not hold one."""
+    shape = SHAPES.get(value_type)
+    if shape is None:
+        return (text, None) if value_matches_type(text, value_type) else None
+    if re.fullmatch(shape, text.strip()):
+        return text.strip(), None
+    hit = re.search(shape, text)
+    return (hit.group(), shape) if hit else None
 
 
 @tool(parse_docstring=True)
@@ -1262,20 +1442,23 @@ async def extract_value(ref: int, save_as: str, value_type: str, description: st
     Args:
         ref: Number of the box holding the value, not its header.
         save_as: Name to save it under, e.g. 'savings_balance'.
-        value_type: Expected type, e.g. 'currency' or 'string'.
+        value_type: Expected type: 'currency', 'phone', 'email', 'date', 'integer', 'id' or 'string'.
         description: What the value is, in plain words.
     """
     look = HANDOFF.look
     el = look.get(ref) if look else None
     if el is None:
         return f"STALE: [{ref}] is not in the latest look. Call observe."
-    if not value_matches_type(el.text, value_type):
-        return f"REFUSED: {el.text!r} is not a {value_type}. Pick the value box, not a header."
-    HANDOFF.saved[save_as] = el.text
+    found = value_in_box(el.text, value_type)
+    if found is None:
+        return f"REFUSED: {el.text!r} holds no {value_type}. Pick the value box, not a header."
+    value, pattern = found
+    HANDOFF.saved[save_as] = value
     args = {"ref": ref, "save_as": save_as, "value_type": value_type, "description": description}
     log("extract_value", args, "saved", el.box.center, cut_crop(look, el.box.center, el),
-        table=table_cell(look, el), **where(look, el.box.center))
-    return f"Saved {save_as} = {el.text!r}."
+        page_texts=page_texts(look, el), headings=headings(look, el), pattern=pattern,
+        **read_target(look, el))
+    return f"Saved {save_as} = {value!r}."
 
 
 @tool(parse_docstring=True)
@@ -1380,7 +1563,10 @@ Every look shows a screenshot with red numbered boxes, plus a text list like [7]
 10. Always log out before you stop. Anything the page sends (a transfer, a payment, a form)
     is held for a human's two gates: details, then send. You never approve it yourself.
     Fill every field the goal needs BEFORE you click the final button.
-11. Your final message is the answer. Start it with 'STUCK:' or 'DECLINED:' when that is what happened.
+11. For a read-only goal, save EVERY value the goal asks for with extract_value. Only saved values
+    are returned to the caller; anything you only describe in your final message is lost. Read
+    values before you log out.
+12. Your final message is the answer. Start it with 'STUCK:' or 'DECLINED:' when that is what happened.
 """
 
 class NoopAnthropicPromptCachingMiddleware(AgentMiddleware):
@@ -1503,6 +1689,7 @@ class Navigate(Strict):
 class Click(Strict):
     action: Literal["click"] = "click"
     target: Target
+    cleanup: bool = False            # the final logout: replay ends logged out; after the checkpoint
 
 
 class Type(Strict):
@@ -1526,6 +1713,7 @@ class Extract(Strict):
     action: Literal["extract"] = "extract"
     target: Target
     save_as: Name
+    pattern: str | None = None       # the value is the first match inside the box (a phone in a sentence)
 
 
 Step = Annotated[Navigate | Click | Type | Select | Scroll | Extract, Field(discriminator="action")]
@@ -1572,13 +1760,16 @@ LOGOUT_WORDS = {"log out", "logout", "sign out", "sign off"}
 
 
 def without_logout(events: list[dict]) -> list[dict]:
-    """C: the agent logs out to leave the site clean; that is not part of the capability. Drop
-    the trailing run of scrolls and logout clicks (unless it is all there is)."""
+    """C: the agent logs out to leave the site clean. Banking safety (user, 2026-09-29): replay
+    must end logged out too, so the trailing run of scrolls and logout clicks becomes ONE logout
+    click, last, marked cleanup (it is not the business outcome). A lone logout is the capability."""
     end = len(events)
     while end and (events[end - 1]["tool"] == "scroll" or norm(events[end - 1].get("text")) in LOGOUT_WORDS):
         end -= 1
-    tail = events[end:]
-    return events[:end] if end and any(ev["tool"] == "click" for ev in tail) else events
+    clicks = [ev for ev in events[end:] if ev["tool"] == "click"]
+    if not (end and clicks):
+        return events
+    return [*events[:end], {**clicks[-1], "cleanup": True}]
 
 
 def input_name(label: str) -> str:
@@ -1594,16 +1785,96 @@ def step_events(log: list[dict]) -> list[dict]:
           and not ev["result"].startswith((*FAILED, "BLOCKED", "STOP"))]
     key = lambda ev: (urlparse(ev["url"]).path, ev.get("label") or ev["point"])  # noqa: E731
     last = {key(ev): i for i, ev in enumerate(ok) if ev["tool"] in FIELD_TOOLS}
-    return without_logout([ev for i, ev in enumerate(ok) if ev["tool"] not in FIELD_TOOLS or last[key(ev)] == i])
+    later_select = lambda i: any(is_select(b) and same_spot(ok[i], b) for b in ok[i + 1:])  # noqa: E731
+    keep = [ev for i, ev in enumerate(ok) if ev["tool"] not in FIELD_TOOLS
+            or (not later_select(i) if is_select(ev) else last[key(ev)] == i)]
+    return without_logout(without_detours(without_no_ops(keep)))
+
+
+def no_op(ev: dict) -> bool:
+    """A click that left the site as it was: same page, and it either reloaded that page (a link
+    to where you already are) or showed nothing new. A NO CHANGE click never gets here (FAILED)."""
+    if ev["tool"] != "click" or "from_url" not in ev or ev.get("landed"):
+        return False
+    same = urlparse(ev["url"]).path == urlparse(ev["from_url"]).path
+    return same and (ev.get("navigated") or not ev.get("new_texts"))
+
+
+def without_no_ops(events: list[dict]) -> list[dict]:
+    """Drop no-op clicks, then keep one of identical clicks in a row (same target on the same
+    page, from the same page): a retry, not two steps. A scroll right before a click that loads a
+    page (a reload too) is undone by it: dropped."""
+    out: list[dict] = []
+    for ev in events:
+        if ev["tool"] == "click" and (ev.get("navigated") or ev.get("loaded")):
+            while out and out[-1]["tool"] == "scroll":
+                out.pop()
+        if no_op(ev):
+            continue
+        if out and ev["tool"] == "click" == out[-1]["tool"] and same_click(out[-1], ev):
+            out[-1] = ev
+        else:
+            out.append(ev)
+    return out
+
+
+def same_click(a: dict, b: dict) -> bool:
+    here = lambda ev: (urlparse(ev.get("from_url") or ev["url"]).path, ev.get("own"),  # noqa: E731
+                       ev.get("label"))
+    return bool(a.get("own")) and here(a) == here(b)
+
+
+def goes_to_a_page(ev: dict) -> bool:
+    return ev["tool"] == "open_path" or (ev["tool"] == "click" and bool(ev.get("loaded")))
+
+
+def without_detours(events: list[dict]) -> list[dict]:
+    """A run of page changes (navigations, clicks that load a page) with nothing done in between:
+    keep only the moves the last one needs. Walking back from the last, an earlier move is kept
+    only if the one after it started from a page the move before could not show: its link (a
+    click's text) was not on that earlier page. A navigation needs no link, so the ones before it
+    are all detours."""
+    out: list[dict] = []
+    for ev in events:
+        if not (goes_to_a_page(ev) and out and goes_to_a_page(out[-1])):
+            out.append(ev)
+            continue
+        run = [ev]
+        while out and goes_to_a_page(out[-1]):
+            run.insert(0, out.pop())
+        out.extend(needed_moves(run))
+    return out
+
+
+def needed_moves(run: list[dict]) -> list[dict]:
+    kept = [run[-1]]
+    for ev in reversed(run[:-1]):
+        nxt = kept[0]
+        if nxt["tool"] == "open_path" or norm(nxt.get("text")) in {norm(t) for t in ev.get("from_texts", [])}:
+            continue                     # the next move works from the page before ev too
+        kept.insert(0, ev)
+    return kept
 
 
 def checkpoint(log: list[dict], fallback: str) -> str:
     """C: after a send, the page's own response proves success (the agent's proof only if it is
-    part of that response). Otherwise the agent's on-screen proof, else the model's text."""
+    part of that response). A read-only run: text seen on the page of the last read (the agent's
+    page heading, else its proof, else the value's label, else a word on it), never text the start
+    page also shows (after logout the proof is the login page) or text on half the run's looks (a
+    footer). Otherwise the proof, else the model's text."""
     proof = [ev["args"]["proof_text"] for ev in log if ev["tool"] == "finish_business_outcome"]
     response = next((ev["landed"] for ev in reversed(log) if ev.get("landed")), [])
     if response:
         return next((p for p in reversed(proof) if any(norm(p) in norm(t) for t in response)), response[0])
+    read = next((ev for ev in reversed(log) if ev["tool"] == "extract_value"), None)
+    if read:
+        start = next((ev for ev in log if ev["tool"] == "start"), {})
+        common = {t for t, n in start.get("text_counts", {}).items() if n >= start.get("looks", 0) / 2}
+        chrome = common | {norm(t) for t in start.get("start_texts", [])}
+        on_page = {norm(t) for t in read.get("page_texts", [])}
+        picks = [*read.get("headings", []), *reversed(proof), read.get("label"), *read.get("page_texts", [])]
+        if pick := next((p for p in picks if p and norm(p) in on_page and norm(p) not in chrome), None):
+            return pick
     return proof[-1] if proof else fallback
 
 
@@ -1617,17 +1888,19 @@ def target(ev: dict, template: str) -> Target:
 def to_step(ev: dict, template: str) -> Step:
     tool, args, name = ev["tool"], ev["args"], input_name(ev.get("label") or ev["args"].get("hint", ""))
     if tool == "open_path":       # query values come from the goal, so each becomes an input
-        url = urlparse("/" + args["path"].lstrip("/"))
+        url = urlparse(ev.get("path", "/" + args["path"].lstrip("/")) + (
+            "?" + urlparse(args["path"]).query if urlparse(args["path"]).query else ""))
         query = "&".join(f"{k}={{{{{input_name(k)}}}}}" for k, _ in parse_qsl(url.query))
         return Navigate(path=url.path + (f"?{query}" if query else ""))
     if tool == "scroll":
         return Scroll(direction=args["direction"])
     if tool == "extract_value":
         cell = ev.get("table")
-        return Extract(save_as=args["save_as"], target=Target(table_cell=TableCell(**cell)) if cell
+        return Extract(save_as=args["save_as"], pattern=ev.get("pattern"),
+                       target=Target(table_cell=TableCell(**cell)) if cell
                        else target({**ev, "crop": None}, template))   # its crop shows the value
     if tool == "click":
-        return Click(target=target(ev, template))
+        return Click(target=target(ev, template), cleanup=bool(ev.get("cleanup")))
     if tool == "select_option" or (tool == "request_value" and ev.get("dropdown")):
         return Select(target=target(ev, template), option=f"{{{{{name}}}}}")
     value = f"{{{{secret:{args['secret_name']}}}}}" if tool == "type_secret" else f"{{{{{name}}}}}"
@@ -1651,6 +1924,9 @@ def build_capability(log: list[dict], meta: CapabilityMeta) -> Capability:
     if leaks := [i for i, ev in enumerate(events) if ev.get("leak")]:
         raise ValueError(f"steps {leaks}: a label or target text is a value typed this run. "
                          "Not saved (it would store the value). Re-run discovery.")
+    if not any(ev["tool"] == "send" for ev in log) and not any(ev["tool"] == "extract_value" for ev in events):
+        raise ValueError("nothing was read or sent: re-run and save the values with extract_value. "
+                         "Not saved (a caller would get SUCCESS with no data).")
     steps = [to_step(ev, f"crops/{name}/s{i}.png") for i, ev in enumerate(events)]
     names = step_inputs(steps)
     return Capability(
@@ -1685,7 +1961,9 @@ async def describe(goal: str, log: list[dict]) -> CapabilityMeta:
     names = used_inputs(log)
     prompt = (f"Goal: {goal}\nSteps (tool, field label):\n" + "\n".join(lines) +
               f"\nInputs a caller fills in: {', '.join(names) or 'none'}.\n"
-              "Name this capability (snake_case), describe it in one sentence, give `inputs` as a map "
+              "Name this capability (snake_case) after the GOAL, what the caller gets done (e.g. "
+              "get_bank_phone_number), not the pages it passes through; describe it in one sentence, "
+              "give `inputs` as a map "
               "from EXACTLY those input names to a one-line description (no other keys; secrets such "
               "as the login are not inputs), and give the text that proves success. Never include "
               "a value from the goal.")
@@ -1700,28 +1978,6 @@ async def describe(goal: str, log: list[dict]) -> CapabilityMeta:
 
 # %%
 ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "pyproject.toml").exists())
-NUMBER = re.compile(r"\$?\d[\d,]*(?:\.\d+)?")
-
-
-def _num(text: str) -> str:
-    n = text.lstrip("$").replace(",", "")
-    return n.rstrip("0").rstrip(".") if "." in n else n
-
-
-def redactor(values: set[str]):
-    """text -> text with every value masked. Numbers match however they are written
-    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill')."""
-    nums = {_num(v) for v in values if NUMBER.fullmatch(v.strip())}
-    words = sorted((v for v in values if len(v.strip()) > 1 and not NUMBER.fullmatch(v.strip())),
-                   key=len, reverse=True)
-    word_re = re.compile("|".join(rf"(?<!\w){re.escape(w.strip())}(?!\w)" for w in words), re.I) if words else None
-
-    def redact(text: str) -> str:
-        text = NUMBER.sub(lambda m: "***" if _num(m.group()) in nums else m.group(), text)
-        return word_re.sub("***", text) if word_re else text
-    return redact
-
-
 def mask_png(png: bytes, redact) -> bytes:
     """Black out every OCR box whose text holds a run value. A clean image is written as is."""
     img = decode(png)

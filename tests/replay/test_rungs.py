@@ -51,3 +51,46 @@ def test_all_miss_is_none(ns, mk_look, tmp_path) -> None:
     t = ns["Target"](ocr_text={"text": "Transfer"}, anchor={"label": "Amount", "offset": [5, 0]},
                      template="c.png")
     assert ns["locate"](mk_look([("Home", (0, 0, 30, 10))], ns["encode"](img)), t, {}, tmp_path) is None
+
+
+def test_anchor_label_matches_ocr_merged_with_a_value(ns, mk_look) -> None:
+    for seen in ("to account #16785", "to account #123456789", "To account #[16785]", "to account #"):
+        assert ns["same_label"](seen, "to account #"), seen
+    assert ns["same_label"]("From account #[", "From account #")
+    assert ns["same_label"]("| From account #", "From account #")
+    assert not ns["same_label"]("to amount", "to account #")
+    assert not ns["same_label"]("to account #16785", "to amount")
+
+
+def test_rung2_hits_a_merged_label_but_rung1_stays_exact(ns, mk_look) -> None:
+    lk = mk_look([("to account #123456789", (40, 200, 200, 220))])
+    anchor = ns["Target"](anchor={"label": "to account #", "offset": [150, 0]})
+    assert ns["locate"](lk, anchor, {}, None) == ((270, 210), "rung2")
+    value = ns["Target"](ocr_text={"text": "to account #1"}, anchor={"label": "nothing here", "offset": [0, 0]})
+    assert ns["locate"](lk, value, {}, None) is None               # a value to click is never a prefix match
+
+
+MENU = [("Open New Account", (300, 250, 420, 266)), ("Accounts Overview", (300, 274, 420, 290)),
+        ("Accounts Overview", (500, 280, 640, 296))]          # the menu link, then the page heading
+
+
+def _dup_target(ns, offset):
+    return ns["Target"](ocr_text={"text": "Accounts Overview", "ordinal": 1},
+                        anchor={"label": "Open New Account", "offset": offset})
+
+
+def test_duplicate_text_picks_the_copy_nearest_the_anchor(ns, mk_look) -> None:
+    lk = mk_look(list(reversed(MENU)))                         # the heading comes first in reading order
+    assert ns["locate"](lk, _dup_target(ns, [-1, 24]), {}, None) == ((360, 282), "rung1+anchor")
+    lk = mk_look(MENU)
+    assert ns["locate"](lk, _dup_target(ns, [210, 30]), {}, None) == ((570, 288), "rung1+anchor")
+
+
+def test_duplicate_text_with_no_copy_near_the_anchor_uses_rung2(ns, mk_look) -> None:
+    lk = mk_look(MENU)
+    assert ns["locate"](lk, _dup_target(ns, [0, 200]), {}, None) == ((360, 458), "rung2")
+
+
+def test_a_single_text_match_is_rung1_as_before(ns, mk_look) -> None:
+    lk = mk_look(MENU[:2])
+    assert ns["locate"](lk, _dup_target(ns, [0, 200]), {}, None) == ((360, 282), "rung1")

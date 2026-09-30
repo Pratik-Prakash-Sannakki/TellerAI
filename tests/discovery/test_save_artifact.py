@@ -19,7 +19,8 @@ def _section() -> dict:
     start = LINES.index("# ## Save artifact")
     end = LINES.index("# ## Run")
     tree = ast.parse(TEXT)
-    helpers = {"FAILED", "norm", "flag_leaks"}
+    helpers = {"FAILED", "norm", "flag_leaks", "redactor", "_num", "NUMBER", "is_select",
+               "field_area", "same_spot", "FIELD_GAP"}
     keep = [n for n in tree.body if start < n.lineno < end
             or getattr(n, "name", None) in helpers
             or (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in helpers)]
@@ -51,6 +52,11 @@ def _ev(tool: str, args: dict, result: str, label: str | None = None, own: str |
     return ev
 
 
+SENT = {"tool": "send", "args": {"path": "/parabank/services/bank/transfer"}, "result": "approved by human",
+        "point": None, "url": "https://parabank.parasoft.com/parabank/transfer.htm", "crop": None}
+"""A send a human approved: not a step, but what makes a run worth saving. Step-shape tests add
+it so they test step building, not build_capability's 'nothing was read or sent' refusal."""
+
 LOGIN = [START,
          _ev("type_secret", {"secret_name": "username"}, "Typed secret 'username' at (300, 200).",
              label="Username"),
@@ -66,7 +72,7 @@ def _meta(**kw):
 
 
 def test_login_becomes_three_steps_with_anchors_and_secret_refs() -> None:
-    cap = NS["build_capability"](LOGIN, _meta())
+    cap = NS["build_capability"]([*LOGIN, SENT], _meta())
     assert [s.action for s in cap.steps] == ["type", "type", "click"]
     assert cap.steps[0].value == "{{secret:username}}"
     assert cap.steps[1].value == "{{secret:password}}"
@@ -83,7 +89,7 @@ def test_failed_then_successful_type_text_is_one_input_step() -> None:
            _ev("type_text", {"ref": 3, "x": None, "y": None}, "TYPED at (300, 200) but the box shows ''.",
                label="Amount"),
            _ev("type_text", {"ref": 4, "x": None, "y": None}, "Typed at (300, 200).",
-               label="Amount")]
+               label="Amount"), SENT]
     cap = NS["build_capability"](log, _meta(name="pay"))
     assert len(cap.steps) == 1
     assert cap.steps[0].value == "{{amount}}"
@@ -92,7 +98,7 @@ def test_failed_then_successful_type_text_is_one_input_step() -> None:
 
 def test_human_entry_becomes_input_named_from_its_label() -> None:
     log = [START, _ev("request_value", {"hint": "Zip Code:"}, "human entry", label="Zip Code:",
-                      human_entry=True, dropdown=False)]
+                      human_entry=True, dropdown=False), SENT]
     cap = NS["build_capability"](log, _meta(name="pay"))
     assert cap.steps[0].action == "type" and cap.steps[0].value == "{{zip_code}}"
     assert cap.inputs[0].name == "zip_code"
@@ -108,7 +114,7 @@ def test_take_over_refuses() -> None:
 def test_model_cannot_break_the_build() -> None:
     """Invented inputs are ignored, a missing description gets a default, secrets stay refs."""
     log = [*LOGIN, _ev("type_text", {"ref": 3, "x": None, "y": None}, "Typed at (300, 200).",
-                       label="Zip Code:")]
+                       label="Zip Code:"), SENT]
     meta = _meta(name="Log In Flow", inputs={"customer_login": "user id", "password": "pw"})
     cap = NS["build_capability"](log, meta)
     assert [i.name for i in cap.inputs] == ["zip_code"]
@@ -144,13 +150,13 @@ def test_same_field_typed_twice_keeps_the_last() -> None:
     first = _ev("type_text", {"ref": 3, "x": None, "y": None}, "Typed at (300, 200).", label="Amount")
     again = {**_ev("type_text", {"ref": 5, "x": None, "y": None}, "Typed at (300, 200).",
                    label="Amount"), "crop": b"second"}
-    cap = NS["build_capability"]([START, first, again], _meta(name="pay"))
+    cap = NS["build_capability"]([START, first, again, SENT], _meta(name="pay"))
     assert len(cap.steps) == 1
-    assert NS["crops_for"]([START, first, again], cap) == {"crops/pay/s0.png": b"second"}
+    assert NS["crops_for"]([START, first, again, SENT], cap) == {"crops/pay/s0.png": b"second"}
 
 
 def test_open_path_query_values_become_inputs() -> None:
-    log = [START, _ev("open_path", {"path": "activity.htm?id=13344"}, "Opened activity.htm?id=13344.")]
+    log = [START, _ev("open_path", {"path": "activity.htm?id=13344"}, "Opened activity.htm?id=13344."), SENT]
     cap = NS["build_capability"](log, _meta(name="acct"))
     assert cap.steps[0].path == "/activity.htm?id={{id}}"
     assert [i.name for i in cap.inputs] == ["id"]
@@ -158,10 +164,13 @@ def test_open_path_query_values_become_inputs() -> None:
 
 def _look_ns() -> dict:
     tree = ast.parse(TEXT)
-    names = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "norm"}
-    keep = [n for n in tree.body if getattr(n, "name", None) in names]
-    from dataclasses import dataclass
-    ns: dict = {"dataclass": dataclass, "re": re, "run_values": set, "__name__": "discovery_where"}
+    names = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "norm",
+             "clean_label", "redactor", "_num"}
+    keep = [n for n in tree.body if getattr(n, "name", None) in names
+            or (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "NUMBER")]
+    from dataclasses import dataclass, replace
+    ns: dict = {"dataclass": dataclass, "replace": replace, "re": re, "run_values": set,
+                "__name__": "discovery_where"}
     exec(compile(ast.Module(keep, []), str(SRC), "exec"), ns)
     return ns
 
@@ -192,16 +201,36 @@ PAY = [*LOGIN,
        _ev("type_text", {"ref": 3, "x": None, "y": None}, "Typed at (300, 200).", label="Amount"),
        _ev("click", {"ref": 8, "x": None, "y": None}, "Clicked 'Send Payment'.", label="Amount",
            own="Send Payment", text="Send Payment", landed=["Bill Payment Complete", "See Account Activity"]),
+       SENT,
        _ev("finish_business_outcome", {"outcome": "paid", "proof_text": "Request Loan"}, "OK"),
        _ev("scroll", {"direction": "down"}, "Scrolled."),
        _ev("click", {"ref": 9, "x": None, "y": None}, "Clicked 'Log Out'.", label="Request Loan",
            own="Log Out", text="Log Out")]
 
 
-def test_trailing_logout_and_scroll_are_not_steps() -> None:
+def test_the_trailing_logout_is_kept_last_as_cleanup_and_the_scroll_dropped() -> None:
+    """Banking safety (user, 2026-09-29): replay ends logged out."""
     cap = NS["build_capability"](PAY, _meta(name="pay"))
-    assert cap.steps[-1].action == "click" and cap.steps[-1].target.ocr_text.text == "Send Payment"
+    *work, last = cap.steps
+    assert last.action == "click" and last.target.ocr_text.text == "Log Out" and last.cleanup is True
+    assert work[-1].target.ocr_text.text == "Send Payment" and work[-1].cleanup is False
+    assert "scroll" not in [s.action for s in cap.steps]
     assert len(NS["crops_for"](PAY, cap)) == len(cap.steps)
+
+
+def test_only_the_last_of_repeated_logout_clicks_is_kept() -> None:
+    log = [*PAY, _ev("click", {"ref": 9, "x": None, "y": None}, "Clicked 'Log Out'.", own="Log Out",
+                     text="Log Out")]
+    steps = NS["build_capability"](log, _meta(name="pay")).steps
+    assert [s.cleanup for s in steps if s.action == "click"][-2:] == [False, True]
+
+
+def test_the_cleanup_flag_survives_the_saved_yaml(tmp_path: Path) -> None:
+    cap = NS["build_capability"](PAY, _meta(name="pay"))
+    path = NS["save_artifact"](cap, NS["crops_for"](PAY, cap), tmp_path)
+    saved = yaml.safe_load(path.read_text())["steps"]
+    assert saved[-1]["cleanup"] is True
+    assert NS["Capability"].model_validate(yaml.safe_load(path.read_text())).steps[-1].cleanup
 
 
 def test_checkpoint_after_a_send_is_the_pages_response_not_a_nav_link() -> None:
@@ -215,10 +244,18 @@ def test_a_proof_inside_the_response_is_kept() -> None:
     assert NS["build_capability"](log, _meta(name="pay")).checkpoint == "Payment Complete"
 
 
-def test_a_lone_logout_is_still_a_step() -> None:
+def test_a_lone_logout_is_not_cleanup_and_is_refused_as_a_capability() -> None:
     log = [START, _ev("click", {"ref": 9, "x": None, "y": None}, "Clicked 'Log Out'.", own="Log Out",
                       text="Log Out")]
-    assert len(NS["build_capability"](log, _meta(name="bye")).steps) == 1
+    (ev,) = NS["step_events"](log)
+    assert ev["text"] == "Log Out" and not ev.get("cleanup")
+    with pytest.raises(ValueError, match="nothing was read or sent"):
+        NS["build_capability"](log, _meta(name="bye"))
+
+
+def test_a_login_only_run_is_refused() -> None:
+    with pytest.raises(ValueError, match="nothing was read or sent"):
+        NS["build_capability"](LOGIN, _meta())
 
 
 def test_a_typed_value_above_is_never_the_next_fields_label() -> None:

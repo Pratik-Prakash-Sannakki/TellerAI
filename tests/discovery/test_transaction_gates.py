@@ -29,6 +29,7 @@ class State:
     look: object = None
     dropdowns: list = field(default_factory=list)
     redact: set = field(default_factory=set)
+    log: list = field(default_factory=list)
 
 
 class Route:
@@ -298,7 +299,7 @@ class HeldPage:
 
 
 GATE_FNS = {"guard_send", "mismatches", "_flat", "_json", "sent_fields", "rebuilt", "pretty",
-            "dropdown_options", "log_sent_dropdowns"}
+            "dropdown_options", "log_sent_dropdowns", "is_select", "same_spot", "field_area"}
 
 
 def _guard_ns(st, ctl, page):
@@ -340,8 +341,9 @@ def test_a_humans_edit_at_gate1_uses_plain_fields() -> None:
 
 def test_an_agent_send_uses_the_stashed_dropdowns_and_never_reads_the_page() -> None:
     page = HeldPage()
-    st = State(goal="transfer $10", look=SimpleNamespace(png=b"filled", scale=1.0))
-    st.dropdowns = [{"value": "1450", "text": "1450", "options": ["1450", "1400"], "at": [700, 300]}]
+    st = State(goal="transfer $10", look=SimpleNamespace(png=b"filled", scale=1.0, url="https://x/t"))
+    st.dropdowns = [{"value": "1450", "text": "1450", "options": ["1450", "1400"], "at": [700, 300],
+                     "box": [620, 290, 780, 310]}]
     ctl, route = Control(["approve", "approve"], ["1400"]), Route("POST")
     route.request.post_data = "amount=10&fromAccountId=1450"
     ns, logged = _guard_ns(st, ctl, page)

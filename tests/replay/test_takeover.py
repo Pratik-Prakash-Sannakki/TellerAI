@@ -362,3 +362,35 @@ def test_done_hands_back_within_a_timeout_as_stuck(env) -> None:
         asyncio.run(run())
     assert e.value.status == "STUCK" and "send" in e.value.reason
     assert ns["STATE"].human[0]["actions"]["sends"] == ["/parabank/billpay.htm"]
+
+
+def test_checkpoint_reached_by_the_human_skips_the_remaining_steps(env) -> None:
+    """Live: the human finished the whole form during a take-over; step 6 then 'target not found'."""
+    ns = env
+    done = ns["Look"](b"shot", b"shot", (ns["Element"](1, "Bill Payment Complete", ns["Box"](0, 0, 90, 10)),), "")
+
+    class Finishes:
+        async def ask(self, title, details, mode, **_):
+            if mode == "rescue":
+                return "takeover"
+            ns["STATE"].look = done
+            return "done"
+
+    async def take_look():
+        return ns["STATE"].look
+
+    ns.update(take_look=take_look, CONTROL=Finishes())
+    _fail_clicks(ns)
+    tried = []
+    fail = ns["ACTIONS"]["click"]
+
+    async def click(step, point, cap):
+        tried.append(step.target.ocr_text.text)
+        return await fail(step, point, cap)
+
+    ns["ACTIONS"]["click"] = click
+    res = _walk(ns, _cap(ns, [_click(ns, "Pay"), _click(ns, "City"), _click(ns, "Send")],
+                         checkpoint="Bill Payment Complete"))
+    assert res.status == "SUCCESS" and tried == ["Pay", "Pay"]
+    assert [d for d in res.drift if d.get("rung") == "skipped"] == [
+        {"step": 1, "action": "click", "rung": "skipped"}, {"step": 2, "action": "click", "rung": "skipped"}]

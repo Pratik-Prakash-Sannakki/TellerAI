@@ -421,8 +421,8 @@
     "semantic_hash": ""
   },
   "notebooks/discovery/discovery.py": {
-    "mtime": 1790727909.979577,
-    "ast_hash": "c72e7619d6a473c2b2277e11cd958ce9",
+    "mtime": 1790784447.718539,
+    "ast_hash": "d412cacc2e11513e618949bf2d748e73",
     "semantic_hash": ""
   },
   "notebooks/COORDINATION.md": {
@@ -476,8 +476,8 @@
     "semantic_hash": ""
   },
   "tests/discovery/test_transaction_gates.py": {
-    "mtime": 1790718145.2955787,
-    "ast_hash": "d4a445b6eef1d4a0a82befadbc14db43",
+    "mtime": 1790730877.384623,
+    "ast_hash": "4fe25def81e8c1c01745935c3b7437ec",
     "semantic_hash": ""
   },
   "tests/discovery/test_human_help.py": {
@@ -501,8 +501,8 @@
     "semantic_hash": ""
   },
   "notebooks/replay/DECISIONS.md": {
-    "mtime": 1790727909.4071903,
-    "ast_hash": "9ab878042a2169ae60cfcf3305d164c4",
+    "mtime": 1790755789.8564484,
+    "ast_hash": "ad629ee3361f3befb53524b79c0ecd43",
     "semantic_hash": ""
   },
   "notebooks/replay/replay_architecture.md": {
@@ -511,8 +511,8 @@
     "semantic_hash": ""
   },
   "notebooks/replay/replay.py": {
-    "mtime": 1790727910.367835,
-    "ast_hash": "bc0ecb1d6a25dcfa7da6f444e9297946",
+    "mtime": 1790760122.133693,
+    "ast_hash": "2c1a6dd8e0926619e4cc18fea7f7abf0",
     "semantic_hash": ""
   },
   "tests/replay/conftest.py": {
@@ -531,103 +531,23 @@
     "semantic_hash": ""
   },
   "tests/replay/test_rungs.py": {
-    "mtime": 1790703936.7922473,
-    "ast_hash": "f344fc188945e166190cbd65e734121a",
+    "mtime": 1790760011.825009,
+    "ast_hash": "c4f32a66e53889bbc100f0784a9d50dd",
     "semantic_hash": ""
   },
   "notebooks/replay/PLAN.md": {
-    "mtime": 1790725537.0949326,
-    "ast_hash": "31fbe9baba86e0fd57dfa21eaf63d355",
+    "mtime": 1790760133.7553782,
+    "ast_hash": "ad22def69a26817f584426a0f00e4930",
     "semantic_hash": ""
   },
   "tests/discovery/test_save_artifact.py": {
-    "mtime": 1790715227.6705432,
-    "ast_hash": "67021f0e8103b84e4862b5c508d2ecfb",
+    "mtime": 1790784392.811262,
+    "ast_hash": "8841f932c89854d1f1937e61cd45d3cc",
     "semantic_hash": ""
   },
   "tests/replay/test_round_trip.py": {
     "mtime": 1790703569.343995,
     "ast_hash": "8508e3967760fd2fbd550816c39af880",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/pay_bill.yaml": {
-    "mtime": 1790707067.5680215,
-    "ast_hash": "35d45dd8b59375390b811f09d7f69e2c",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s0.png": {
-    "mtime": 1790707067.5563734,
-    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s1.png": {
-    "mtime": 1790707067.556539,
-    "ast_hash": "187e90dcdd3d5883c241cda56b091c22",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s10.png": {
-    "mtime": 1790707067.5577004,
-    "ast_hash": "0f54785199cdad4d5b31b11518198d80",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s11.png": {
-    "mtime": 1790707067.5578241,
-    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s12.png": {
-    "mtime": 1790707067.557917,
-    "ast_hash": "2c686f524d87a0448046fa8a35076db6",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s13.png": {
-    "mtime": 1790707067.5580199,
-    "ast_hash": "cb68e1663e3ab968ef89fab204b22a17",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s15.png": {
-    "mtime": 1790707067.5581205,
-    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s2.png": {
-    "mtime": 1790707067.5566516,
-    "ast_hash": "696e142aafc4011d146171f73c1e7716",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s3.png": {
-    "mtime": 1790707067.5567489,
-    "ast_hash": "03cbe547a6550c00998acb5cf1c9eecc",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s4.png": {
-    "mtime": 1790707067.5568502,
-    "ast_hash": "653867a7a6e6d79f00c71e779b916e7d",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s5.png": {
-    "mtime": 1790707067.5570886,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s6.png": {
-    "mtime": 1790707067.5571847,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s7.png": {
-    "mtime": 1790707067.5572762,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s8.png": {
-    "mtime": 1790707067.5574045,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/pay_bill/s9.png": {
-    "mtime": 1790707067.5575535,
-    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
     "semantic_hash": ""
   },
   "tests/discovery/test_send_settle.py": {
@@ -636,133 +556,53 @@
     "semantic_hash": ""
   },
   "tests/replay/test_checks.py": {
-    "mtime": 1790717027.5375044,
-    "ast_hash": "c1a41cc8a0fe1a64e410e782c59913f6",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/paybill_to_payee.yaml": {
-    "mtime": 1790712343.528477,
-    "ast_hash": "fe70705fe0449ddb0c8a955634d99c08",
+    "mtime": 1790760011.8305411,
+    "ast_hash": "56c322fbaf25c4fb2a32138ba5a5875d",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/transfer_funds.yaml": {
-    "mtime": 1790711155.546721,
-    "ast_hash": "25e8a9b10168c1770428261edb4a4ce3",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s0.png": {
-    "mtime": 1790712343.5214794,
-    "ast_hash": "2a01c4ba31d6a661194074be7d32fc9a",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s1.png": {
-    "mtime": 1790712343.5217097,
-    "ast_hash": "c5e2e725e4980821b94f929a4a4bbf82",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s10.png": {
-    "mtime": 1790712343.5229716,
-    "ast_hash": "07495b4f0d6650866bfc11423225197c",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s11.png": {
-    "mtime": 1790712343.5230908,
-    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s12.png": {
-    "mtime": 1790712343.5232275,
-    "ast_hash": "2c686f524d87a0448046fa8a35076db6",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s13.png": {
-    "mtime": 1790712343.523347,
-    "ast_hash": "87d126dec45e6c41308f26cc22ddb29d",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s14.png": {
-    "mtime": 1790712343.52348,
-    "ast_hash": "2212632f4c41318c9afaa21edc3aefa1",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s2.png": {
-    "mtime": 1790712343.5218623,
-    "ast_hash": "696e142aafc4011d146171f73c1e7716",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s3.png": {
-    "mtime": 1790712343.5220032,
-    "ast_hash": "d5ceeed18494fc96b7f340911b4dfd9a",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s4.png": {
-    "mtime": 1790712343.5221484,
-    "ast_hash": "653867a7a6e6d79f00c71e779b916e7d",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s5.png": {
-    "mtime": 1790712343.5222979,
-    "ast_hash": "954e1661ad79ac1d5ce94ea67c68b709",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s6.png": {
-    "mtime": 1790712343.5224206,
-    "ast_hash": "7a6ca4ff78ca01562404ce932ef934e2",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s7.png": {
-    "mtime": 1790712343.522556,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s8.png": {
-    "mtime": 1790712343.5226822,
-    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
-    "semantic_hash": ""
-  },
-  "notebooks/discovery/artifacts/visual/crops/paybill_to_payee/s9.png": {
-    "mtime": 1790712343.5228012,
-    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
+    "mtime": 1790748663.3096523,
+    "ast_hash": "a85836fb76ede44a42b4559ac7ff1d78",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s0.png": {
-    "mtime": 1790711155.5423956,
-    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "mtime": 1790748663.3048496,
+    "ast_hash": "0938da87bea4d20d9b2add586aa01302",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s1.png": {
-    "mtime": 1790711155.542792,
-    "ast_hash": "bb7ad0bb489c0b8d99e1976d1c7bb08e",
+    "mtime": 1790748663.3050795,
+    "ast_hash": "187e90dcdd3d5883c241cda56b091c22",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s2.png": {
-    "mtime": 1790711155.5430045,
+    "mtime": 1790748663.3052285,
     "ast_hash": "696e142aafc4011d146171f73c1e7716",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s3.png": {
-    "mtime": 1790711155.5431952,
+    "mtime": 1790748663.3054252,
     "ast_hash": "02ef1ab1317b7fa40006e31aebe7902f",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s4.png": {
-    "mtime": 1790711155.5433338,
-    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "mtime": 1790748663.305581,
+    "ast_hash": "eed0cc2ca1e5b977331fa6e9790abb1c",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s5.png": {
-    "mtime": 1790711155.5434477,
-    "ast_hash": "b462dc101f368f1695adc77fa3f587c2",
+    "mtime": 1790748663.3057094,
+    "ast_hash": "e2ea5903f857b810d42a7e45fcfd0bcf",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s6.png": {
-    "mtime": 1790711155.5435638,
-    "ast_hash": "fda60e996ab0614463ad4dd76f8b9c25",
+    "mtime": 1790748663.305837,
+    "ast_hash": "927af271b5f77c66b166f5336bcf7156",
     "semantic_hash": ""
   },
   "notebooks/discovery/artifacts/visual/crops/transfer_funds/s7.png": {
-    "mtime": 1790711155.543845,
-    "ast_hash": "af13fa0b2dc56400c9a8d6a7bc2a45bf",
+    "mtime": 1790748663.3059492,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
     "semantic_hash": ""
   },
   "tests/replay/test_resolve_inputs.py": {
@@ -846,13 +686,13 @@
     "semantic_hash": ""
   },
   "tests/discovery/test_sent_dropdowns.py": {
-    "mtime": 1790717015.4456213,
-    "ast_hash": "d9937183b12f91721018ad5bee8a72f8",
+    "mtime": 1790784411.8439355,
+    "ast_hash": "1cf00076d60c6fac08d745d9e2e3ba80",
     "semantic_hash": ""
   },
   "tests/replay/test_takeover.py": {
-    "mtime": 1790723232.4564247,
-    "ast_hash": "d7b2d45e8cc580883f54e8f381084fed",
+    "mtime": 1790741015.534517,
+    "ast_hash": "65147150c77c9563c7c22bf97a0de56a",
     "semantic_hash": ""
   },
   "tests/discovery/test_evidence.py": {
@@ -861,8 +701,8 @@
     "semantic_hash": ""
   },
   "tests/replay/test_replay_evidence.py": {
-    "mtime": 1790719969.1715145,
-    "ast_hash": "3fd42327ee288d7042ecdd482a224512",
+    "mtime": 1790741056.769169,
+    "ast_hash": "cbdfd77615366eb96157c87832f0e089",
     "semantic_hash": ""
   },
   "tests/discovery/test_handback.py": {
@@ -923,6 +763,1036 @@
   "extensions/handback/icons/48.png": {
     "mtime": 1790725323.0259917,
     "ast_hash": "f0c4278bdb9a2196778b4b772cfa8be8",
+    "semantic_hash": ""
+  },
+  "tests/discovery/test_label_values.py": {
+    "mtime": 1790784406.3095746,
+    "ast_hash": "ec15e2fdbe5970440cb6127ad787d0b4",
+    "semantic_hash": ""
+  },
+  "artifacts/pay_bill.yaml": {
+    "mtime": 1790728651.6375415,
+    "ast_hash": "fdd7566f3e84a42f1a0ff05f17342253",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T005400Z-transfer_money_between_accounts/capability.yaml": {
+    "mtime": 1790729640.8310046,
+    "ast_hash": "b4738ce69486c9fffe9804f9687e93bd",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/transfer_money_between_accounts.yaml": {
+    "mtime": 1790729120.0700166,
+    "ast_hash": "b4738ce69486c9fffe9804f9687e93bd",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T005400Z-transfer_money_between_accounts/final.png": {
+    "mtime": 1790729640.8306746,
+    "ast_hash": "3b8fc397845ec73cb80ea4a498895521",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s0.png": {
+    "mtime": 1790729120.0651689,
+    "ast_hash": "95b8a49c61e0dbee097e44280de4add5",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s1.png": {
+    "mtime": 1790729120.0653582,
+    "ast_hash": "7133f5f508053aecaa75e4b04b4fe439",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s2.png": {
+    "mtime": 1790729120.0655186,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s3.png": {
+    "mtime": 1790729120.0656343,
+    "ast_hash": "2c389585b4f2abf6b3a501342b433669",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s4.png": {
+    "mtime": 1790729120.0657704,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s5.png": {
+    "mtime": 1790729120.065884,
+    "ast_hash": "50e02eddf745a62eebfd14d5336d391d",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s6.png": {
+    "mtime": 1790729120.0660064,
+    "ast_hash": "927af271b5f77c66b166f5336bcf7156",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s7.png": {
+    "mtime": 1790729120.0661247,
+    "ast_hash": "f6233c5eea5d88f0432f400bd66941f1",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s8.png": {
+    "mtime": 1790729120.066245,
+    "ast_hash": "bb7d737bbb3100f8db55a6081ca2f97f",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_money_between_accounts/s9.png": {
+    "mtime": 1790729120.066357,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "tests/replay/test_cleanup.py": {
+    "mtime": 1790739700.8613198,
+    "ast_hash": "9ba55815873a5a4fbc77c4db6783c910",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033412Z-pay_bill/capability.yaml": {
+    "mtime": 1790739255.5046515,
+    "ast_hash": "d1700780426d7cb5d873d566f61eb7fd",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033542Z-pay_bill/capability.yaml": {
+    "mtime": 1790739342.081895,
+    "ast_hash": "d1700780426d7cb5d873d566f61eb7fd",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033656Z-pay_bill/capability.yaml": {
+    "mtime": 1790739416.5214999,
+    "ast_hash": "d1700780426d7cb5d873d566f61eb7fd",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/pay_bill.yaml": {
+    "mtime": 1790742030.7864304,
+    "ast_hash": "0eb4eeba1221bc69083751a770ecacb2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033412Z-pay_bill/final.png": {
+    "mtime": 1790739255.5043416,
+    "ast_hash": "cef207f7e8fee5560a5070bc42960baa",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033412Z-pay_bill/take_over_0_after.png": {
+    "mtime": 1790739254.7664883,
+    "ast_hash": "22eac5f564e1830f98cbab63949066ae",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T033412Z-pay_bill/take_over_0_before.png": {
+    "mtime": 1790739254.0385396,
+    "ast_hash": "bf15641aeda40a7291824d2fdfc8bd1e",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s0.png": {
+    "mtime": 1790742030.7784486,
+    "ast_hash": "a4fbda3ff74a62d67e60d3596f749d4f",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s1.png": {
+    "mtime": 1790742030.7786553,
+    "ast_hash": "63a34ad68594da00914f036f028235a3",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s10.png": {
+    "mtime": 1790742030.7801075,
+    "ast_hash": "0f54785199cdad4d5b31b11518198d80",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s11.png": {
+    "mtime": 1790742030.7802174,
+    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s12.png": {
+    "mtime": 1790742030.7803125,
+    "ast_hash": "2c686f524d87a0448046fa8a35076db6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s13.png": {
+    "mtime": 1790742030.7804239,
+    "ast_hash": "c5a0c1fbcaf4da59ba12180e521e20a6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s14.png": {
+    "mtime": 1790742030.7805269,
+    "ast_hash": "3736a1b76d316ddb04282fcb8172d72e",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s2.png": {
+    "mtime": 1790742030.778808,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s3.png": {
+    "mtime": 1790742030.7789445,
+    "ast_hash": "d5ceeed18494fc96b7f340911b4dfd9a",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s4.png": {
+    "mtime": 1790742030.7792475,
+    "ast_hash": "653867a7a6e6d79f00c71e779b916e7d",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s5.png": {
+    "mtime": 1790742030.779401,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s6.png": {
+    "mtime": 1790742030.7795467,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s7.png": {
+    "mtime": 1790742030.7797909,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s8.png": {
+    "mtime": 1790742030.7798982,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s9.png": {
+    "mtime": 1790742030.7800062,
+    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/answer.txt": {
+    "mtime": 1790740214.5483265,
+    "ast_hash": "842e2790f94d7d09cf0a4287623d8adb",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/capability.yaml": {
+    "mtime": 1790740214.5492504,
+    "ast_hash": "b5b5a87f84d9585534d44efef8829b59",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/goal.txt": {
+    "mtime": 1790740214.548091,
+    "ast_hash": "067b8da27ae1e37bfb29ae5acf621c55",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s0.png": {
+    "mtime": 1790740211.2608907,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s1.png": {
+    "mtime": 1790740211.2611067,
+    "ast_hash": "6d0df7e3a9244580e2b981c5152173bf",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s2.png": {
+    "mtime": 1790740211.2612813,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s3.png": {
+    "mtime": 1790740211.2614503,
+    "ast_hash": "7964969a1fbc1110aca93315981564de",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s4.png": {
+    "mtime": 1790740211.2615945,
+    "ast_hash": "b943af2904f5cbbcebdac281bc143547",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s5.png": {
+    "mtime": 1790740211.2617161,
+    "ast_hash": "21ed93d5c4b2b65eb598e358a20eb88c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s6.png": {
+    "mtime": 1790740211.261862,
+    "ast_hash": "b95d316444b1b97ddb0dbc2a6451b8ca",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s7.png": {
+    "mtime": 1790740211.2619863,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/crops/transfer_funds/s8.png": {
+    "mtime": 1790740211.262163,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_1.png": {
+    "mtime": 1790740211.8619401,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_10.png": {
+    "mtime": 1790740214.5478325,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_2.png": {
+    "mtime": 1790740212.378881,
+    "ast_hash": "6d0df7e3a9244580e2b981c5152173bf",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_3.png": {
+    "mtime": 1790740212.5385823,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_4.png": {
+    "mtime": 1790740212.895044,
+    "ast_hash": "7964969a1fbc1110aca93315981564de",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_5.png": {
+    "mtime": 1790740213.3030872,
+    "ast_hash": "b943af2904f5cbbcebdac281bc143547",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_6.png": {
+    "mtime": 1790740213.4980395,
+    "ast_hash": "094801ace1482d4b5eba5be61f89df6c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_7.png": {
+    "mtime": 1790740213.9194493,
+    "ast_hash": "b95d316444b1b97ddb0dbc2a6451b8ca",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T035011Z-log_in_transfer_funds/step_9.png": {
+    "mtime": 1790740214.264765,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/transfer_funds/s8.png": {
+    "mtime": 1790748663.306455,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "tests/replay/test_partial_outputs.py": {
+    "mtime": 1790743764.8341804,
+    "ast_hash": "debbdf444eb20106d8a46d3cac740078",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/answer.txt": {
+    "mtime": 1790742553.3619037,
+    "ast_hash": "e21de941382e855ccd72f2bbb5b665e1",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/capability.yaml": {
+    "mtime": 1790742553.3629415,
+    "ast_hash": "0eb4eeba1221bc69083751a770ecacb2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/goal.txt": {
+    "mtime": 1790742553.361442,
+    "ast_hash": "46c444a9652a403b9bbc2b24af33449d",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041417Z-transfer_funds/capability.yaml": {
+    "mtime": 1790741657.8728614,
+    "ast_hash": "f393e749f29441619648ee5d9061fd93",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041553Z-transfer_funds/capability.yaml": {
+    "mtime": 1790741754.2254796,
+    "ast_hash": "f393e749f29441619648ee5d9061fd93",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041636Z-transfer_funds/capability.yaml": {
+    "mtime": 1790741797.1965551,
+    "ast_hash": "f393e749f29441619648ee5d9061fd93",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041802Z-transfer_funds/capability.yaml": {
+    "mtime": 1790741882.9511192,
+    "ast_hash": "f393e749f29441619648ee5d9061fd93",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T042152Z-pay_bill/capability.yaml": {
+    "mtime": 1790742112.1898758,
+    "ast_hash": "0eb4eeba1221bc69083751a770ecacb2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T043650Z-view_account_details_and_transactions/capability.yaml": {
+    "mtime": 1790743011.169299,
+    "ast_hash": "56a5f9e91bbc4ac085f0dfb5cc93940a",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T044728Z-view_account_details_and_transactions/capability.yaml": {
+    "mtime": 1790743649.7226844,
+    "ast_hash": "56a5f9e91bbc4ac085f0dfb5cc93940a",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/view_account_details_and_transactions.yaml": {
+    "mtime": 1790742924.312295,
+    "ast_hash": "56a5f9e91bbc4ac085f0dfb5cc93940a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s0.png": {
+    "mtime": 1790742030.7784486,
+    "ast_hash": "a4fbda3ff74a62d67e60d3596f749d4f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s1.png": {
+    "mtime": 1790742030.7786553,
+    "ast_hash": "63a34ad68594da00914f036f028235a3",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s10.png": {
+    "mtime": 1790742030.7801075,
+    "ast_hash": "0f54785199cdad4d5b31b11518198d80",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s11.png": {
+    "mtime": 1790742030.7802174,
+    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s12.png": {
+    "mtime": 1790742030.7803125,
+    "ast_hash": "2c686f524d87a0448046fa8a35076db6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s13.png": {
+    "mtime": 1790742030.7804239,
+    "ast_hash": "c5a0c1fbcaf4da59ba12180e521e20a6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s14.png": {
+    "mtime": 1790742030.7805269,
+    "ast_hash": "3736a1b76d316ddb04282fcb8172d72e",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s15.png": {
+    "mtime": 1790742030.7806852,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s2.png": {
+    "mtime": 1790742030.778808,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s3.png": {
+    "mtime": 1790742030.7789445,
+    "ast_hash": "d5ceeed18494fc96b7f340911b4dfd9a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s4.png": {
+    "mtime": 1790742030.7792475,
+    "ast_hash": "653867a7a6e6d79f00c71e779b916e7d",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s5.png": {
+    "mtime": 1790742030.779401,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s6.png": {
+    "mtime": 1790742030.7795467,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s7.png": {
+    "mtime": 1790742030.7797909,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s8.png": {
+    "mtime": 1790742030.7798982,
+    "ast_hash": "17d5eb82ec0e4fec227c9f8a2ac61392",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/crops/pay_bill/s9.png": {
+    "mtime": 1790742030.7800062,
+    "ast_hash": "6c50409c4a323d4c42f1ceb93d4a6153",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/step_1.png": {
+    "mtime": 1790742551.0014904,
+    "ast_hash": "2a01c4ba31d6a661194074be7d32fc9a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/step_2.png": {
+    "mtime": 1790742551.4792545,
+    "ast_hash": "c5e2e725e4980821b94f929a4a4bbf82",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/step_3.png": {
+    "mtime": 1790742551.631818,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/step_7.png": {
+    "mtime": 1790742553.361003,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/take_over_0_after.png": {
+    "mtime": 1790742553.0909255,
+    "ast_hash": "c9dac5513af2841bc3918aabb9647044",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T042910Z-log_in_and_give_me_hand_off/take_over_0_before.png": {
+    "mtime": 1790742552.4260712,
+    "ast_hash": "a653e99f97347ae711b915f000b30e3e",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041417Z-transfer_funds/final.png": {
+    "mtime": 1790741657.8725638,
+    "ast_hash": "678176fc69fc9f5a2d3d22e8822ad051",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041553Z-transfer_funds/final.png": {
+    "mtime": 1790741754.2239544,
+    "ast_hash": "31a5558211cd22a47b58c0c60ecd2563",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T041636Z-transfer_funds/final.png": {
+    "mtime": 1790741797.1962404,
+    "ast_hash": "678176fc69fc9f5a2d3d22e8822ad051",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T043650Z-view_account_details_and_transactions/final.png": {
+    "mtime": 1790743011.1683881,
+    "ast_hash": "de645d91e73833e15a69c4ea781685fb",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T044728Z-view_account_details_and_transactions/final.png": {
+    "mtime": 1790743649.722366,
+    "ast_hash": "de645d91e73833e15a69c4ea781685fb",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/pay_bill/s15.png": {
+    "mtime": 1790742030.7806852,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s0.png": {
+    "mtime": 1790742924.3082652,
+    "ast_hash": "7aaedb2f4db2693182f77d9448858e72",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s1.png": {
+    "mtime": 1790742924.3084738,
+    "ast_hash": "76832c11f1d6b28c1d1630ce8618f771",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s11.png": {
+    "mtime": 1790742924.3090675,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s2.png": {
+    "mtime": 1790742924.3086278,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s4.png": {
+    "mtime": 1790742924.3087716,
+    "ast_hash": "c136b9bb0fbb1d79dfa3283484fc73c4",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/view_account_details_and_transactions/s7.png": {
+    "mtime": 1790742924.3089244,
+    "ast_hash": "ec031e3d65bcdbb7a331f866f03fdc56",
+    "semantic_hash": ""
+  },
+  "tests/discovery/test_read_runs.py": {
+    "mtime": 1790746581.5781684,
+    "ast_hash": "886cc6c019e6c50ff6d4858a0d72c05d",
+    "semantic_hash": ""
+  },
+  "tests/replay/test_extract_types.py": {
+    "mtime": 1790746309.1315615,
+    "ast_hash": "f852e99c71906cda4c7bb02d28b80968",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T052559Z-login_extract_first_balance_and_logout/capability.yaml": {
+    "mtime": 1790745959.9875677,
+    "ast_hash": "2920e9041e9df5fe5cf544fa87d04d79",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/login_extract_first_balance_and_logout.yaml": {
+    "mtime": 1790745886.9025445,
+    "ast_hash": "2920e9041e9df5fe5cf544fa87d04d79",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/login_extract_first_balance_and_logout/s0.png": {
+    "mtime": 1790745886.8997514,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/login_extract_first_balance_and_logout/s1.png": {
+    "mtime": 1790745886.8999662,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/login_extract_first_balance_and_logout/s2.png": {
+    "mtime": 1790745886.900108,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/login_extract_first_balance_and_logout/s4.png": {
+    "mtime": 1790745886.9002607,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "tests/replay/test_http_errors.py": {
+    "mtime": 1790755687.8376446,
+    "ast_hash": "ec3484743c9bb7e093d523b75f015f8b",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/answer.txt": {
+    "mtime": 1790747785.5447721,
+    "ast_hash": "91158bf5a8c05dcb692b7d8c94cf1c3c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/capability.yaml": {
+    "mtime": 1790747785.545612,
+    "ast_hash": "a4b97ab2a6f2cbf2629b1388e8a5b274",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/goal.txt": {
+    "mtime": 1790747785.54457,
+    "ast_hash": "3076c91d46ea603b7acefebe13350d02",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/answer.txt": {
+    "mtime": 1790754893.8792064,
+    "ast_hash": "2015870c9af92b951e1502cb3a6fa993",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/capability.yaml": {
+    "mtime": 1790754893.8804426,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/goal.txt": {
+    "mtime": 1790754893.8790145,
+    "ast_hash": "d4eee545fc1ea0bb1106438513b09e67",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T055825Z-get_all_account_balances/capability.yaml": {
+    "mtime": 1790747905.3497782,
+    "ast_hash": "a4b97ab2a6f2cbf2629b1388e8a5b274",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T061456Z-get_all_account_transactions/capability.yaml": {
+    "mtime": 1790748896.9951224,
+    "ast_hash": "b925bca88a20af0d33752027496efb35",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T075513Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790754914.110869,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T075709Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790755029.8503766,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080228Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790755349.1100943,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080351Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790755431.9573736,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080416Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790755457.0356393,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080502Z-navigate_to_request_loan/capability.yaml": {
+    "mtime": 1790755503.4153306,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/get_all_account_balances.yaml": {
+    "mtime": 1790759507.1851985,
+    "ast_hash": "db781d8daab53f2f37a2d2d261c86fa0",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/get_all_account_transactions.yaml": {
+    "mtime": 1790748851.5940006,
+    "ast_hash": "b925bca88a20af0d33752027496efb35",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/navigate_to_request_loan.yaml": {
+    "mtime": 1790754887.7574737,
+    "ast_hash": "444a9e6cabebddd02b323137a4ae07e2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/crops/get_all_account_balances/s0.png": {
+    "mtime": 1790747774.9888165,
+    "ast_hash": "a17e13eb446383b9ab0e7c9d5736c130",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/crops/get_all_account_balances/s1.png": {
+    "mtime": 1790747774.9890058,
+    "ast_hash": "2ab8524606edcf3b452143e11f666948",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/crops/get_all_account_balances/s2.png": {
+    "mtime": 1790747774.989139,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/crops/get_all_account_balances/s8.png": {
+    "mtime": 1790747774.9892526,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_1.png": {
+    "mtime": 1790747783.8579876,
+    "ast_hash": "a17e13eb446383b9ab0e7c9d5736c130",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_2.png": {
+    "mtime": 1790747784.3194158,
+    "ast_hash": "2ab8524606edcf3b452143e11f666948",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_3.png": {
+    "mtime": 1790747784.4649692,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_6.png": {
+    "mtime": 1790747784.667792,
+    "ast_hash": "47af255f7c875cb55d514c8df54b6369",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_7.png": {
+    "mtime": 1790747784.9171977,
+    "ast_hash": "a44bdd0b313741bb8c486e68c10c71dd",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_8.png": {
+    "mtime": 1790747785.1645286,
+    "ast_hash": "d5973cf053e121e1866c0d927c9ad652",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou/step_9.png": {
+    "mtime": 1790747785.5442157,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s0.png": {
+    "mtime": 1790754887.751932,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s1.png": {
+    "mtime": 1790754887.7521436,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s10.png": {
+    "mtime": 1790754887.7527492,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s2.png": {
+    "mtime": 1790754887.7523222,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s7.png": {
+    "mtime": 1790754887.7524831,
+    "ast_hash": "d26ef5d471976eb8aee83e42d819463c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/crops/navigate_to_request_loan/s8.png": {
+    "mtime": 1790754887.7526126,
+    "ast_hash": "abb8f4e44d555c6927b1dd1ee1c46458",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_1.png": {
+    "mtime": 1790754891.4675727,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_10.png": {
+    "mtime": 1790754893.6210108,
+    "ast_hash": "23752cc3638927156569d3fd1cb141ef",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_11.png": {
+    "mtime": 1790754893.878688,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_2.png": {
+    "mtime": 1790754891.8957226,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_3.png": {
+    "mtime": 1790754892.0960975,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_8.png": {
+    "mtime": 1790754892.4383721,
+    "ast_hash": "d26ef5d471976eb8aee83e42d819463c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20260930T075450Z-log_in_bank_phone_number/step_9.png": {
+    "mtime": 1790754892.7315295,
+    "ast_hash": "abb8f4e44d555c6927b1dd1ee1c46458",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T075513Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790754914.1106238,
+    "ast_hash": "4f05b96abcbd920daa84de62ee6e0861",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T075709Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790755029.8494523,
+    "ast_hash": "4f05b96abcbd920daa84de62ee6e0861",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080228Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790755349.109455,
+    "ast_hash": "678176fc69fc9f5a2d3d22e8822ad051",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080351Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790755431.957106,
+    "ast_hash": "4f05b96abcbd920daa84de62ee6e0861",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080416Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790755457.0354133,
+    "ast_hash": "4f05b96abcbd920daa84de62ee6e0861",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T080502Z-navigate_to_request_loan/final.png": {
+    "mtime": 1790755503.4150496,
+    "ast_hash": "4f05b96abcbd920daa84de62ee6e0861",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_balances/s0.png": {
+    "mtime": 1790759507.1800756,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_balances/s1.png": {
+    "mtime": 1790759507.180275,
+    "ast_hash": "6d0df7e3a9244580e2b981c5152173bf",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_balances/s2.png": {
+    "mtime": 1790759507.1805708,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_balances/s8.png": {
+    "mtime": 1790747774.9892526,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s0.png": {
+    "mtime": 1790748851.583302,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s1.png": {
+    "mtime": 1790748851.5835404,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s18.png": {
+    "mtime": 1790748851.5846453,
+    "ast_hash": "8bbb94bb5b5839b8bbd4a29fea6b9e7d",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s2.png": {
+    "mtime": 1790748851.5837288,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s3.png": {
+    "mtime": 1790748851.5839055,
+    "ast_hash": "45167def57d646a1216a70bef69c7576",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s4.png": {
+    "mtime": 1790748851.5841033,
+    "ast_hash": "9a1624788f6ce13f74bd5b1f3bf743d8",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_transactions/s5.png": {
+    "mtime": 1790748851.584398,
+    "ast_hash": "05de47ec1d5918741783963cb528f590",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s0.png": {
+    "mtime": 1790754887.751932,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s1.png": {
+    "mtime": 1790754887.7521436,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s10.png": {
+    "mtime": 1790754887.7527492,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s2.png": {
+    "mtime": 1790754887.7523222,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s7.png": {
+    "mtime": 1790754887.7524831,
+    "ast_hash": "d26ef5d471976eb8aee83e42d819463c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/navigate_to_request_loan/s8.png": {
+    "mtime": 1790754887.7526126,
+    "ast_hash": "abb8f4e44d555c6927b1dd1ee1c46458",
+    "semantic_hash": ""
+  },
+  "tests/discovery/test_wandering.py": {
+    "mtime": 1790757401.8186731,
+    "ast_hash": "856b8c03c1c267cd06aec8dae2cad942",
+    "semantic_hash": ""
+  },
+  "tests/replay/test_extract_pattern.py": {
+    "mtime": 1790757631.971967,
+    "ast_hash": "b22f8398a56cc0940144d2c87e748e39",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090318Z-get_para_bank_phone_number/capability.yaml": {
+    "mtime": 1790758999.6259577,
+    "ast_hash": "8230877b753201df00a80f8cecb55e3d",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090404Z-get_para_bank_phone_number/capability.yaml": {
+    "mtime": 1790759046.8409457,
+    "ast_hash": "8230877b753201df00a80f8cecb55e3d",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T091210Z-get_all_account_balances/capability.yaml": {
+    "mtime": 1790759530.6401987,
+    "ast_hash": "db781d8daab53f2f37a2d2d261c86fa0",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T091606Z-find_accounts_and_transactions/capability.yaml": {
+    "mtime": 1790759767.5160604,
+    "ast_hash": "554a3b6a7607df506cdf232dddaa7584",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T091649Z-find_accounts_and_transactions/capability.yaml": {
+    "mtime": 1790759810.3177671,
+    "ast_hash": "554a3b6a7607df506cdf232dddaa7584",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/find_accounts_and_transactions.yaml": {
+    "mtime": 1790759713.0180855,
+    "ast_hash": "554a3b6a7607df506cdf232dddaa7584",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/get_para_bank_phone_number.yaml": {
+    "mtime": 1790758929.7746398,
+    "ast_hash": "8230877b753201df00a80f8cecb55e3d",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090318Z-get_para_bank_phone_number/final.png": {
+    "mtime": 1790758999.6244226,
+    "ast_hash": "ab19eb0f3a780ba32e32fd40d82372a5",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090404Z-get_para_bank_phone_number/final.png": {
+    "mtime": 1790759046.8406453,
+    "ast_hash": "47bf154e4df9a03482b8433d42666597",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090404Z-get_para_bank_phone_number/take_over_0_after.png": {
+    "mtime": 1790759046.2173386,
+    "ast_hash": "47bf154e4df9a03482b8433d42666597",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T090404Z-get_para_bank_phone_number/take_over_0_before.png": {
+    "mtime": 1790759045.5643754,
+    "ast_hash": "ab19eb0f3a780ba32e32fd40d82372a5",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T091606Z-find_accounts_and_transactions/final.png": {
+    "mtime": 1790759767.5157712,
+    "ast_hash": "f6294061be67f8b28835c0cba9ed6590",
+    "semantic_hash": ""
+  },
+  "evidence/replay/20260930T091649Z-find_accounts_and_transactions/final.png": {
+    "mtime": 1790759810.3161368,
+    "ast_hash": "f6294061be67f8b28835c0cba9ed6590",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s0.png": {
+    "mtime": 1790759713.0148213,
+    "ast_hash": "a17e13eb446383b9ab0e7c9d5736c130",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s1.png": {
+    "mtime": 1790759713.015015,
+    "ast_hash": "2ab8524606edcf3b452143e11f666948",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s2.png": {
+    "mtime": 1790759713.0151565,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s3.png": {
+    "mtime": 1790759713.0153117,
+    "ast_hash": "e375c9e059c5b62e4458a57df4d6bb1c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s5.png": {
+    "mtime": 1790759713.0154488,
+    "ast_hash": "e375c9e059c5b62e4458a57df4d6bb1c",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/find_accounts_and_transactions/s6.png": {
+    "mtime": 1790759713.0155933,
+    "ast_hash": "2da17dc76aa40f4ea63007a784750d67",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_all_account_balances/s13.png": {
+    "mtime": 1790759507.1807635,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_para_bank_phone_number/s0.png": {
+    "mtime": 1790758929.7718995,
+    "ast_hash": "2a01c4ba31d6a661194074be7d32fc9a",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_para_bank_phone_number/s1.png": {
+    "mtime": 1790758929.7721026,
+    "ast_hash": "c5e2e725e4980821b94f929a4a4bbf82",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_para_bank_phone_number/s2.png": {
+    "mtime": 1790758929.7722383,
+    "ast_hash": "e4f64d87dd56778bb1d722a8efc25278",
+    "semantic_hash": ""
+  },
+  "notebooks/discovery/artifacts/visual/crops/get_para_bank_phone_number/s4.png": {
+    "mtime": 1790758929.7723582,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "tests/discovery/test_observable.py": {
+    "mtime": 1790784446.9927342,
+    "ast_hash": "9f4adc8193d18d443b56c45adf4993a2",
     "semantic_hash": ""
   }
 }

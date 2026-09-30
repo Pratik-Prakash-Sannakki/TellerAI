@@ -28,11 +28,12 @@ import difflib
 import functools
 import html
 import json
+import math
 import os
 import re
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
@@ -45,7 +46,6 @@ from playwright.async_api import async_playwright
 from pydantic import ValidationError
 from rapidocr import RapidOCR
 
-from cua.recorder import value_matches_type
 
 load_dotenv(override=True)
 
@@ -84,6 +84,8 @@ class Config:
     page_s: float = 2.0               # any other page read near a send (evaluate can block too)
     gate_s: float = 120.0             # hand-back waits this long for a send still at the gates
     field_min: tuple[int, int] = (40, 16)   # smallest drawn box that counts as an input field
+    short_value: int = 2              # a typed value this short is checked by pixels if OCR misses it
+    near_px: float = 60.0             # rung 1 with duplicate text: a copy this close to the anchor's point
     ext_s: float = 1.0                # any one call into the hand-back extension gives up after this
     ext_poll_s: float = 0.5           # take-over: how often the toolbar button's clicks are read
     # R17 taxonomy: text seen after a step -> status. First match wins; a capability's own
@@ -314,6 +316,10 @@ class ReplayState:
     outputs: dict[str, str] = field(default_factory=dict)
     allow_send: bool = False       # set only around a login click
     sent: bool = False             # a non-GET request went out during this action
+    gated: bool = False            # this run sent something through the human gates (not the login)
+    rung: str = ""                 # the rung that found the current step's target
+    http: tuple[int, str] | None = None   # the last main-document response: (status, path)
+    navs: int = 0                  # main-document responses so far (a same-URL reload is one too)
     verdict: str = ""              # what the send gate decided during the last action
     takeover: dict | None = None   # during a take-over only: page and send paths (3.6, no values)
     human: list[dict] = field(default_factory=list)    # one entry per take-over, for the result
@@ -423,6 +429,24 @@ def pretty(key: str) -> str:
     return " ".join(words).capitalize()
 
 
+def note_response(resp) -> None:
+    """Keep the main document's HTTP status (not sub-resources, not iframes)."""
+    if resp.request.is_navigation_request() and resp.frame is page.main_frame:
+        STATE.http, STATE.navs = (resp.status, url_path(resp.url)), STATE.navs + 1
+
+
+RAW_ERROR = re.compile(r'^\s*\{\s*"title"\s*:|"status"\s*:\s*[45]\d\d')
+
+
+def error_page(after: str) -> "Stop | None":
+    """R17 FAILED before any outcome rule: an HTTP error status, or a raw JSON error body."""
+    if STATE.http and STATE.http[0] >= 400:
+        return Stop("FAILED", f"page returned HTTP {STATE.http[0]}", "an HTTP 2xx page", STATE.http[1])
+    if RAW_ERROR.search(after):
+        return Stop("FAILED", "page is a raw error response", "a normal page", after[:200])
+    return None
+
+
 def note_takeover_send(url: str) -> None:
     if STATE.takeover is not None:
         STATE.takeover["sends"].append(url_path(url))
@@ -437,6 +461,7 @@ async def guard_send(route) -> None:
     note_takeover_send(req.url)
     if STATE.allow_send:
         return await route.continue_()
+    STATE.gated = True
     human = STATE.takeover is not None     # the human's own send: they chose every value
     async with SEND_GATE:                  # never touch the page in here: a held request blocks it
         fields = sent_fields(req)
@@ -675,6 +700,9 @@ LOCK = SiteLock(await page.context.new_cdp_session(page))
 await LOCK.set(True)
 await page.unroute("**/*")
 await page.route("**/*", guard_send)
+if not getattr(page, "_cua_responses", False):     # once per page, even when this cell is re-run
+    page.on("response", lambda r: note_response(r))  # network metadata only: the main document's status
+    page._cua_responses = True
 CONTROL = ControlWindow(control_page)
 try:
     await control_page.expose_function("cuaReply", CONTROL.on_reply)
@@ -839,8 +867,15 @@ def typed_ok(seen: str, want: str) -> bool:
     return any(same_text(r, want.replace("$", "").replace(",", "")) for r in runs)
 
 
-def find_text(look: Look, text: str, ordinal: int = 1) -> Element | None:
-    hits = [e for e in look.elements if same_text(e.text, text)]
+def same_label(seen: str, label: str) -> bool:
+    """Rung 2 anchors only. Discovery saves labels cleaned ('to account #'); live OCR may merge the
+    label with its field's value ('to account #[16785'). Strip `[ ] |`, then a label at the start counts."""
+    a, b = norm(re.sub(r"[\[\]|]", " ", seen)), norm(re.sub(r"[\[\]|]", " ", label))
+    return bool(b) and a.startswith(b) or same_text(a, b)
+
+
+def find_text(look: Look, text: str, ordinal: int = 1, match=same_text) -> Element | None:
+    hits = [e for e in look.elements if match(e.text, text)]
     return hits[ordinal - 1] if len(hits) >= ordinal else None
 
 
@@ -866,15 +901,37 @@ def read_cell(look: Look, cell: TableCell, values: dict[str, str]) -> Element | 
                  and key.box.y1 < e.box.y2 and head.box.x1 < e.box.x2 and e.box.x1 < head.box.x2), None)
 
 
+def anchor_point(look: Look, a, values: dict[str, str]) -> tuple[int, int] | None:
+    """Rung 2's point: the anchor label's centre plus the recorded offset."""
+    el = find_text(look, fill(a.label, values), a.ordinal, same_label) if a else None
+    return (el.box.center[0] + a.offset[0], el.box.center[1] + a.offset[1]) if el else None
+
+
+def text_hit(look: Look, text: str, ordinal: int,
+             near: tuple[int, int] | None) -> tuple[tuple[int, int], str] | None:
+    """Rung 1. The same text twice (a menu link and a page heading): the copy nearest the anchor's
+    point wins; none near it = no hit, so rung 2 (the anchor itself) decides."""
+    hits = [e for e in look.elements if same_text(e.text, text)]
+    if len(hits) < 2 or near is None:
+        el = hits[ordinal - 1] if len(hits) >= ordinal else None
+        return (el.box.center, "rung1") if el else None
+    best = min(hits, key=lambda e: math.dist(e.box.center, near))
+    if math.dist(best.box.center, near) > CFG.near_px:
+        return None
+    by_ordinal = hits[ordinal - 1] if len(hits) >= ordinal else None
+    return best.box.center, "rung1" if best is by_ordinal else "rung1+anchor"
+
+
 def locate(look: Look, target: Target, values: dict[str, str],
            crops: Path) -> tuple[tuple[int, int], str] | None:
     """(point, rung) from the first rung that hits, or None."""
     if (c := target.table_cell) and (el := read_cell(look, c, values)):
         return el.box.center, "table"
-    if (t := target.ocr_text) and (el := find_text(look, fill(t.text, values), t.ordinal)):
-        return el.box.center, "rung1"
-    if (a := target.anchor) and (el := find_text(look, fill(a.label, values), a.ordinal)):
-        return (el.box.center[0] + a.offset[0], el.box.center[1] + a.offset[1]), "rung2"
+    near = anchor_point(look, target.anchor, values)
+    if (t := target.ocr_text) and (hit := text_hit(look, fill(t.text, values), t.ordinal, near)):
+        return hit
+    if near:
+        return near, "rung2"
     if target.template and (p := find_template(decode(look.png), cv2.imread(str(crops / target.template)))):
         return p, "rung3"
     return None
@@ -905,8 +962,13 @@ async def shows(text: str) -> bool:
     return True
 
 
+def site_url(base_url: str, path: str) -> str:
+    """Like a browser: '/parabank/x.htm' is from the site root, 'x.htm' is under base_url."""
+    return urljoin(base_url + "/", path)
+
+
 async def do_navigate(step: Step, point, cap: Capability) -> bool:
-    url = urljoin(cap.base_url + "/", fill(step.path, STATE.values).lstrip("/"))
+    url = site_url(cap.base_url, fill(step.path, STATE.values))
     if not host_allowed(url):
         raise Stop("FAILED", "navigate leaves the allowed site")
     await page.goto(url)
@@ -915,7 +977,7 @@ async def do_navigate(step: Step, point, cap: Capability) -> bool:
 
 
 async def do_click(step: Step, point: tuple[int, int], cap: Capability) -> bool:
-    before = STATE.look
+    before, navs = STATE.look, STATE.navs
     el = element_at(before, point)
     STATE.allow_send = norm(el.text if el else "") in CFG.login_words     # R6: login is exempt
     await stash_dropdowns()
@@ -926,27 +988,41 @@ async def do_click(step: Step, point: tuple[int, int], cap: Capability) -> bool:
     if not host_allowed(page.url):
         await page.go_back()
         raise Stop("FAILED", "the click left the allowed site")
+    if STATE.navs > navs:            # the page loaded again (even the same URL, the same screen)
+        return True
     return await settled_change(before)
 
 
+def changed(before: Look, after: Look) -> bool:
+    """The pixels moved, or new text is on screen: a small answer ('Transfer Complete!') can sit
+    under the whole-screen pixel threshold, but OCR still sees it."""
+    return not screens_same(before.png, after.png) or norm(before.text) != norm(after.text)
+
+
 async def settled_change(before: Look) -> bool:
-    """Bug D: a send can land after the settle. Poll until the screen changes, then holds still."""
+    """Bug D: a send can land after the settle. Poll until the screen changes, then holds still.
+    A send held at the gates is never judged: the window starts again once the human answered."""
     deadline, prev = time.monotonic() + CFG.check_s, STATE.look
     while time.monotonic() < deadline:
         await page.wait_for_timeout(CFG.poll_ms)
+        if SEND_GATE.locked():                # the gates took the send after `act`'s own wait
+            async with SEND_GATE:
+                pass
+            deadline = time.monotonic() + CFG.check_s
         look = await take_look()
-        if not screens_same(before.png, look.png) and screens_same(prev.png, look.png):
+        if changed(before, look) and not changed(prev, look):
             return True
         prev = look
-    return not screens_same(before.png, STATE.look.png)
+    return changed(before, STATE.look)
 
 
 async def do_type(step: Step, point: tuple[int, int], cap: Capability) -> bool:
     before, name = STATE.look, secret_name(step.value)
     value = SECRETS[name] if name else fill(step.value, STATE.values)
     after = await act(*into_box(point, value))
-    if not name:
-        return typed_ok(read_field(after, point), value)
+    if not name:        # OCR misses a lone character ('1'): then the field's own pixels must change
+        short = len(value.strip()) <= CFG.short_value
+        return typed_ok(read_field(after, point), value) or short and spot_changed(before, after, point)
     if is_sensitive(name) and value in read_field(after, point):
         STATE.look = None
         raise Stop("FAILED", f"secret '{name}' shows as plain text")
@@ -970,12 +1046,55 @@ async def do_scroll(step: Step, point, cap: Capability) -> bool:
     return True
 
 
+# Replay's own strict value types (the recorder's currency accepts any integer, e.g. an account id).
+# Keep identical to discovery's SHAPES (tests/replay/test_extract_pattern.py checks it).
+SHAPES = {
+    "phone": r"\+?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}",
+    "currency": r"-?\$-?[\d,]*\d(?:\.\d{2})?|-?[\d,]*\d\.\d{2}",      # a `$`, or exactly 2 decimals
+    "date": r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}",
+    "integer": r"-?\d+",
+    "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+    "id": r"[A-Za-z]*\d[\w-]*",
+}
+TYPES = {"string": r"\S.*", "number": r"-?[\d,]*\.?\d+", "boolean": r"true|false|yes|no", **SHAPES}
+
+
+def is_type(text: str, kind: str) -> bool:
+    return kind in TYPES and bool(re.fullmatch(TYPES[kind], text.strip(), re.I))
+
+
+RUNGS = {"table": "table_cell", "rung1": "ocr_text", "rung2": "anchor", "rung3": "template"}
+
+
+def next_rung(target: Target, rung: str) -> tuple[tuple[int, int], str] | None:
+    """Where the rungs after `rung` point (e.g. the anchor after a wrong table cell), if any."""
+    order = list(RUNGS.values())
+    done = order[:order.index(RUNGS[rung.split("+")[0]]) + 1] if rung.split("+")[0] in RUNGS else order
+    rest = target.model_copy(update=dict.fromkeys(done))
+    return locate(STATE.look, rest, STATE.values, None) if any(getattr(rest, k) for k in order) else None
+
+
+def value_of(text: str, kind: str, pattern: str | None) -> str | None:
+    """The box's value: with a saved `pattern`, its first match inside the box; else the whole box.
+    Either way it must be the output's type."""
+    if pattern:
+        hit = re.search(pattern, text)
+        text = hit.group() if hit else ""
+    return text.strip() if is_type(text, kind) else None
+
+
 async def do_extract(step: Step, point: tuple[int, int], cap: Capability) -> bool:
-    el = element_at(STATE.look, point)
+    """Read the value at the point. A wrong value tries the next rung once, then stops: never guess."""
     kind = next(o.type for o in cap.outputs if o.name == step.save_as)
-    if not el or not value_matches_type(el.text, kind):
+    pattern = getattr(step, "pattern", None)          # optional: older artifacts have none
+    el = element_at(STATE.look, point)
+    if el and value_of(el.text, kind, pattern) is None and (hit := next_rung(step.target, STATE.rung)):
+        el, STATE.rung = element_at(STATE.look, hit[0]) or el, hit[1]
+    if el is None:
         return False
-    STATE.outputs[step.save_as] = el.text
+    if (value := value_of(el.text, kind, pattern)) is None:
+        raise Stop("STUCK", f"{step.save_as} is not a {kind}", kind, hide_secrets(el.text))
+    STATE.outputs[step.save_as] = value
     return True
 
 
@@ -996,6 +1115,12 @@ class ReplayResult:
     human: list[dict] = field(default_factory=list)   # R17: take-overs; [] = unattended
     failure: dict | None = None   # {step, action, expected, observed} when not SUCCESS (R17 Failure)
     recoveries: int = 0           # R17 recoverable errors fixed by a re-login
+    cleanup: str = ""             # "" = no cleanup steps (or never logged in) | "done" | "failed: <why>"
+
+    @property
+    def outputs_line(self) -> str:
+        head = "outputs" if self.status == "SUCCESS" else "partial outputs (run did not succeed)"
+        return f"{head}: {self.outputs}"
 
     @property
     def summary(self) -> str:
@@ -1116,6 +1241,8 @@ def login_came_back(cap: Capability, i: int, before: str, after: str) -> bool:
 async def judge(i: int, before: str, cap: Capability, crops: Path, drift: list[dict]) -> bool:
     """R17 after a step. BUSINESS_OUTCOME / FAILED stop; RECOVER logs in again once. True = retry."""
     after = STATE.look.text if STATE.look else ""
+    if err := error_page(after):          # BUSINESS_OUTCOME only ever comes from a normal page
+        raise err
     rule = seen_outcome(before, after, STATE.outcomes)
     if rule is None and login_came_back(cap, i, before, after):
         rule = {"text": "login page", "status": "RECOVER", "meaning": "the site logged the run out"}
@@ -1140,7 +1267,7 @@ async def run_step(i: int, step: Step, cap: Capability, crops: Path, drift: list
         target = getattr(step, "target", None)
         if (hit := await find(target, crops) if target else (None, "-")) is None:
             break
-        STATE.sent, STATE.verdict = False, ""
+        STATE.sent, STATE.verdict, STATE.rung = False, "", hit[1]
         before = STATE.look.text if STATE.look else ""
         ok = await ACTIONS[step.action](step, hit[0], cap)
         drift.append({"step": i, "action": step.action, "rung": hit[1], "point": hit[0], "attempt": attempt,
@@ -1160,17 +1287,93 @@ async def run_step(i: int, step: Step, cap: Capability, crops: Path, drift: list
     drift.append({"step": i, "action": step.action, "rung": "human", **evidence})
 
 
+def took_over_to_checkpoint(i: int, cap: Capability, before: str) -> bool:
+    """Step i ended in a take-over, and the human went on to the final screen: the checkpoint text
+    is on screen now and was not before the take-over."""
+    want = norm(fill(cap.checkpoint, STATE.values))
+    helped = bool(STATE.human) and STATE.human[-1]["step"] == i
+    return helped and want not in norm(before) and STATE.look is not None and want in norm(STATE.look.text)
+
+
+def is_cleanup(step: Step) -> bool:
+    return bool(getattr(step, "cleanup", False))
+
+
 async def walk(cap: Capability, crops: Path, drift: list[dict]) -> ReplayResult:
+    """The main steps (every step not marked cleanup), then the checkpoint and the outputs."""
+    reached = False           # a human's take-over already got to the checkpoint: nothing left to do
     for i, step in enumerate(cap.steps):
+        if is_cleanup(step):
+            continue
+        if reached:
+            drift.append({"step": i, "action": step.action, "rung": "skipped"})
+            continue
+        before = STATE.look.text if STATE.look else ""
         await run_step(i, step, cap, crops, drift)
+        reached = took_over_to_checkpoint(i, cap, before)
     STATE.step, STATE.action = len(cap.steps), "checkpoint"
+    missing = sorted({o.name for o in cap.outputs} - set(STATE.outputs))
+    reason = ""
     if not await shows(cap.checkpoint):
-        raise Stop("FAILED", "checkpoint text not on the final screen", cap.checkpoint,
-                   STATE.look.text[:200] if STATE.look else "")
-    if missing := sorted({o.name for o in cap.outputs} - set(STATE.outputs)):
+        if not read_only_done(cap, missing):
+            raise Stop("FAILED", "checkpoint text not on the final screen", cap.checkpoint,
+                       STATE.look.text[:200] if STATE.look else "")
+        reason = "checkpoint looked for after cleanup; all outputs read"
+    if missing:
         raise Stop("FAILED", f"outputs not read: {missing}")
-    return ReplayResult("SUCCESS", dict(STATE.outputs), drift, human=list(STATE.human),
+    return ReplayResult("SUCCESS", dict(STATE.outputs), drift, reason, list(STATE.human),
                         recoveries=STATE.recoveries)
+
+
+def read_only_done(cap: Capability, missing: list[str]) -> bool:
+    """R17: a read-only run whose last main step read the last output, and every output was read.
+    Its checkpoint was picked after the cleanup (e.g. the login page after Log Out): accept it."""
+    main = [s for s in cap.steps if not is_cleanup(s)]
+    last_reads = bool(main) and main[-1].action == "extract"
+    return bool(cap.outputs) and not missing and not STATE.gated and last_reads
+
+
+async def run_cleanup(cap: Capability, crops: Path, drift: list[dict]) -> str:
+    """Cleanup steps (e.g. Log Out): best-effort, one retry, no rescue panel. Never changes the status."""
+    steps = [(i, s) for i, s in enumerate(cap.steps) if is_cleanup(s)]
+    if not steps:
+        return ""
+    for i, step in steps:
+        for attempt in (1, 2):
+            try:
+                hit = await find(step.target, crops) if getattr(step, "target", None) else (None, "-")
+                ok = hit is not None and await ACTIONS[step.action](step, hit[0], cap)
+            except Stop as s:
+                return f"failed: {s.reason}"
+            drift.append({"step": i, "action": step.action, "rung": hit[1] if hit else "miss",
+                          "point": hit[0] if hit else None, "attempt": attempt, "checked": ok,
+                          "cleanup": True})
+            if ok:
+                break
+            if STATE.sent or attempt == 2:
+                return "failed: target not found" if hit is None else "failed: the step's check failed"
+            await take_look()
+    return "done"
+
+
+async def stopped(s: Stop, drift: list[dict]) -> ReplayResult:
+    """A run that stopped: its status, the failure detail (R17) and the final screen for evidence."""
+    LAST_RUN["final"] = await snap()
+    failure = {"step": STATE.step, "action": STATE.action, "expected": s.expected,
+               "observed": hide_secrets(s.observed or s.reason)}
+    return ReplayResult(s.status, dict(STATE.outputs), drift, hide_secrets(s.reason), list(STATE.human),
+                        failure, STATE.recoveries)
+
+
+async def finish(cap: Capability, crops: Path, drift: list[dict]) -> ReplayResult:
+    """Main steps -> checkpoint -> outputs, then the cleanup steps, ALWAYS (the run is logged in)."""
+    try:
+        res = await walk(cap, crops, drift)
+    except Stop as s:
+        res = await stopped(s, drift)
+    finally:
+        done = await run_cleanup(cap, crops, drift)
+    return replace(res, cleanup=hide_secrets(done))
 
 
 def starts_with_login(cap: Capability) -> bool:
@@ -1204,13 +1407,9 @@ async def replay(path: str, inputs: dict[str, str] | None = None) -> ReplayResul
         await open_start(cap)
         STATE.values = await ask_inputs(cap, given)
         STATE.given = list(STATE.values.values())
-        return await walk(cap, crops, drift)
+        return await finish(cap, crops, drift)      # from here on, cleanup always runs
     except Stop as s:
-        LAST_RUN["final"] = await snap()
-        failure = {"step": STATE.step, "action": STATE.action, "expected": s.expected,
-                   "observed": hide_secrets(s.observed or s.reason)}
-        return ReplayResult(s.status, {}, drift, hide_secrets(s.reason), list(STATE.human), failure,
-                            STATE.recoveries)
+        return await stopped(s, drift)
     except ValidationError as e:
         where = e.errors()[0]
         return ReplayResult("FAILED", {}, drift, f"invalid capability at {where['loc']}: {where['msg']}")
@@ -1226,7 +1425,7 @@ async def replay(path: str, inputs: dict[str, str] | None = None) -> ReplayResul
 
 # %%
 LAST_RUN: dict = {"values": set(), "final": None}   # the last run's mask set + final shot; memory only
-NUMBER = re.compile(r"\$?\d[\d,]*(?:\.\d+)?")
+NUMBER = re.compile(r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)?(?!\w)")   # whole numbers only: never 'rung1'
 
 
 def _num(text: str) -> str:
@@ -1294,7 +1493,7 @@ def save_evidence(result: ReplayResult, cap_path: str | Path,
     (run / "drift.jsonl").write_text("\n".join(lines) + "\n")
     summary = {"status": result.status, "reason": result.reason, "summary": result.summary,
                "outputs": {k: "***" for k in result.outputs}, "human": result.human,
-               "failing_step": result.failure["step"] if result.failure else None}
+               "failing_step": result.failure["step"] if result.failure else None, "cleanup": result.cleanup}
     (run / "summary.json").write_text(json.dumps(_clean(summary, redact), indent=2) + "\n")
     if result.failure:
         (run / "failure.json").write_text(json.dumps(_clean(result.failure, redact), indent=2) + "\n")
@@ -1308,11 +1507,12 @@ def save_evidence(result: ReplayResult, cap_path: str | Path,
 # Replay a saved capability. Outputs go to the caller only; the drift log holds rungs, never values.
 
 # %%
-cap_path = ROOT / "notebooks" / "discovery" / "artifacts" / "visual" / "pay_bill_to_payee.yaml"
+cap_path = ROOT / "notebooks" / "discovery" / "artifacts" / "visual" / "get_all_account_balances.yaml"
 result = await replay(str(cap_path), inputs={})   # e.g. {"amount": "10"}; the rest is asked
 print("capability:", cap_path)
-print("status:", result.summary, result.reason, f"| recoveries: {result.recoveries}")
-print("outputs:", result.outputs)
+print("status:", result.summary, result.reason, f"| recoveries: {result.recoveries}",
+      f"| cleanup: {result.cleanup or 'none'}")
+print(result.outputs_line)
 for row in result.drift:
     print({k: v for k, v in row.items() if k != "shots"})
 print(save_evidence(result, cap_path))

@@ -1,8 +1,8 @@
 schema_version: 2
 name: transfer_funds
 version: 1
-description: Logs into a customer account and transfers a specified amount of money
-  from one account to another.
+description: Logs into the customer account and transfers funds between specified
+  accounts.
 base_url: https://parabank.parasoft.com/parabank
 viewport:
 - 1280
@@ -11,7 +11,7 @@ device_scale_factor: 1.0
 inputs:
 - name: amount
   type: string
-  description: The dollar amount to transfer
+  description: The dollar amount to transfer between accounts
 - name: from_account
   type: string
   description: The account number to transfer funds from
@@ -30,7 +30,7 @@ steps:
       ordinal: 1
       offset:
       - 11
-      - 42
+      - 46
     template: crops/transfer_funds/s0.png
   value: '{{secret:username}}'
 - action: type
@@ -39,8 +39,8 @@ steps:
       label: Password
       ordinal: 1
       offset:
-      - 42
-      - 22
+      - 41
+      - 20
     template: crops/transfer_funds/s1.png
   value: '{{secret:password}}'
 - action: click
@@ -55,6 +55,7 @@ steps:
       - 1
       - 50
     template: crops/transfer_funds/s2.png
+  cleanup: false
 - action: click
   target:
     ocr_text:
@@ -64,36 +65,37 @@ steps:
       label: Accounts Overview
       ordinal: 2
       offset:
-      - -13
-      - 24
+      - -14
+      - 23
     template: crops/transfer_funds/s3.png
+  cleanup: false
 - action: type
   target:
     anchor:
       label: 'Amount: $'
       ordinal: 1
       offset:
-      - 71
-      - 0
+      - 121
+      - -1
     template: crops/transfer_funds/s4.png
   value: '{{amount}}'
 - action: select
   target:
     anchor:
-      label: 'From account #['
+      label: 'From account #'
       ordinal: 1
       offset:
-      - 64
+      - 66
       - 0
     template: crops/transfer_funds/s5.png
   option: '{{from_account}}'
 - action: select
   target:
     anchor:
-      label: ']to account #['
+      label: 'to account #'
       ordinal: 1
       offset:
-      - 68
+      - 69
       - 0
     template: crops/transfer_funds/s6.png
   option: '{{to_account}}'
@@ -103,10 +105,24 @@ steps:
       text: TRANSFER
       ordinal: 1
     anchor:
-      label: 'From account #'
+      label: Bill Pay.
       ordinal: 1
       offset:
-      - -5
-      - 38
+      - 210
+      - 4
     template: crops/transfer_funds/s7.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/transfer_funds/s8.png
+  cleanup: true
 checkpoint: Transfer Complete!

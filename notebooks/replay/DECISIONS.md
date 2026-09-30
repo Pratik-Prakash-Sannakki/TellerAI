@@ -251,6 +251,19 @@ Reuse the old `ReplayResult` shape (D27), with statuses changed to fit the gates
     `failure = {step, action, expected: "step N without '<text>'", observed: first 200 chars}`.
   `outcomes:` is read by replay only; it is popped before the schema validates, so discovery's
   schema is unchanged. P1b asked discovery to add it; this is the replay-side answer.
+- **HTTP errors are FAILED (2026-09-30).** Before any outcome rule, replay checks the main
+  document's HTTP status (Playwright `response` events for the main frame's navigation requests:
+  network metadata, not the DOM). A status >= 400 is FAILED ("page returned HTTP <code>", observed =
+  the path). A raw JSON error body in the OCR text is FAILED too (secondary). So BUSINESS_OUTCOME only
+  ever comes from a normal page: a 404 page saying "Not Found" is not "the item was not found".
+- **Partial outputs + post-logout checkpoints (2026-09-30).** `outputs` carries every value
+  read, for every status (a FAILED/STUCK run returns what it read; the reason names missing
+  outputs; the Run cell labels it `partial outputs (run did not succeed)`). A checkpoint that is not
+  on the main screen is accepted as SUCCESS, with reason "checkpoint looked for after cleanup; all
+  outputs read", only when the run sent nothing through the gates, its last main step is an
+  extract, and every declared output was read: that checkpoint was picked from the screen after the
+  cleanup (e.g. the login page after Log Out). Discovery is also being fixed to never pick a
+  post-logout checkpoint; this is replay's guard for artifacts already saved.
 - **Assisted flag (2026-09-29).** `ReplayResult.human` lists every take-over as
   `{step, reason, actions}` (`actions` = page paths visited + send paths, no query, no body, no typed
   values). `[]` means unattended. The status stays meaningful: a run a human rescued that then meets
@@ -279,6 +292,15 @@ our own.
 **Rejected:** a bar injected into the site page. It touches the target's DOM, which breaks the core
 rule (must work on legacy sites and desktop apps, where we cannot inject UI), and OCR/rungs could
 see it.
+
+## R20: replay ends logged out — DECIDED (user)
+
+A capability's steps may carry `cleanup: true` (discovery's optional Click field, e.g. Log Out;
+read with `getattr`, so older artifacts work). Order: main steps -> checkpoint -> outputs ->
+cleanup steps. Cleanup runs in a `finally`, so also after STUCK / FAILED / BUSINESS_OUTCOME /
+DECLINED, but only once the run got past the input form (never logged in = nothing to undo).
+Best-effort: one retry, no rescue panel. It never changes the main status; `result.cleanup` is
+`"" | "done" | "failed: <why>"`, and its drift rows carry `"cleanup": true`.
 
 ## R18: drift log — DECIDED
 

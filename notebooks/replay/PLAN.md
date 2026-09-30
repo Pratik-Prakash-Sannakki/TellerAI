@@ -90,6 +90,30 @@ schema -> Load & inputs -> Locate (rungs) -> Steps -> Replay engine -> Run.
   (`extensions/handback/`, no content scripts, no host permissions) hands back during a take-over;
   the site page is never touched. It replaced a separate small window; the site-page bar before
   that was removed on the user's rule (no target DOM).
+- P14. **Merged anchor labels (2026-09-29).** Discovery now saves cleaned labels ("to account #").
+  Rung 2 matches with `same_label`: strip `[ ] |`, then OCR text that starts with the label counts
+  ("to account #16785"), else the usual fuzzy match. Rung 1 (a value to click) stays exact for digits.
+- P15. **Cleanup steps (2026-09-29, R20).** `finish()` = `walk()` then `run_cleanup()` in `finally`.
+- P16. **Live Transfer/Pay Bill bugs (2026-09-30).** (1) `settled_change` never judges a click
+  while its send sits at the gates; the check window restarts at release, and "changed" = pixels
+  OR new OCR text. (2) A typed value of <= 2 chars (`CFG.short_value`) that OCR misses passes on the
+  field's pixels. (3) A take-over that reaches the checkpoint skips the remaining main steps
+  (`rung: skipped`). (4) The evidence redactor masks whole numbers only (no more `rung***`).
+- P17. **Partial outputs (2026-09-30).** Every result carries what was read; `outputs_line` labels
+  partial ones. A read-only run with every output read accepts a post-logout checkpoint (R17).
+- P18. **Strict extract types (2026-09-30).** Replay's own `TYPES`/`is_type` (no longer
+  `cua.recorder.value_matches_type`): currency needs a `$` or exactly 2 decimals. A mismatch tries
+  the next rung once (`next_rung`), then STUCK, expected = the type, observed = masked text.
+- P19. **Navigate + HTTP errors (2026-09-30).** `site_url` joins like a browser (an absolute path
+  is from the site root; it used to be forced under base_url, doubling `/parabank`). `error_page`
+  runs before the outcome rules (R17).
+- P20. **Extract `pattern` + shapes (2026-09-30).** `value_of`: with a saved `pattern`, the first
+  match inside the box, else the whole box; either way it must be the type. `SHAPES` copied
+  verbatim from discovery (phone/currency/date/integer/email/id); a test keeps them identical.
+- P21. **Duplicate text + same-URL clicks (2026-09-30).** Rung 1 with the same text twice picks the
+  copy nearest the anchor's point (`CFG.near_px` = 60), drift `rung1+anchor` when that overrides the
+  ordinal; none near = rung 2. A click followed by a main-frame response (`STATE.navs`, even the same
+  URL) counts as a change.
 
 ## Open questions for the user
 - Q-A. Should constants from the artifact count as "given" in the mismatch check (P6)?
