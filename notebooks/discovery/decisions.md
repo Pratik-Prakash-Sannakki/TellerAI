@@ -281,6 +281,74 @@ and what stops anyone (agent or human) from touching anything else on the site?
   - Dropdown: the human types the option text; our code runs `choose_option`.
   - `ask_human`: a typed text answer only, never access to the page.
 - **No Take over.** Anything the window can't express ends the run as `STUCK:`.
+- **2026-09-28 build notes (user-confirmed):**
+  - The control window is a second tab in the same browser ("Agent control"). It comes to the
+    front when a human is needed (approve, form, stuck choice) and the site tab comes back when
+    they answer (`finally`). During a take-over the site tab is in front and the control tab's
+    title reads "▶ Agent control: your turn" so Done is easy to find. (User choice; a
+    side-by-side window was built and dropped.)
+  - Missing values are one form per page: one row per field (its crop + an input, masked if
+    sensitive; dropdowns take the option text). Our code enters every value; the site never
+    unlocks for value entry. A "fill it in the site yourself" variant was tried and dropped: it
+    let the human click links / other fields and hung the agent.
+  - Take over survives only after a tool said STUCK (Q21), and is the one time the lock lifts.
+  - **Transactions (user rule, 2026-09-28): the agent never commits one.** Every request that
+    sends data (any method but GET/HEAD/OPTIONS) is held at the network layer (`page.route`) for
+    two human gates: (1) "are these details right?" with what was entered and what is being sent,
+    (2) "send it?". Reject at gate 1 = STUCK + human control; reject at gate 2 = DECLINED; a
+    closed control tab = blocked. Generic: no button names. Only the login click is exempt.
+    A click-level gate keyed on "was something typed on this page" was tried and failed live: a
+    form whose values were all dropdown defaults went through with no gate.
+  - **Who the human is asked, and when (user rule, 2026-09-29):** only for transactions (the two
+    send gates), take-over, and when the agent is unsure. Navigating and entering values needs
+    no approval: the per-click Approve (Q17, `safe_words`) is removed. The two gates also apply
+    to the human's OWN sends during a take-over, and they supersede whatever is on the control
+    tab; when answered, the take-over comes back as it was (a question stack, not a queue).
+  - **Gates are confirmations, not checks (user rule, 2026-09-29).** Before any gate, the code
+    compares every number the page is about to send against every number the human gave (the
+    goal, ask_human answers, form values). Any number the human never gave (e.g. sending account
+    1450 when they said 1400) holds the send and opens the fill-in form for just those fields,
+    prefilled with the page's value; the human's corrected values are what gets sent. (First
+    version aborted the request instead, and the site answered with an "internal error" page.)
+    Skipping the form blocks the send. Only a fully matching send reaches Gate 1 (confirm details) and Gate 2 (confirm
+    sending). Generic: compares digit groups, no field names.
+  - **Gate 1 = Approve / Edit (user rule, 2026-09-29).** Edit reopens a form built from the
+    held request's own fields (only a page dropdown whose current value exactly equals a field
+    becomes a dropdown); the edits are what is sent. **Nothing is stored** (banking): a saved
+    copy of the human's form was built and removed the same day. Typed and selected values
+    never enter the event log (labels and positions only); the run's working values (what was
+    entered, what the human gave, the last screenshot) are wiped when `run_goal` ends.
+  - **Unsure = human.** The agent never guesses or picks a value; it calls `ask_human` (answer /
+    take over / stop). The same panel opens by itself after 3 failed tool results in a row.
+  - **Hand-back button (user decision, 2026-09-29).** Humans forgot to go back to the control
+    tab and click Done. The hand-back is a browser-extension toolbar button
+    (`extensions/handback/`, Manifest V3): no content scripts, no host permissions, so it never
+    touches any site. The browser launches with it (`launch_persistent_context` +
+    `--load-extension`); the notebook talks only to the extension's service worker (`EXT`):
+    `setMode('YOU')` at take-over start (badge "YOU"), `setMode('AI')` in `finally`, and a
+    0.5 s poll of its click count; a rise answers the take-over. Every call is bounded and
+    swallows errors. It **replaced a separate small "Hand back" window** (own context, placed
+    over CDP), built and dropped the same day; an on-site bar injected into the page was dropped
+    before that because it touches the target's DOM. **Limit:** browser-only. For desktop
+    targets the fallback is a small always-on-top window of our own. If the extension does not
+    load, the take-over carries on. Fallback: the control tab's Done. An idle "Done? Hand back"
+    reminder was built and removed the same day at the user's request: no prompts interrupt a
+    take-over.
+- **Dropdowns: the one non-visual exception (user choice B, 2026-09-29).** On macOS a native
+  `<select>`'s list is drawn by the OS outside the page: no screenshot shows it and no key sent
+  to the page moves it (keyboard stepping, Q12, read only the first option). So for the
+  `<select>` under a point, and only that, `SELECT_AT_JS` reads its options and sets it by value
+  (then fires input/change); OCR of the closed box still confirms the result. Everything else
+  stays visual. Rejected: whole-screen OCR + real mouse (needs OS permissions, large), Linux-only
+  runs. Known limit: a streamed/remote-desktop target has no `<select>` to read; that case
+  would need whole-screen capture.
+- **Screen size (2026-09-29): Q10 holds, at 1280x800** (1440x900 was tried and reverted by the
+  user: more text on screen, but the agent handled it worse). Page fixed at `CFG.viewport`,
+  `device_scale_factor=1`, the same numbers at discovery and replay; the Browser cell refuses to
+  start if the screenshot is not exactly that size. A maximised, any-size window was tried and
+  dropped: on Retina the screenshot was 2x the mouse's points (login broke), and a layout that
+  changes with the screen breaks replay's label+offset and picture rungs. `take_look`'s
+  rescale + `to_page` stay only as a safety net for an unexpected pixel density.
 - **Depends on the BROWSER 0 lock check:** it must prove the lock blocks real human input
   before anything is built on it. If it fails, Q16 is reopened.
 
@@ -364,3 +432,13 @@ do the manual steps, "then hand control back", and that we "record what the huma
   and the duration. No typed values are captured (we can't see keystrokes, by design), so steps a
   human did during a take over are marked `human_entry: true, recordable: false` (D82 rule).
 - Cost: zero trust is broken only while the human holds control, and the log shows it.
+- **2026-09-29 build (spec 3.6 "record what the human did"):** `take_over()` stores ONE event
+  `{"tool": "take_over", "recordable": false, "actions": [{"kind": "page", "path": ...},
+  {"kind": "send", "path": ...}], "shot_before": png, "shot_after": png}`. Pages come from a
+  main-frame `framenavigated` listener attached only while the human holds control (removed in
+  `finally`); sends come from `guard_send` (path only, no body, no query). It is **evidence, not
+  steps**: `build_capability` still refuses a run with a take-over.
+- **Q16 note: take-over screenshots are evidence and may show values on screen** (the human's own
+  entries). They live in memory on the event, like crops. They must be redacted, or kept out of
+  the artifact, before anything persists them (the `evidence/` saving path decides). They are
+  never written into a capability YAML.

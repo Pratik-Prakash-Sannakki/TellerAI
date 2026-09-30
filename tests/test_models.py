@@ -130,3 +130,19 @@ def test_build_langchain_agent_defaults_to_iliad_sonnet(monkeypatch: pytest.Monk
     build_langchain_agent([])
     assert seen["model"].model == config.SONNET_MODEL_NAME  # type: ignore[attr-defined]
     assert seen["model"].anthropic_api_url == config.ILIAD_BASE_URL  # type: ignore[attr-defined]
+
+
+def test_build_langchain_agent_disables_prompt_cache_for_iliad(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Iliad gateway rejects Anthropic prompt-caching directives, so the wrapper must no-op them."""
+    import deepagents
+
+    from cua.agent import build_langchain_agent
+
+    seen: dict[str, object] = {}
+    monkeypatch.setenv("ILIAD_API_KEY", FAKE)
+    monkeypatch.setattr(deepagents, "create_deep_agent", lambda **kw: seen.update(kw))
+    build_langchain_agent([])
+    middleware = seen["middleware"]
+    names = [m.name for m in middleware]
+    assert "AnthropicPromptCachingMiddleware" in names
+    assert any(getattr(m, "__class__", type(m)).__name__ == "NoopAnthropicPromptCachingMiddleware" for m in middleware)

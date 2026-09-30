@@ -31,6 +31,8 @@ import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from langchain.agents.middleware.types import AgentMiddleware
+
 from cua.config import ALLOWED_HOSTS, BASE, SECRETS, host_allowed, resolve_secret
 from cua.models import make_chat_model, model_name_for
 
@@ -1076,6 +1078,24 @@ async def build_agent(page=None, goal_text: str = "", *, auto_limit: float | Non
     return agent
 
 
+class NoopAnthropicPromptCachingMiddleware(AgentMiddleware):
+    """Disable Anthropic prompt-caching on the Iliad gateway.
+
+    The gateway rejects the Anthropic prompt-caching breakpoint metadata with a 500,
+    even though plain ChatAnthropic calls succeed. We keep the middleware name stable
+    so deepagents can replace the default middleware in-place without changing the rest
+    of the stack.
+    """
+
+    name = "AnthropicPromptCachingMiddleware"
+
+    def wrap_model_call(self, request, handler):
+        return handler(request)
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(request)
+
+
 def build_langchain_agent(tools: list, *, model: "str | BaseChatModel | None" = None,
                           system_prompt: str = SYSTEM_PROMPT, middleware: list | None = None):
     """Wrap a tool list in a deep agent (D4) with the standard checkpointer. Kept as a thin,
@@ -1085,16 +1105,25 @@ def build_langchain_agent(tools: list, *, model: "str | BaseChatModel | None" = 
 
     `model` defaults to `make_chat_model("sonnet")` (the Iliad gateway). A chat-model instance
     or a `provider:model` string is passed straight through: `create_deep_agent`'s own signature
-    is `model: str | BaseChatModel | None`."""
+    is `model: str | BaseChatModel | None`.
+
+    The Iliad gateway rejects Anthropic prompt-caching metadata despite accepting straight
+    ChatAnthropic calls, so this wrapper installs a no-op replacement for the default
+    `AnthropicPromptCachingMiddleware` before `create_deep_agent` assembles the final stack.
+    """
     from deepagents import create_deep_agent
     from langgraph.checkpoint.memory import MemorySaver
+
+    middleware_list = [NoopAnthropicPromptCachingMiddleware()]
+    if middleware:
+        middleware_list.extend(middleware)
 
     return create_deep_agent(
         model=model if model is not None else make_chat_model("sonnet"),
         tools=tools,
         system_prompt=system_prompt,
         checkpointer=MemorySaver(),
-        middleware=middleware or [],
+        middleware=middleware_list,
     )
 
 

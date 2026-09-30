@@ -1,0 +1,190 @@
+schema_version: 2
+name: pay_bill_to_payee
+version: 1
+description: Logs into the customer account and pays a bill by transferring funds
+  to a specified payee with their address and account details.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: address
+  type: string
+  description: The street address of the payee receiving the payment
+- name: zip_code
+  type: string
+  description: The postal zip code of the payee's location
+- name: phone
+  type: string
+  description: The phone number of the payee
+- name: account
+  type: string
+  description: The account number to transfer funds to
+- name: verify_account
+  type: string
+  description: The account number re-entered for verification
+- name: amount
+  type: string
+  description: The dollar amount to transfer for the bill payment
+- name: payee_name
+  type: string
+  description: The name of the person or entity receiving the payment
+- name: city
+  type: string
+  description: The city where the payee is located
+- name: state
+  type: string
+  description: The state where the payee is located
+outputs: []
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 10
+      - 45
+    template: crops/pay_bill_to_payee/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 20
+    template: crops/pay_bill_to_payee/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/pay_bill_to_payee/s2.png
+- action: click
+  target:
+    ocr_text:
+      text: Bill Pay.
+      ordinal: 1
+    anchor:
+      label: Transfer Funds
+      ordinal: 1
+      offset:
+      - -21
+      - 25
+    template: crops/pay_bill_to_payee/s3.png
+- action: type
+  target:
+    anchor:
+      label: 'Address:'
+      ordinal: 1
+      offset:
+      - 137
+      - 1
+    template: crops/pay_bill_to_payee/s4.png
+  value: '{{address}}'
+- action: type
+  target:
+    anchor:
+      label: 'Zip Code:'
+      ordinal: 1
+      offset:
+      - 138
+      - 0
+    template: crops/pay_bill_to_payee/s5.png
+  value: '{{zip_code}}'
+- action: type
+  target:
+    anchor:
+      label: 'Phone #:'
+      ordinal: 1
+      offset:
+      - 137
+      - 0
+    template: crops/pay_bill_to_payee/s6.png
+  value: '{{phone}}'
+- action: type
+  target:
+    anchor:
+      label: 'Account #:'
+      ordinal: 1
+      offset:
+      - 142
+      - 1
+    template: crops/pay_bill_to_payee/s7.png
+  value: '{{account}}'
+- action: type
+  target:
+    anchor:
+      label: 'Verify Account #:'
+      ordinal: 1
+      offset:
+      - 161
+      - 0
+    template: crops/pay_bill_to_payee/s8.png
+  value: '{{verify_account}}'
+- action: type
+  target:
+    anchor:
+      label: 'Amount: $'
+      ordinal: 1
+      offset:
+      - 140
+      - 0
+    template: crops/pay_bill_to_payee/s9.png
+  value: '{{amount}}'
+- action: type
+  target:
+    anchor:
+      label: 'Payee Name:'
+      ordinal: 1
+      offset:
+      - 149
+      - 1
+    template: crops/pay_bill_to_payee/s10.png
+  value: '{{payee_name}}'
+- action: type
+  target:
+    anchor:
+      label: 'City:'
+      ordinal: 1
+      offset:
+      - 122
+      - 0
+    template: crops/pay_bill_to_payee/s11.png
+  value: '{{city}}'
+- action: type
+  target:
+    anchor:
+      label: 'State:'
+      ordinal: 1
+      offset:
+      - 126
+      - 0
+    template: crops/pay_bill_to_payee/s12.png
+  value: '{{state}}'
+- action: click
+  target:
+    ocr_text:
+      text: SEND PAYMENT
+      ordinal: 1
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 109
+      - 24
+    template: crops/pay_bill_to_payee/s13.png
+checkpoint: Bill Payment Complete

@@ -1,0 +1,973 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#   kernelspec:
+#     display_name: interface-ai-cua (3.12.2)
+#     language: python
+#     name: python3
+# ---
+
+# %% [markdown]
+# # Visual replay
+# Runs a capability saved by discovery with plain code, no LLM. Every send meets both human gates.
+
+# %% [markdown]
+# ## Setup
+# Imports and `.env`. No model: replay only follows the saved steps.
+
+# %%
+import ast
+import asyncio
+import base64
+import contextlib
+import difflib
+import functools
+import html
+import json
+import os
+import re
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
+
+import cv2
+import numpy as np
+import yaml
+from dotenv import load_dotenv
+from playwright.async_api import async_playwright
+from pydantic import ValidationError
+from rapidocr import RapidOCR
+
+from cua.recorder import value_matches_type
+
+load_dotenv(override=True)
+
+# %% [markdown]
+# ## Config & secrets
+# Site values and thresholds. Secrets come from `.env`; only their names are ever shown.
+
+# %%
+ALLOWED_HOSTS = {"parabank.parasoft.com"}
+SECRET_ENV = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}
+SECRETS = {name: os.getenv(env, "") for name, env in SECRET_ENV.items()}
+
+
+def host_allowed(url: str) -> bool:
+    return url == "about:blank" or urlparse(url).hostname in ALLOWED_HOSTS
+
+
+@dataclass(frozen=True)
+class Config:
+    viewport: tuple[int, int] = (1280, 800)       # Q10: same as discovery; refuse otherwise
+    ocr_min_score: float = 0.5
+    scroll_px: int = 600
+    same_screen_mad: float = 1.0
+    crop_pad: int = 6
+    point_crop: tuple[int, int] = (160, 34)
+    settle_ms: int = 600
+    sensitive_words: frozenset[str] = frozenset({"password", "ssn", "social"})
+    login_words: frozenset[str] = frozenset({"log in"})
+    fuzzy: float = 0.8                # rung 1/2 text similarity (words only; digits match exactly)
+    template_threshold: float = 0.8   # rung 3 matchTemplate score
+    template_margin: float = 0.05     # a second peak this close to the best = ambiguous = miss
+    scroll_retries: int = 1           # all rungs miss -> scroll down, retry this many times
+    check_s: float = 5.0              # OCR poll budget for an `expect` check
+    poll_ms: int = 200
+    field_min: tuple[int, int] = (40, 16)   # smallest drawn box that counts as an input field
+
+
+CFG = Config()
+print("secrets set:", sorted(n for n, v in SECRETS.items() if v))
+
+# %% [markdown]
+# ## Browser
+# One visible Chromium at the fixed page size, plus the "Agent control" tab. Same as discovery.
+
+# %%
+if "page" not in globals():
+    pw = await async_playwright().start()
+    w, h = CFG.viewport
+    browser = await pw.chromium.launch(headless=False, args=[f"--window-size={w},{h + 140}"])
+    context = await browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=1)
+    page = await context.new_page()
+    control_page = await context.new_page()
+print("browser open | page", CFG.viewport)
+
+# %% [markdown]
+# ## Vision (reused from discovery)
+# Screenshot, RapidOCR, numbered boxes, and the pixel checks. Copied from discovery; `HANDOFF` is `STATE`.
+
+# %%
+@dataclass(frozen=True)
+class Box:
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+
+    @property
+    def center(self) -> tuple[int, int]:
+        return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
+
+    def contains(self, x: int, y: int) -> bool:
+        return self.x1 <= x <= self.x2 and self.y1 <= y <= self.y2
+
+    def overlaps(self, o: "Box") -> bool:
+        return self.x1 < o.x2 and o.x1 < self.x2 and self.y1 < o.y2 and o.y1 < self.y2
+
+
+@dataclass(frozen=True)
+class Element:
+    ref: int
+    text: str
+    box: Box
+
+
+@dataclass(frozen=True)
+class Look:
+    png: bytes
+    drawn: bytes
+    elements: tuple[Element, ...]
+    url: str
+    scale: float = 1.0
+
+    def get(self, ref: int) -> Element | None:
+        return next((e for e in self.elements if e.ref == ref), None)
+
+    @property
+    def text(self) -> str:
+        return " ".join(e.text for e in self.elements)
+
+
+OCR_ENGINE = RapidOCR()
+REFS = {"next": 1}
+
+
+def decode(png: bytes) -> np.ndarray:
+    return cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
+
+
+def encode(img: np.ndarray) -> bytes:
+    return cv2.imencode(".png", img)[1].tobytes()
+
+
+def ocr(img: np.ndarray) -> list[tuple[str, Box]]:
+    out = OCR_ENGINE(img)
+    if out.boxes is None:
+        return []
+    items = []
+    for quad, txt, score in zip(out.boxes, out.txts, out.scores):
+        if score >= CFG.ocr_min_score and txt.strip():
+            xs, ys = [p[0] for p in quad], [p[1] for p in quad]
+            items.append((txt.strip(), Box(int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys)))))
+    return items
+
+
+def number(items: list[tuple[str, Box]]) -> tuple[Element, ...]:
+    """Reading order (rows top to bottom, then left to right), fresh refs."""
+    rows: list[list[tuple[str, Box]]] = []
+    for it in sorted(items, key=lambda t: t[1].y1):
+        first = rows[-1][0][1] if rows else None
+        if first and it[1].y1 < first.y2 and it[1].y2 > first.y1:
+            rows[-1].append(it)
+        else:
+            rows.append([it])
+    out = []
+    for text, box in (it for row in rows for it in sorted(row, key=lambda t: t[1].x1)):
+        out.append(Element(REFS["next"], text, box))
+        REFS["next"] += 1
+    return tuple(out)
+
+
+def draw_numbered(img: np.ndarray, elements: tuple[Element, ...]) -> bytes:
+    out = img.copy()
+    for e in elements:
+        b = e.box
+        cv2.rectangle(out, (b.x1, b.y1), (b.x2, b.y2), (0, 0, 255), 1)
+        cv2.putText(out, str(e.ref), (b.x1, max(b.y1 - 3, 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
+                    (0, 0, 255), 1)
+    return encode(out)
+
+
+async def take_look() -> Look:
+    img, points_w = decode(await page.screenshot()), await page_width()
+    img, scale = to_canvas(img, points_w)
+    elements = number(ocr(img))
+    STATE.look = Look(encode(img), draw_numbered(img, elements), elements, page.url, scale)
+    return STATE.look
+
+
+def to_canvas(img: np.ndarray, points_w: int) -> tuple[np.ndarray, float]:
+    cw, ch = CFG.viewport
+    f = min(cw / img.shape[1], ch / img.shape[0])
+    out = cv2.resize(img, (round(img.shape[1] * f), round(img.shape[0] * f)),
+                     interpolation=cv2.INTER_AREA if f < 1 else cv2.INTER_CUBIC)
+    return out, points_w / out.shape[1]
+
+
+async def page_width() -> int:
+    return int(await page.evaluate("window.innerWidth"))
+
+
+def canvas() -> tuple[int, int]:
+    if STATE.look is None:
+        return CFG.viewport
+    h, w = decode(STATE.look.png).shape[:2]
+    return w, h
+
+
+def to_page(point: tuple[int, int]) -> tuple[float, float]:
+    s = STATE.look.scale if STATE.look else 1.0
+    return point[0] * s, point[1] * s
+
+
+def hide_secrets(text: str) -> str:
+    for name, value in SECRETS.items():
+        if value:
+            text = text.replace(value, f"<{name}>")
+    return text
+
+
+# %%
+def element_at(look: Look, point: tuple[int, int]) -> Element | None:
+    return next((e for e in look.elements if e.box.contains(*point)), None)
+
+
+def crop_box(point: tuple[int, int], el: Element | None) -> Box:
+    w, h = canvas()
+    if el:
+        p = CFG.crop_pad
+        b = Box(el.box.x1 - p, el.box.y1 - p, el.box.x2 + p, el.box.y2 + p)
+    else:
+        cw, ch = CFG.point_crop
+        b = Box(point[0] - cw // 2, point[1] - ch // 2, point[0] + cw // 2, point[1] + ch // 2)
+    return Box(max(b.x1, 0), max(b.y1, 0), min(b.x2, w), min(b.y2, h))
+
+
+def read_near(look: Look, point: tuple[int, int]) -> str:
+    b = crop_box(point, None)
+    return " ".join(e.text for e in look.elements if e.box.overlaps(b))
+
+
+def spot_changed(before: Look, after: Look, point: tuple[int, int]) -> bool:
+    """Pixels around the point changed. Catches password dots that OCR cannot read."""
+    b = crop_box(point, None)
+    a, z = (decode(x.png)[b.y1:b.y2, b.x1:b.x2] for x in (before, after))
+    return float(np.mean(cv2.absdiff(a, z))) >= CFG.same_screen_mad
+
+
+def screens_same(a: bytes, b: bytes) -> bool:
+    ga, gb = (cv2.cvtColor(decode(p), cv2.COLOR_BGR2GRAY) for p in (a, b))
+    return float(np.mean(cv2.absdiff(ga, gb))) < CFG.same_screen_mad
+
+
+# %% [markdown]
+# ## Safety & handoff (reused from discovery)
+# Send guard, site lock, control tab, input helpers. The mismatch check compares against the inputs.
+
+# %%
+@dataclass
+class ReplayState:
+    """Working values for one run. Wiped in `replay`'s `finally` (R7)."""
+    look: Look | None = None
+    values: dict[str, str] = field(default_factory=dict)
+    given: list[str] = field(default_factory=list)      # input values + human edits (mismatch check)
+    outputs: dict[str, str] = field(default_factory=dict)
+    allow_send: bool = False       # set only around a login click
+    sent: bool = False             # a non-GET request went out during this action
+    verdict: str = ""              # what the send gate decided during the last action
+
+
+STATE = ReplayState()
+
+
+def norm(text: str | None) -> str:
+    return " ".join((text or "").casefold().split()).rstrip(".:!?").strip()
+
+
+def is_sensitive(label: str) -> bool:
+    return any(w in label.casefold() for w in CFG.sensitive_words)
+
+
+SEND_GATE = asyncio.Lock()
+
+
+DROPDOWNS_JS = """() => [...document.querySelectorAll('select')].map(s => ({
+  value: s.value, text: s.options[s.selectedIndex]?.text.trim() ?? '',
+  options: [...s.options].map(o => o.text.trim())}))"""
+
+
+async def dropdown_options(fields: dict[str, str], keys: list[str]) -> list[list[str]]:
+    free = await page.evaluate(DROPDOWNS_JS)
+    out = []
+    for k in keys:
+        hit = next((d for d in free if fields[k] and fields[k] in (d["value"], d["text"])), None)
+        if hit:
+            free.remove(hit)
+        out.append([hide_secrets(o) for o in hit["options"]] if hit and len(hit["options"]) > 1 else [])
+    return out
+
+
+def mismatches(sent: dict[str, str]) -> list[str]:
+    """Numbers being sent that the caller never gave (inputs or human edits)."""
+    given = set(re.findall(r"\d+(?:\.\d+)?", " ".join(STATE.given)))
+    norm_num = lambda n: n.rstrip("0").rstrip(".") if "." in n else n   # noqa: E731  10.00 == 10
+    wanted = {norm_num(n) for n in given}
+    return [k for k, v in sent.items() if not is_sensitive(k)
+            and any(norm_num(n) not in wanted for n in re.findall(r"\d+(?:\.\d+)?", v))]
+
+
+def _flat(obj: dict, pre: str = "") -> dict[str, str]:
+    out: dict[str, str] = {}
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out |= _flat(v, f"{pre}{k}.")
+        elif not isinstance(v, list):
+            out[f"{pre}{k}"] = "" if v is None else str(v)
+    return out
+
+
+def _json(body: str | None) -> dict | None:
+    try:
+        data = json.loads(body or "")
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def sent_fields(req) -> dict[str, str]:
+    data = _json(req.post_data)
+    body = _flat(data) if data is not None else dict(parse_qsl(req.post_data or ""))
+    return dict(parse_qsl(urlparse(req.url).query)) | body
+
+
+def rebuilt(req, fields: dict[str, str]) -> tuple[str, str | None]:
+    u = urlparse(req.url)
+    query = {k: fields.get(k, v) for k, v in parse_qsl(u.query)}
+    url = u._replace(query=urlencode(query)).geturl() if query else req.url
+    data = _json(req.post_data)
+    if data is not None:
+        for key in _flat(data):
+            *path, last = key.split(".")
+            node = functools.reduce(lambda d, p: d[p], path, data)
+            old, new = node.get(last), fields.get(key, "")
+            is_num = isinstance(old, (int, float)) and not isinstance(old, bool)
+            node[last] = type(old)(new) if is_num and new else new
+        return url, json.dumps(data)
+    form = dict(parse_qsl(req.post_data or ""))
+    return url, (urlencode({k: fields.get(k, v) for k, v in form.items()}) if form else req.post_data)
+
+
+def pretty(key: str) -> str:
+    words = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", key.replace(".", " ").replace("_", " ")).split()
+    return " ".join(words).capitalize()
+
+
+async def guard_send(route) -> None:
+    """Every request that sends data (not GET) is held for two human gates (R6, R15)."""
+    req = route.request
+    if req.method in ("GET", "HEAD", "OPTIONS"):
+        return await route.continue_()
+    STATE.sent = True
+    if STATE.allow_send:
+        return await route.continue_()
+    async with SEND_GATE:
+        fields = sent_fields(req)
+        original = dict(fields)
+        if bad := mismatches(fields):
+            opts = await dropdown_options(fields, bad)
+            fixed = await CONTROL.form("You never gave these. Check or correct them:",
+                                       [(pretty(k), False) for k in bad], [fields[k] for k in bad], opts)
+            if not fixed or not all(fixed):
+                STATE.verdict = f"STUCK: No value confirmed for {', '.join(bad)}. Nothing was sent."
+                return await route.abort()
+            fields.update(zip(bad, fixed))
+            STATE.given.extend(fixed)
+        shot = (await take_look()).png
+        while True:     # Gate 1: Approve, or Edit = back to the form with every value, then again
+            sent = hide_secrets("\n".join(f"{pretty(k)}: {'******' if is_sensitive(k) else v}"
+                                           for k, v in fields.items())[:1200])
+            what = f"Sending to {urlparse(req.url).path}:\n{sent or '(no fields)'}"
+            choice = await CONTROL.ask("Gate 1 of 2: confirm the details", what, "confirm",
+                                       image=shot if fields == original else None)
+            if choice == "approve":
+                break
+            if choice != "edit":
+                STATE.verdict = "STUCK: the details were not confirmed. Nothing was sent."
+                return await route.abort()
+            editable = [k for k in fields if not is_sensitive(k)]
+            opts = await dropdown_options(fields, editable)
+            new = await CONTROL.form("Edit the details, then Submit:",
+                                     [(pretty(k), False) for k in editable],
+                                     [fields[k] for k in editable], opts)
+            if new:
+                fields.update(zip(editable, new))
+                STATE.given.extend(v for v in new if v)
+        url, body = rebuilt(req, fields) if fields != original else (req.url, req.post_data)
+        if await CONTROL.ask("Gate 2 of 2: confirm sending", f"{what}\nThis cannot be undone.",
+                             "approve", image=shot if fields == original else None) != "approve":
+            STATE.verdict = "DECLINED: a human said no at Gate 2. Nothing was sent."
+            return await route.abort()
+        STATE.verdict = "SENT: a human approved both gates."
+        await route.continue_(url=url, post_data=body)
+
+
+# %%
+class SiteLock:
+    """The site tab ignores all real input (CDP). Lifted only around our own action or a take-over."""
+
+    def __init__(self, cdp: object) -> None:
+        self._cdp = cdp
+
+    async def set(self, locked: bool) -> None:
+        await self._cdp.send("Input.setIgnoreInputEvents", {"ignore": locked})
+
+    @contextlib.asynccontextmanager
+    async def open(self):
+        await self.set(False)
+        try:
+            yield
+        finally:
+            await self.set(True)
+
+
+_CONTROLS = {
+    "approve": "<button onclick=\"cuaReply('approve')\">Approve</button>"
+               "<button onclick=\"cuaReply('reject')\">Reject</button>",
+    "confirm": "<button onclick=\"cuaReply('approve')\">Approve</button>"
+               "<button onclick=\"cuaReply('edit')\">Edit</button>",
+    "takeover": "<button onclick=\"cuaReply('done')\">Done, hand back to replay</button>",
+    "rescue": "<button onclick=\"cuaReply('takeover')\">Take over the site</button>"   # PLAN P2
+              "<button onclick=\"cuaReply('stop')\">Stop the run</button>",
+    "form": "<button onclick=\"cuaReply(JSON.stringify([...document.querySelectorAll('.f')]"
+            ".map(e => e.value)))\">Submit</button><button onclick=\"cuaReply('')\">Skip</button>",
+    "status": "",
+}
+
+
+class ControlWindow:
+    """Our own page: the only place a human answers. Closing it fails closed (None)."""
+
+    def __init__(self, win: object) -> None:
+        self.win = win
+        self._stack: list[tuple[asyncio.Future, tuple]] = []
+
+    def on_reply(self, value: str | None) -> None:
+        for fut, _ in (self._stack if value is None else self._stack[-1:]):
+            if not fut.done():
+                fut.set_result(value)
+
+    async def show(self, title: str, details: str = "", mode: str = "status",
+                   image: bytes | None = None, who: str = "replay", rows: str = "") -> None:
+        tab = "Agent control" if mode == "status" else "▶ Agent control: your turn"
+        await self.win.set_content(
+            f"<title>{tab}</title>"
+            "<style>body{font:15px sans-serif;max-width:640px;margin:24px auto;padding:0 16px}"
+            "h3{margin:0 0 8px}.why{background:#fdecea;border-left:4px solid #c62828;"
+            "padding:10px 12px;margin:0 0 14px;white-space:pre-line}"
+            ".shot{display:block;max-width:560px;width:100%;margin:12px auto;border:1px solid #bbb}"
+            "img{max-width:100%}button{margin:6px 6px 0 0;padding:8px 16px}"
+            "textarea,.f{display:block;width:100%;box-sizing:border-box;padding:6px;margin:4px 0 12px}"
+            ".who{color:#666;font-size:12px}</style>"
+            f"<p class=who>In control: {who}</p><h3>{html.escape(title)}</h3>"
+            + (f"<div class=why>{html.escape(details)}</div>" if details else "")
+            + f"{_img(image, 'shot')}{rows}<div>{_CONTROLS[mode]}</div>")
+
+    async def ask(self, title: str, details: str, mode: str, image: bytes | None = None,
+                  who: str = "replay", rows: str = "") -> str | None:
+        entry = (asyncio.get_running_loop().create_future(), (title, details, mode, image, who, rows))
+        self._stack.append(entry)
+        await self._front(entry[1])
+        try:
+            return await entry[0]
+        finally:
+            self._stack.remove(entry)
+            if self.win.is_closed():
+                pass
+            elif self._stack:
+                await self._front(self._stack[-1][1])
+            else:
+                await self.show("Replay is working")
+                await page.bring_to_front()
+
+    async def _front(self, q: tuple) -> None:
+        await self.show(*q)
+        await (page if q[2] == "takeover" else self.win).bring_to_front()
+
+    async def form(self, title: str, fields: list[tuple[str, bool]], values: list[str] | None = None,
+                   options: list[list[str]] | None = None) -> list[str] | None:
+        n = len(fields)
+        rows = "".join(_row(i, label, masked, value, opts) for i, ((label, masked), value, opts)
+                       in enumerate(zip(fields, values or [""] * n, options or [[]] * n)))
+        answer = await self.ask(title, "Our code enters these into the site.", "form", rows=rows)
+        return json.loads(answer) if answer else None
+
+
+def _row(i: int, label: str, masked: bool, value: str, opts: list[str]) -> str:
+    head = f"<label><b>{html.escape(label)}</b>"
+    if opts:
+        choices = "".join(f'<option{" selected" if o == value else ""}>{html.escape(o)}</option>'
+                          for o in opts)
+        return f"{head}<select class=f>{choices}</select></label>"
+    kind = "password" if masked else "text"
+    return f'{head}<input class=f type={kind} value="{html.escape(value, quote=True)}"></label>'
+
+
+def _img(png: bytes | None, cls: str = "") -> str:
+    return (f'<img class="{cls}" src="data:image/png;base64,{base64.b64encode(png).decode()}">'
+            if png else "")
+
+
+async def act(*steps) -> Look:
+    """Unlock the site tab, run our own input steps, relock, settle, take a new look."""
+    async with LOCK.open():
+        for step in steps:
+            await step()
+    await page.wait_for_timeout(CFG.settle_ms)
+    async with SEND_GATE:      # a send held for the human finishes first
+        pass
+    return await take_look()
+
+
+def into_box(point: tuple[int, int], value: str) -> tuple:
+    """Click the box, clear what is in it, type."""
+    return (lambda: page.mouse.click(*to_page(point)), lambda: page.keyboard.press("ControlOrMeta+A"),
+            lambda: page.keyboard.press("Backspace"), lambda: page.keyboard.type(value))
+
+
+# D-B: the one non-visual exception. Sets only the <select> under (or next to) the point.
+SELECT_AT_JS = """([x, y, want]) => {
+  let el = document.elementFromPoint(x, y)?.closest('select');
+  if (!el) {
+    let best = 250;
+    for (const s of document.querySelectorAll('select')) {
+      const r = s.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+      if (d < best) { best = d; el = s; }
+    }
+  }
+  if (!el) return null;
+  const opts = [...el.options].map(o => o.text.trim());
+  if (want === null) return opts;
+  const i = opts.indexOf(want);
+  if (i < 0) return false;
+  el.selectedIndex = i;
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2, el.options[el.selectedIndex].text.trim()];
+}"""
+
+
+def field_box(look: Look, point: tuple[int, int]) -> Box:
+    """The smallest drawn rectangle around the point (the input's own border), else the point crop."""
+    edges = cv2.Canny(cv2.cvtColor(decode(look.png), cv2.COLOR_BGR2GRAY), 30, 90)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    rects = [cv2.boundingRect(c) for c in contours]
+    boxes = [Box(x, y, x + w, y + h) for x, y, w, h in rects
+             if w >= CFG.field_min[0] and h >= CFG.field_min[1]]
+    hits = [b for b in boxes if b.contains(*point)]
+    return min(hits, key=lambda b: (b.x2 - b.x1) * (b.y2 - b.y1)) if hits else crop_box(point, None)
+
+
+def read_field(look: Look, point: tuple[int, int]) -> str:
+    """Text inside the whole field: short values sit at its left edge, not near the centre (bug A)."""
+    b = field_box(look, point)
+    return " ".join(e.text for e in look.elements if e.box.overlaps(b))
+
+
+async def choose_option(point: tuple[int, int], option: str, label: str = "") -> bool:
+    """Select this exact live option; the dropdown's selected text and its OCR'd box confirm it."""
+    at = await page.evaluate(SELECT_AT_JS, [*to_page(point), option])
+    if not isinstance(at, list) or at[2] != option:
+        return False
+    await page.wait_for_timeout(CFG.settle_ms)
+    look = await take_look()
+    return typed_ok(read_field(look, (round(at[0] / look.scale), round(at[1] / look.scale))), at[2])
+
+
+# %%
+LOCK = SiteLock(await page.context.new_cdp_session(page))
+await LOCK.set(True)
+await page.unroute("**/*")
+await page.route("**/*", guard_send)
+CONTROL = ControlWindow(control_page)
+await control_page.expose_function("cuaReply", CONTROL.on_reply)
+control_page.on("close", lambda _: CONTROL.on_reply(None))
+await CONTROL.show("Replay is working")
+await page.bring_to_front()
+print("site locked | control window open")
+
+# %% [markdown]
+# ## Artifact schema
+# Schema: loaded from discovery's ## Save artifact (single source).
+
+# %%
+ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "notebooks/discovery/discovery.py").is_file())
+
+
+def discovery_schema() -> dict:
+    """Run the first cell of discovery's '## Save artifact' (the models) plus its typing/pydantic imports."""
+    text = (ROOT / "notebooks/discovery/discovery.py").read_text()
+    lines = text.splitlines()
+    start = lines.index("# ## Save artifact")
+    cell = [i + 1 for i, line in enumerate(lines) if line == "# %%" and i > start][:2]
+    keep = [n for n in ast.parse(text).body if cell[0] < n.lineno < cell[1]
+            or isinstance(n, ast.ImportFrom) and n.module in ("typing", "pydantic")]
+    ns: dict = {"__name__": "discovery_schema"}      # pydantic resolves the models' module by it
+    exec(compile(ast.Module(keep, []), "discovery.py", "exec"), ns)
+    return ns
+
+
+SCHEMA = discovery_schema()
+Capability, Step, Target, TableCell = (SCHEMA[n] for n in ("Capability", "Step", "Target", "TableCell"))
+
+
+# %% [markdown]
+# ## Load & inputs
+# YAML -> model, used exactly as discovery saved it. Refuse a wrong page size; ask for missing inputs.
+
+# %%
+class Stop(Exception):
+    """Ends the run with a status (R17). The reason never holds a value."""
+
+    def __init__(self, status: str, reason: str) -> None:
+        super().__init__(reason)
+        self.status, self.reason = status, reason
+
+
+PLACEHOLDER = re.compile(r"\{\{\s*(secret:)?(\w+)\s*\}\}")
+
+
+def load_capability(path: str | Path) -> tuple[Capability, Path]:
+    """The capability and the folder its crop paths are relative to."""
+    path = Path(path)
+    cap = Capability.model_validate(yaml.safe_load(path.read_text()))
+    if tuple(cap.viewport) != CFG.viewport or cap.device_scale_factor != 1:
+        raise Stop("FAILED", f"recorded at {cap.viewport} x{cap.device_scale_factor}, "
+                             f"replay runs at {CFG.viewport} x1 (Q10)")
+    if not host_allowed(cap.base_url):
+        raise Stop("FAILED", "base_url host is not allowed")
+    refs = PLACEHOLDER.findall(path.read_text())
+    if unknown := {n for s, n in refs if not s} - {p.name for p in cap.inputs}:
+        raise Stop("FAILED", f"undeclared inputs {sorted(unknown)}")
+    if unset := sorted({n for s, n in refs if s and not SECRETS.get(n)}):
+        raise Stop("FAILED", f"secrets not set in .env: {unset}")
+    crops = [s.target.template for s in cap.steps if getattr(s, "target", None) and s.target.template]
+    if lost := [c for c in crops if not (path.parent / c).is_file()]:
+        raise Stop("FAILED", f"missing crops {lost}")
+    return cap, path.parent
+
+
+def fill(text: str, values: dict[str, str]) -> str:
+    """Put inputs into `{{name}}`. `{{secret:x}}` stays as it is: secrets go in only when typed."""
+    return PLACEHOLDER.sub(lambda m: m[0] if m[1] else values[m[2]], text)
+
+
+def secret_name(value: str) -> str | None:
+    m = PLACEHOLDER.fullmatch(value.strip())
+    return m[2] if m and m[1] else None
+
+
+def given_inputs(cap: Capability, inputs: dict[str, str]) -> dict[str, str]:
+    """The caller's values, by the capability's own input names (any case). Any other key stops."""
+    names = {p.name.casefold(): p.name for p in cap.inputs}
+    if bad := [k for k in inputs if k.casefold() not in names]:
+        accepts = ", ".join(p.name for p in cap.inputs) or "none"
+        raise Stop("STUCK", f"not a permissible input: {', '.join(bad)}. This capability accepts: {accepts}.")
+    return {names[k.casefold()]: v for k, v in inputs.items() if v}
+
+
+async def ask_value(cap: Capability, name: str, options: list[str] | None = None) -> str:
+    """Just in time: one prompt for one input, with its description. A dropdown lists its live options."""
+    about = next(p.description for p in cap.inputs if p.name == name)
+    got = await CONTROL.form("Replay needs a value:", [(f"{name}: {about}", is_sensitive(name))], [""],
+                             [["", *options]] if options else None)
+    if not got or not got[0] or (options and got[0] not in options):
+        raise Stop("STUCK", f"no value given for {name}")
+    STATE.values[name] = got[0]
+    STATE.given.append(got[0])
+    return got[0]
+
+
+async def ask_missing(cap: Capability, text: str) -> None:
+    """Ask for each `{{input}}` in this text that has no value yet."""
+    for secret, name in PLACEHOLDER.findall(text):
+        if not secret and name not in STATE.values:
+            await ask_value(cap, name)
+
+
+# %% [markdown]
+# ## Locate (rungs)
+# Rung 1 OCR text, rung 2 label + offset, rung 3 picture, or a table cell. Never raw x,y.
+
+# %%
+def same_text(seen: str, want: str) -> bool:
+    """Exact for anything with a digit (13344 is not 13345); fuzzy for words (PLAN P3)."""
+    a, b = norm(seen), norm(want)
+    if a == b or re.search(r"\d", b):
+        return a == b
+    return difflib.SequenceMatcher(None, a, b).ratio() >= CFG.fuzzy
+
+
+def typed_ok(seen: str, want: str) -> bool:
+    """Bug B: the value is one of the OCR words. Digits exact ($10.00 is 10.00); words fuzzy (llinois)."""
+    words, n = norm(seen).replace("$", "").replace(",", "").split(), len(norm(want).split())
+    runs = [" ".join(words[i:i + n]) for i in range(len(words) - n + 1)]
+    return any(same_text(r, want.replace("$", "").replace(",", "")) for r in runs)
+
+
+def find_text(look: Look, text: str, ordinal: int = 1) -> Element | None:
+    hits = [e for e in look.elements if same_text(e.text, text)]
+    return hits[ordinal - 1] if len(hits) >= ordinal else None
+
+
+def find_template(img: np.ndarray, tpl: np.ndarray) -> tuple[int, int] | None:
+    """Centre of the one clear best match; two near-equal peaks count as a miss."""
+    h, w = tpl.shape[:2]
+    if h > img.shape[0] or w > img.shape[1]:
+        return None
+    res = np.nan_to_num(cv2.matchTemplate(img, tpl, cv2.TM_CCOEFF_NORMED), nan=-1.0)
+    _, best, _, (x, y) = cv2.minMaxLoc(res)
+    res[max(y - h // 2, 0):y + h // 2 + 1, max(x - w // 2, 0):x + w // 2 + 1] = -1
+    if best < CFG.template_threshold or cv2.minMaxLoc(res)[1] > best - CFG.template_margin:
+        return None
+    return x + w // 2, y + h // 2
+
+
+def read_cell(look: Look, cell: TableCell, values: dict[str, str]) -> Element | None:
+    """Q8: the element on the row-key's row, under the column header."""
+    key, head = find_text(look, fill(cell.row_key, values)), find_text(look, cell.column)
+    if not key or not head:
+        return None
+    return next((e for e in look.elements if e is not key and e.box.y1 < key.box.y2
+                 and key.box.y1 < e.box.y2 and head.box.x1 < e.box.x2 and e.box.x1 < head.box.x2), None)
+
+
+def locate(look: Look, target: Target, values: dict[str, str],
+           crops: Path) -> tuple[tuple[int, int], str] | None:
+    """(point, rung) from the first rung that hits, or None."""
+    if (c := target.table_cell) and (el := read_cell(look, c, values)):
+        return el.box.center, "table"
+    if (t := target.ocr_text) and (el := find_text(look, fill(t.text, values), t.ordinal)):
+        return el.box.center, "rung1"
+    if (a := target.anchor) and (el := find_text(look, fill(a.label, values), a.ordinal)):
+        return (el.box.center[0] + a.offset[0], el.box.center[1] + a.offset[1]), "rung2"
+    if target.template and (p := find_template(decode(look.png), cv2.imread(str(crops / target.template)))):
+        return p, "rung3"
+    return None
+
+
+async def find(target: Target, crops: Path) -> tuple[tuple[int, int], str] | None:
+    """All rungs miss -> scroll down and try again (Q13), up to `CFG.scroll_retries`."""
+    for n in range(CFG.scroll_retries + 1):
+        look = STATE.look if n == 0 else await act(lambda: page.mouse.wheel(0, CFG.scroll_px))
+        if hit := locate(look, target, STATE.values, crops):
+            return hit if n == 0 else (hit[0], f"{hit[1]}+scroll{n}")
+    return None
+
+
+# %% [markdown]
+# ## Steps
+# One function per action. Each acts through discovery's `act` and returns whether the OCR check passed.
+
+# %%
+async def shows(text: str) -> bool:
+    """R5: bounded OCR poll until the text is on screen."""
+    deadline = time.monotonic() + CFG.check_s
+    while norm(fill(text, STATE.values)) not in norm(STATE.look.text):
+        if time.monotonic() > deadline:
+            return False
+        await page.wait_for_timeout(CFG.poll_ms)
+        await take_look()
+    return True
+
+
+async def do_navigate(step: Step, point, cap: Capability) -> bool:
+    url = urljoin(cap.base_url + "/", fill(step.path, STATE.values).lstrip("/"))
+    if not host_allowed(url):
+        raise Stop("FAILED", "navigate leaves the allowed site")
+    await page.goto(url)
+    await take_look()
+    return True
+
+
+async def do_click(step: Step, point: tuple[int, int], cap: Capability) -> bool:
+    before = STATE.look
+    el = element_at(before, point)
+    STATE.allow_send = norm(el.text if el else "") in CFG.login_words     # R6: login is exempt
+    try:
+        await act(lambda: page.mouse.click(*to_page(point)))
+    finally:
+        STATE.allow_send = False
+    if not host_allowed(page.url):
+        await page.go_back()
+        raise Stop("FAILED", "the click left the allowed site")
+    return await settled_change(before)
+
+
+async def settled_change(before: Look) -> bool:
+    """Bug D: a send can land after the settle. Poll until the screen changes, then holds still."""
+    deadline, prev = time.monotonic() + CFG.check_s, STATE.look
+    while time.monotonic() < deadline:
+        await page.wait_for_timeout(CFG.poll_ms)
+        look = await take_look()
+        if not screens_same(before.png, look.png) and screens_same(prev.png, look.png):
+            return True
+        prev = look
+    return not screens_same(before.png, STATE.look.png)
+
+
+async def do_type(step: Step, point: tuple[int, int], cap: Capability) -> bool:
+    before, name = STATE.look, secret_name(step.value)
+    value = SECRETS[name] if name else fill(step.value, STATE.values)
+    after = await act(*into_box(point, value))
+    if not name:
+        return typed_ok(read_field(after, point), value)
+    if is_sensitive(name) and value in read_field(after, point):
+        STATE.look = None
+        raise Stop("FAILED", f"secret '{name}' shows as plain text")
+    return spot_changed(before, after, point)
+
+
+async def do_select(step: Step, point: tuple[int, int], cap: Capability) -> bool:
+    options = await page.evaluate(SELECT_AT_JS, [*to_page(point), None])
+    if not isinstance(options, list) or not options:
+        return False
+    m = PLACEHOLDER.fullmatch(step.option.strip())
+    want = STATE.values.get(m[2], "") if m else step.option
+    if m and want not in options:
+        want = await ask_value(cap, m[2], options)
+    return await choose_option(point, want)
+
+
+async def do_scroll(step: Step, point, cap: Capability) -> bool:
+    await act(lambda: page.mouse.wheel(0, CFG.scroll_px if step.direction == "down" else -CFG.scroll_px))
+    return True
+
+
+async def do_extract(step: Step, point: tuple[int, int], cap: Capability) -> bool:
+    el = element_at(STATE.look, point)
+    kind = next(o.type for o in cap.outputs if o.name == step.save_as)
+    if not el or not value_matches_type(el.text, kind):
+        return False
+    STATE.outputs[step.save_as] = el.text
+    return True
+
+
+ACTIONS = {"navigate": do_navigate, "click": do_click, "type": do_type, "select": do_select,
+           "scroll": do_scroll, "extract": do_extract}
+
+# %% [markdown]
+# ## Replay engine
+# Walk the steps. Retry a failed check once, never a send or a secret. A human rescues or stops it.
+
+# %%
+@dataclass(frozen=True)
+class ReplayResult:
+    status: str               # SUCCESS | BUSINESS_OUTCOME | DECLINED | STUCK | FAILED (R17)
+    outputs: dict[str, str]
+    drift: list[dict]         # per step: rung, point, attempt. No values (R18)
+    reason: str = ""
+
+
+async def rescue(i: int, step: Step, why: str) -> None:
+    """R8: the help panel. Take over (the human does this step) or stop."""
+    choice = await CONTROL.ask(f"Replay needs help at step {i + 1} ({step.action})", why, "rescue",
+                               image=STATE.look.drawn if STATE.look else None)
+    if choice != "takeover":
+        raise Stop("STUCK", why)
+    async with LOCK.open():      # the human's own sends still go through both gates
+        await CONTROL.ask("You are in control", "Do this step in the site tab, then click Done.",
+                          "takeover", who="human")
+    if not host_allowed(page.url):
+        raise Stop("FAILED", "the take-over left the allowed site")
+    await take_look()
+
+
+async def run_step(i: int, step: Step, cap: Capability, crops: Path, drift: list[dict]) -> None:
+    await ask_missing(cap, step.model_dump_json(exclude={"option"}))   # a dropdown asks at the dropdown
+    for attempt in (1, 2):
+        target = getattr(step, "target", None)
+        if (hit := await find(target, crops) if target else (None, "-")) is None:
+            break
+        STATE.sent, STATE.verdict = False, ""
+        ok = await ACTIONS[step.action](step, hit[0], cap)
+        drift.append({"step": i, "action": step.action, "rung": hit[1], "point": hit[0], "attempt": attempt})
+        status = STATE.verdict.split(":")[0]
+        if status in ("STUCK", "DECLINED"):
+            raise Stop(status, STATE.verdict)
+        if ok:
+            return
+        if STATE.sent or secret_name(getattr(step, "value", "")):
+            break                             # R15/D26: a send is never retried; R5: nor a secret
+        await take_look()
+    await rescue(i, step, "target not found" if hit is None else "the step's check failed")
+    drift.append({"step": i, "action": step.action, "rung": "human"})
+
+
+async def walk(cap: Capability, crops: Path, drift: list[dict]) -> ReplayResult:
+    for i, step in enumerate(cap.steps):
+        await run_step(i, step, cap, crops, drift)
+    await ask_missing(cap, cap.checkpoint)
+    if not await shows(cap.checkpoint):
+        raise Stop("FAILED", "checkpoint text not on the final screen")
+    if missing := sorted({o.name for o in cap.outputs} - set(STATE.outputs)):
+        raise Stop("FAILED", f"outputs not read: {missing}")
+    return ReplayResult("SUCCESS", dict(STATE.outputs), drift)
+
+
+def starts_with_login(cap: Capability) -> bool:
+    """A secret is typed before the first click: the capability logs in itself."""
+    for s in cap.steps:
+        if s.action == "click":
+            return False
+        if s.action == "type" and secret_name(s.value):
+            return True
+    return False
+
+
+async def open_start(cap: Capability) -> None:
+    if starts_with_login(cap):
+        await page.context.clear_cookies()      # start logged out, as the recording did
+    await page.goto(cap.base_url)
+    shot = decode(await page.screenshot())
+    if (shot.shape[1], shot.shape[0]) != tuple(cap.viewport):       # R3: no scaling
+        raise Stop("FAILED", f"screenshot is {shot.shape[1]}x{shot.shape[0]}, expected {cap.viewport}")
+    await take_look()
+
+
+async def replay(path: str, inputs: dict[str, str] | None = None) -> ReplayResult:
+    global STATE
+    drift: list[dict] = []
+    try:
+        cap, crops = load_capability(path)
+        STATE.values = given_inputs(cap, inputs or {})
+        STATE.given = list(STATE.values.values())
+        await open_start(cap)
+        return await walk(cap, crops, drift)
+    except Stop as s:
+        return ReplayResult(s.status, {}, drift, hide_secrets(s.reason))
+    except ValidationError as e:
+        where = e.errors()[0]
+        return ReplayResult("FAILED", {}, drift, f"invalid capability at {where['loc']}: {where['msg']}")
+    finally:
+        STATE = ReplayState()      # R7: nothing kept
+
+# %% [markdown]
+# ## Run
+# Replay a saved capability. Outputs go to the caller only; the drift log holds rungs, never values.
+
+# %%
+cap_path = ROOT / "notebooks" / "discovery" / "artifacts" / "visual" / "pay_bill.yaml"
+result = await replay(str(cap_path), inputs={"account_id": "13344"})
+print("capability:", cap_path)
+print("status:", result.status, result.reason)
+print("outputs:", result.outputs)
+for row in result.drift:
+    print(row)

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Agent hand-back",
+  "version": "1.0",
+  "description": "Hand control back to the agent. A toolbar button only: it never reads or touches any site.",
+  "action": {
+    "default_title": "Agent hand-back: the agent is in control",
+    "default_icon": {"16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png"}
+  },
+  "icons": {"16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png"},
+  "background": {"service_worker": "background.js"}
+}
