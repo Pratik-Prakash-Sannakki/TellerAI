@@ -1,16 +1,16 @@
 # Graph Report - BankerAgent  (2026-10-01)
 
 ## Corpus Check
-- 139 files · ~238,122 words
+- 150 files · ~241,930 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1660 nodes · 3293 edges · 115 communities (96 shown, 19 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 139 edges (avg confidence: 0.71)
+- 1789 nodes · 3591 edges · 106 communities (88 shown, 18 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 115 edges (avg confidence: 0.68)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `adce97c1`
+- Built from commit: `75eb86d1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,91 +21,83 @@
 - test_extract_table.py
 - Evidence README
 - langchain_agents_middleware
-- test_select_index.py
+- vision/__init__.py
 - test_handback_button.py
-- extract_value
-- sys
-- like_rows
+- value_in_box
+- ocr.py
+- read_rows
 - save_discovery_evidence / save_replay_evidence (D92)
 - Replay decisions
 - Five Error Demos (D30)
 - langchain_typesafe
 - langchain_typesafe_experimental_middleware
-- test_cleanup.py
+- Look
 - test_sent_dropdowns.py
 - test_human_help.py
-- json
+- Box
 - test_llm.py
 - test_resolve_inputs.py
-- .click
+- test_takeover.py
 - test_transaction_gates.py
-- DoneWhileSending
+- HeldPage
 - schema/__init__.py
 - test_handback.py
 - Ext
 - integration/conftest.py
 - discovery.py
-- SimpleNamespace
+- test_table.py
 - SiteProfile
 - Capability
-- FormRoute
+- ScriptedControl
 - test_checks.py
-- Look
+- take_look
 - CLAUDE.md (project instructions)
-- test_outcomes.py
+- llm.py
 - click
 - manifest.json
 - Stop
 - test_select_anchor.py
 - replay.py
-- take_look
-- rescue
+- Look
+- handback_button
 - test_config.py
-- pydantic
+- decode
 - config.py
 - take_look
-- test_send_settle.py
+- test_spot_changed.py
 - test_choose_option.py
-- test_capability.py
-- _write
-- test_takeover.py
-- test_caller_inputs.py
+- cua.vision
+- DiscoveryConfig
+- ReplayConfig
 - test_engine.py
 - LatestScreenshotOnly
 - HangPage
 - test_read_runs.py
 - HeldRoute
-- test_result.py
 - langgraph_types
-- test_value_types.py
+- pytest
 - Discovery decisions
 - 2. Each box, with an example
 - Look
-- events.py
 - 2. Components
 - ControlWindow
 - Pure-Visual Discovery Notebook: Build Plan
 - SiteLock
-- test_latest_screenshot.py
 - test_evidence.py
 - guard_send
-- test_observable.py
+- pathlib
 - mk_look
-- HeldPage
-- human_help
+- take_over
 - test_label_values.py
 - test_extract_types.py
 - test_no_values_stored.py
 - test_http_errors.py
 - test_adjacent_selects.py
 - copy
-- BrowserConfig
-- resolve_secret
+- crops.py
 - cua
 - test_partial_outputs.py
 - cua.schema
-- value_types.py
-- Target
 - test_round_trip.py
 - interface-ai-cua
 - test_replay_evidence.py
@@ -121,27 +113,26 @@
 - .get
 - inspect
 - background.js
-- locate
+- do_extract_table
 - test_extract_pattern.py
 - Site
 - read_rows
 - do_type
-- pathlib
+- test_prompt_rules.py
 - test_login_click_kept.py
-- pytest
-- _look_ns
+- _fake_llm_keys
 
 ## God Nodes (most connected - your core abstractions)
 1. `_meta()` - 58 edges
 2. `_ev()` - 46 edges
 3. `mk_look()` - 37 edges
-4. `Look` - 24 edges
-5. `click()` - 23 edges
-6. `Replay decisions` - 23 edges
-7. `Discovery decisions` - 22 edges
-8. `Element` - 21 edges
-9. `take_look()` - 20 edges
-10. `Stop` - 20 edges
+4. `Box` - 26 edges
+5. `Look` - 24 edges
+6. `click()` - 23 edges
+7. `Replay decisions` - 23 edges
+8. `Discovery decisions` - 22 edges
+9. `Element` - 21 edges
+10. `take_look()` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `test_the_right_label_still_matches()` --calls--> `same_label()`  [INFERRED]
@@ -158,11 +149,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (115 total, 19 thin omitted)
+## Communities (106 total, 18 thin omitted)
 
 ### Community 1 - "asyncio"
-Cohesion: 0.07
-Nodes (17): asyncio, FakeBox, into_box clears the field before typing, so a retry replaces instead of…, test_typing_twice_does_not_double(), FakeControl, FakePage, FakeRoute, Shared offline fakes for the ported test suite (tests/unit, tests/integration).… (+9 more)
+Cohesion: 0.06
+Nodes (21): asyncio, _act(), _none(), Page, D: after an approved send, act waits for the page's response before its…, The response lands 3 polls after the gate is released., test_after_an_approved_send_the_look_shows_the_response(), test_no_send_means_no_extra_wait() (+13 more)
 
 ### Community 2 - "Productionize Plan: notebooks → `src/cua/` package"
 Cohesion: 0.12
@@ -172,109 +163,109 @@ Nodes (16): 10. Line-count offenders (today), 1. Package tree, 2. De-duplication
 Cohesion: 0.16
 Nodes (23): Handoff, _look(), _ns(), extract_table: the agent points at a header, code reads the rows from OCR (live…, Live run: the page footer ('Home | About Us I Services …', '© Parasoft …') sat…, _read(), _table_ev(), test_a_header_holding_a_run_value_is_refused() (+15 more)
 
-### Community 6 - "test_select_index.py"
-Cohesion: 0.21
-Nodes (10): _js(), _Page, Two dropdowns side by side: the step's recorded index picks its own <select>,…, Run replay's real SELECT_AT_JS in node against a fake page holding FROM and TO., _select(), test_an_index_picks_its_own_dropdown_from_a_point_nearer_the_other(), test_an_old_step_without_an_index_selects_by_point(), test_the_confirm_is_not_fooled_by_a_longer_number() (+2 more)
+### Community 6 - "vision/__init__.py"
+Cohesion: 0.14
+Nodes (25): Pixels -> text: screenshots, OCR, canvas math, crops, and the shared table…, append_rows(), cell_shape(), col_of(), column_spans(), like_rows(), Box, Element (+17 more)
 
 ### Community 7 - "test_handback_button.py"
-Cohesion: 0.10
-Nodes (22): playwright_async_api, _click(), env(), Ext, Human, Lock, PanelDone, fixture (+14 more)
+Cohesion: 0.08
+Nodes (25): playwright_async_api, FakeBox, into_box clears the field before typing, so a retry replaces instead of…, test_typing_twice_does_not_double(), _click(), env(), Ext, Human (+17 more)
 
-### Community 8 - "extract_value"
-Cohesion: 0.33
-Nodes (6): extract_value(), True when the whole value is exactly that type (string, number, boolean, or a…, (value, pattern) for an extract: the whole box when it is exactly the type,…, Save a value the goal asked for, read from a numbered box. Args: ref: Number of…, value_in_box(), value_matches_type()
-
-### Community 10 - "like_rows"
+### Community 8 - "value_in_box"
 Cohesion: 0.50
-Nodes (4): cell_shape(), like_rows(), A table's end: a line that no longer looks like its rows (a footer, a menu, a…, date', 'amount', or 'text': enough to tell a row cell from a footer line in its…
+Nodes (4): True when the whole value is exactly that type (string, number, boolean, or a…, (value, pattern) for an extract: the whole box when it is exactly the type,…, value_in_box(), value_matches_type()
+
+### Community 9 - "ocr.py"
+Cohesion: 0.12
+Nodes (23): RapidOCR, draw_numbered(), number(), ocr(), ocr_engine(), Box, Element, NDArray (+15 more)
+
+### Community 10 - "read_rows"
+Cohesion: 0.22
+Nodes (10): cell_shape(), col_of(), like_rows(), The column the box overlaps most, or None when it overlaps none (outside the…, A line's texts in the asked columns, left to right; two texts in one column are…, (rows under the header, whether the table may continue past the look's bottom).…, A table's end: a line that no longer looks like its rows (a footer, a menu, a…, date', 'amount', or 'text': enough to tell a row cell from a footer line in its… (+2 more)
 
 ### Community 12 - "Replay decisions"
 Cohesion: 0.08
 Nodes (23): R10: where the compile step lives — DECIDED, R11: why compile, if `response_format` exists? — PROPOSED, R12: what each step type compiles to — PROPOSED, R13: target schema — PROPOSED, R14: what rung 2 needs that discovery doesn't record — DONE, R15: auto-approve at replay — PROPOSED, R16: dead ends and retries at compile — PROPOSED, R17: replay result statuses — PROPOSED (+15 more)
 
-### Community 16 - "test_cleanup.py"
-Cohesion: 0.38
-Nodes (12): _cap(), _click(), fixture, Cleanup steps (e.g. Log Out) run last, always, best-effort, and never change…, _run(), site(), test_a_cleanup_failure_keeps_success_and_records_failed(), test_a_cleanup_miss_is_retried_once_then_recorded_without_a_rescue() (+4 more)
+### Community 16 - "Look"
+Cohesion: 0.15
+Nodes (15): canvas_size(), Look, NDArray, uint8, Canvas-pixel <-> page-point mapping: any window size or pixel density maps to…, Fit the screenshot inside the canvas. Returns it and canvas-pixel -> page-point…, The size of the image the model is looking at right now., to_canvas() (+7 more)
 
 ### Community 17 - "test_sent_dropdowns.py"
-Cohesion: 0.33
-Nodes (8): _logged(), Path, A dropdown the send carries becomes a Select step, even when left on its page…, test_a_defaulted_dropdown_the_send_carries_is_logged_without_its_value(), test_a_dropdown_the_send_does_not_carry_is_not_a_step(), test_a_select_the_agent_made_earlier_is_not_doubled(), test_it_becomes_a_select_input_before_the_send_click(), yaml
+Cohesion: 0.19
+Nodes (13): _cls(), LatestScreenshotOnly keeps only the newest image in the model's context., _shot(), test_only_last_image_survives(), _logged(), Path, A dropdown the send carries becomes a Select step, even when left on its page…, test_a_defaulted_dropdown_the_send_carries_is_logged_without_its_value() (+5 more)
 
 ### Community 18 - "test_human_help.py"
-Cohesion: 0.10
-Nodes (21): Control, Lock, _no_watch(), Page, parametrize, human_help: one open-ended panel -> answer in words, take over, or stop., Run human_help's take-over; `during(page)` is what the human does before…, Live crash: Register (a form POST) held by guard_send -> shot_after timed out… (+13 more)
+Cohesion: 0.11
+Nodes (20): Control, Lock, _no_watch(), Page, parametrize, human_help: one open-ended panel -> answer in words, take over, or stop., Run human_help's take-over; `during(page)` is what the human does before…, Live crash: Register (a form POST) held by guard_send -> shot_after timed out… (+12 more)
 
-### Community 19 - "json"
-Cohesion: 0.29
-Nodes (3): json, The hand-back extension never touches any site: no content scripts, no host…, The hand-back extension never touches any site: no content scripts, no host…
+### Community 19 - "Box"
+Cohesion: 0.21
+Nodes (11): dataclasses, Box, Element, Box, Element, Look: the shapes every vision/discovery/replay function reads and…, Box, Element, Look: the small frozen types vision reads/writes, plus…, test_box_and_element_are_frozen(), test_box_center_is_the_midpoint(), test_box_contains_a_point_inside_its_edges() (+3 more)
 
 ### Community 20 - "test_llm.py"
-Cohesion: 0.09
-Nodes (26): BaseChatModel, CaptureFixture, ModelKind, os, cua: shared config and the LLM model factory (Iliad gateway) for the pure-…, make_chat_model(), model_name_for(), _note_fallback() (+18 more)
+Cohesion: 0.18
+Nodes (13): CaptureFixture, _clean_env(), fixture, MonkeyPatch, Offline tests for `cua.llm.make_chat_model` (Iliad gateway). No network, no…, test_ca_bundle_passthrough(), test_existing_ssl_cert_file_wins(), test_fallback_to_anthropic_key() (+5 more)
 
 ### Community 21 - "test_resolve_inputs.py"
 Cohesion: 0.12
 Nodes (23): _ask(), _cap(), ClearPage, _click(), env(), FakeForm, FakePage, fixture (+15 more)
 
-### Community 22 - ".click"
-Cohesion: 0.26
-Nodes (12): _cap(), _click(), _fail_clicks(), HumanControl, Live: the human finished the whole form during a take-over; step 6 then 'target…, Takes over; while 'in control', the human opens a page and sends a form., test_checkpoint_reached_by_the_human_skips_the_remaining_steps(), test_click_stashes_the_dropdowns_before_clicking() (+4 more)
+### Community 22 - "test_takeover.py"
+Cohesion: 0.38
+Nodes (11): _cap(), _click(), _fail_clicks(), A take-over is recorded as evidence (shots, page paths, send paths, no values)…, Live: the human finished the whole form during a take-over; step 6 then 'target…, test_checkpoint_reached_by_the_human_skips_the_remaining_steps(), test_click_stashes_the_dropdowns_before_clicking(), test_no_take_over_means_an_empty_list() (+3 more)
 
 ### Community 23 - "test_transaction_gates.py"
-Cohesion: 0.13
-Nodes (31): functools, Control, _guard_ns(), _held_navigation(), _no_dropdowns(), _opts(), parametrize, guard_send: nothing that sends data leaves the tab without two human approvals. (+23 more)
+Cohesion: 0.10
+Nodes (36): functools, Control, _guard_ns(), _held_navigation(), HeldPage, _no_dropdowns(), _opts(), parametrize (+28 more)
 
-### Community 24 - "DoneWhileSending"
-Cohesion: 0.40
-Nodes (3): DoneWhileSending, The human clicks Done just as their form POST is held: the gate must still show…, test_no_deadlock_between_a_pending_gate_and_done()
+### Community 24 - "HeldPage"
+Cohesion: 0.20
+Nodes (7): DoneWhileSending, HeldPage, HumanControlSimple, Like Playwright: while a form POST (a navigation) is held, `page.screenshot()`…, The human clicks Done just as their form POST is held: the gate must still show…, test_no_deadlock_between_a_pending_gate_and_done(), test_take_over_survives_a_screenshot_timeout()
 
 ### Community 25 - "schema/__init__.py"
-Cohesion: 0.24
-Nodes (19): Anchor, Capability, CapabilityMeta, Click, Extract, ExtractTable, Header, Input (+11 more)
+Cohesion: 0.05
+Nodes (47): pydantic, Anchor, Capability, CapabilityMeta, Click, Extract, ExtractTable, Header (+39 more)
 
 ### Community 26 - "test_handback.py"
-Cohesion: 0.16
-Nodes (12): take_over's hand-back: the extension's toolbar button (never the site), with no…, The user's rule: no "are you done?" prompts in between. Only the take-over…, test_a_click_on_the_toolbar_button_hands_back(), test_done_in_the_takeover_itself_cancels_the_watcher(), test_no_extension_still_hands_back_from_the_control_tab(), test_no_idle_reminder_ever_interrupts_the_take_over(), test_the_badge_reads_you_during_the_take_over_then_ai(), test_the_button_never_touches_the_site_page() (+4 more)
+Cohesion: 0.15
+Nodes (13): take_over's hand-back: the extension's toolbar button (never the site), with no…, The user's rule: no "are you done?" prompts in between. Only the take-over…, test_a_click_on_the_toolbar_button_hands_back(), test_done_in_the_takeover_itself_cancels_the_watcher(), test_no_extension_still_hands_back_from_the_control_tab(), test_no_idle_reminder_ever_interrupts_the_take_over(), test_the_badge_reads_you_during_the_take_over_then_ai(), test_the_button_never_touches_the_site_page() (+5 more)
 
 ### Community 29 - "discovery.py"
-Cohesion: 0.06
-Nodes (50): deepagents, dotenv, langchain_tools, langgraph_checkpoint_memory, after_login_click(), Anchor, Capability, _clean() (+42 more)
+Cohesion: 0.07
+Nodes (48): deepagents, langchain_tools, langgraph_checkpoint_memory, Anchor, append_rows(), Capability, _clean(), Config (+40 more)
 
-### Community 30 - "SimpleNamespace"
-Cohesion: 0.15
-Nodes (15): SimpleNamespace, _ns(), parametrize, take_look's canvas: any window size or pixel density maps to one grid, and…, test_fits_canvas_and_maps_clicks_back_to_the_same_spot(), test_sent_values_count_as_run_values(), test_a_sent_dropdown_is_logged_with_its_index_on_the_page(), _load() (+7 more)
+### Community 30 - "test_table.py"
+Cohesion: 0.19
+Nodes (14): _defs(), _is_header(), _look(), Path, The shared OCR table reader: parity between cua.vision.table and both…, ast.dump compare, ignoring docstrings -- the functions this step did not have…, tests/replay/test_table_replay.py's own SHARED set is the contract this module…, _read() (+6 more)
 
 ### Community 31 - "SiteProfile"
 Cohesion: 0.15
-Nodes (12): host_allowed(), True if `url`'s host is on the site's allowlist (D15). ``about:blank`` is…, Everything site-specific, loaded from ``configs/<name>.yaml``. Secrets: env…, Secret name -> env var name., SiteProfile, fixture, Same rules as replay.py's Config.outcomes, as {text, status, meaning} dicts., site() (+4 more)
+Nodes (13): host_allowed(), Look up a secret by NAME. Raises on an unknown name or an empty/missing value.…, True if `url`'s host is on the site's allowlist (D15). ``about:blank`` is…, Everything site-specific, loaded from ``configs/<name>.yaml``. Secrets: env…, Secret name -> env var name., resolve_secret(), SiteProfile, MonkeyPatch (+5 more)
 
 ### Community 32 - "Capability"
-Cohesion: 0.13
-Nodes (25): Capability, find(), is_cleanup(), judge(), login_came_back(), login_steps(), Path, The steps up to and including the first click, when a secret is typed before it. (+17 more)
-
-### Community 33 - "FormRoute"
-Cohesion: 0.22
-Nodes (5): FormRoute, Answers each gate from a script; records what each form offered., ScriptedControl, test_agent_send_uses_the_stash_not_the_page(), test_human_post_during_a_take_over_passes_both_gates_with_no_evaluate()
+Cohesion: 0.12
+Nodes (29): Capability, error_page(), find(), finish(), is_cleanup(), judge(), login_came_back(), login_steps() (+21 more)
 
 ### Community 34 - "test_checks.py"
 Cohesion: 0.13
 Nodes (19): _click_env(), _form_png(), _Lock, _Page, parametrize, Step checks on fakes: whole-field read (A), tolerant word match (B), late page…, Live bug: the Transfer click sent (both gates approved) but its check said…, Live: Address '1' failed twice: OCR does not read a lone character. The field's… (+11 more)
 
-### Community 35 - "Look"
+### Community 35 - "take_look"
 Cohesion: 0.09
-Nodes (32): Box, canvas(), col_of(), column_spans(), crop_box(), Element, element_at(), field_box() (+24 more)
+Nodes (31): Box, canvas(), column_spans(), crop_box(), decode(), draw_numbered(), Element, element_at() (+23 more)
 
 ### Community 36 - "CLAUDE.md (project instructions)"
 Cohesion: 0.12
 Nodes (19): CLAUDE.md (project instructions), D101: labeled_value refuses a table-header resolution (general fix), D102: label_header/value_header flags ported into agent.py + cli.py capture path, D92: Evidence Capture Helpers (save_discovery_evidence/save_replay_evidence), D93: Pre-existing 02_artifact_schema.py IndexError bug, D95: Missing create_deep_agent import found live in BROWSER 12, D96: build_agent() goal_text vs given_text field-name bug, D97: cua replay --login flag + repeated Balance header trap (+11 more)
 
-### Community 37 - "test_outcomes.py"
-Cohesion: 0.22
-Nodes (12): _cap(), fixture, R17 taxonomy after each step: a business answer stops, a lost session is re-…, A fake site: clicks move between screens by script; `take_look` returns the…, site(), test_a_second_expiry_is_not_recovered_again(), test_a_send_is_never_retried_after_an_expiry(), test_error_page_fails_with_detail() (+4 more)
+### Community 37 - "llm.py"
+Cohesion: 0.18
+Nodes (12): BaseChatModel, ModelKind, cua: shared config and the LLM model factory (Iliad gateway) for the pure-…, make_chat_model(), model_name_for(), _note_fallback(), _pass_through_ca_bundle(), The one place that builds a chat model. Every LLM call in the project goes… (+4 more)
 
 ### Community 38 - "click"
-Cohesion: 0.09
-Nodes (48): act(), ask_human(), blocks(), choose_option(), click(), finish_business_outcome(), gate_click(), host_allowed() (+40 more)
+Cohesion: 0.06
+Nodes (65): act(), after_login_click(), ask_human(), blocks(), canvas(), choose_option(), click(), extract_value() (+57 more)
 
 ### Community 39 - "manifest.json"
 Cohesion: 0.11
@@ -282,63 +273,59 @@ Nodes (18): action, default_icon, default_title, background, service_worker, 128
 
 ### Community 40 - "Stop"
 Cohesion: 0.08
-Nodes (29): ask_inputs(), ask_option(), do_navigate(), error_page(), finish(), given_inputs(), host_allowed(), load_capability() (+21 more)
+Nodes (29): ask_inputs(), do_navigate(), given_inputs(), host_allowed(), load_capability(), load_outcomes(), open_start(), Exception (+21 more)
 
 ### Community 41 - "test_select_anchor.py"
-Cohesion: 0.24
-Nodes (10): _look_ns(), Path, A dropdown's point inside an OCR box that merged its label and value ('to…, A box's own text with nothing cut from it (a value, a button) stays off the…, _select_ev(), test_a_plain_word_under_the_point_is_still_never_the_anchor(), test_a_point_inside_a_merged_label_and_value_box_anchors_on_the_cleaned_label(), test_a_select_with_no_anchor_is_refused_not_saved() (+2 more)
+Cohesion: 0.18
+Nodes (12): _look_ns(), Path, A dropdown's point inside an OCR box that merged its label and value ('to…, A box's own text with nothing cut from it (a value, a button) stays off the…, _select_ev(), test_a_plain_word_under_the_point_is_still_never_the_anchor(), test_a_point_inside_a_merged_label_and_value_box_anchors_on_the_cleaned_label(), test_a_select_with_no_anchor_is_refused_not_saved() (+4 more)
 
 ### Community 42 - "replay.py"
 Cohesion: 0.10
-Nodes (33): _clean(), Config, discovery_schema(), do_extract(), dropdown_options(), _flat(), guard_send(), hide_secrets() (+25 more)
+Nodes (32): Future, _clean(), Config, discovery_schema(), dropdown_options(), _flat(), guard_send(), hand_back() (+24 more)
 
-### Community 43 - "take_look"
-Cohesion: 0.16
-Nodes (19): changed(), decode(), draw_numbered(), encode(), _img(), mask_png(), ocr(), open_start() (+11 more)
+### Community 43 - "Look"
+Cohesion: 0.12
+Nodes (23): anchor_point(), changed(), fill(), find_template(), find_text(), locate(), Look, next_rung() (+15 more)
 
-### Community 44 - "rescue"
-Cohesion: 0.15
-Nodes (14): Future, button_clicked(), ext_call(), hand_back(), handback_button(), Evidence screenshot. A held form POST blocks `page.screenshot()`: give up,…, R19: one bounded call into the hand-back extension's service worker, never the…, Returns once the toolbar button's click count rises above where it was at the… (+6 more)
+### Community 44 - "handback_button"
+Cohesion: 0.40
+Nodes (6): button_clicked(), ext_call(), handback_button(), R19: one bounded call into the hand-back extension's service worker, never the…, Returns once the toolbar button's click count rises above where it was at the…, Badge YOU while the human is in control; yields the task a toolbar click…
 
 ### Community 45 - "test_config.py"
-Cohesion: 0.17
-Nodes (11): dataclasses, DiscoveryConfig, Discovery-only settings., Replay-only settings., ReplayConfig, Path, cua.config: the site profile from configs/parabank.yaml, and the notebooks'…, test_discovery_defaults() (+3 more)
+Cohesion: 0.19
+Nodes (12): load_site(), Read and validate ``configs/<name>.yaml`` (root defaults to the repo root)., fixture, parametrize, Path, cua.config: the site profile from configs/parabank.yaml, and the notebooks'…, site(), test_browser_defaults() (+4 more)
 
-### Community 46 - "pydantic"
-Cohesion: 0.15
-Nodes (9): pydantic, Exception, What a replay run returns: its Status, the Stop that ends a run early, and…, R17 run statuses. A member is a plain str, so ``Status.SUCCESS == "SUCCESS"``., Ends the run with a status (R17). The reason never holds a value; `observed` is…, ReplayResult, Status, Stop (+1 more)
+### Community 46 - "decode"
+Cohesion: 0.60
+Nodes (5): decode(), encode(), NDArray, uint8, test_decode_encode_round_trips_a_png()
 
 ### Community 47 - "config.py"
-Cohesion: 0.27
-Nodes (11): _find_root(), load_site(), OutcomeRule, _outcomes(), Path, Shared configuration: the site profile, browser/discovery/replay settings, and…, The nearest folder at or above `start` that has a ``configs/`` folder., Read and validate ``configs/<name>.yaml`` (root defaults to the repo root). (+3 more)
+Cohesion: 0.23
+Nodes (11): dotenv, os, _find_root(), OutcomeRule, _outcomes(), Path, Shared configuration: the site profile, browser/discovery/replay settings, and…, The nearest folder at or above `start` that has a ``configs/`` folder. (+3 more)
 
 ### Community 48 - "take_look"
-Cohesion: 0.11
-Nodes (24): Box, canvas(), crop_box(), cut_crop(), decode(), draw_numbered(), encode(), _img() (+16 more)
+Cohesion: 0.12
+Nodes (23): Box, crop_box(), cut_crop(), decode(), draw_numbered(), encode(), _img(), mask_png() (+15 more)
 
-### Community 49 - "test_send_settle.py"
-Cohesion: 0.23
-Nodes (8): _act(), _none(), Page, D: after an approved send, act waits for the page's response before its…, The response lands 3 polls after the gate is released., test_after_an_approved_send_the_look_shows_the_response(), test_landed_keeps_only_new_fixed_text(), test_no_send_means_no_extra_wait()
+### Community 49 - "test_spot_changed.py"
+Cohesion: 0.50
+Nodes (4): _look(), ndarray, spot_changed: password dots are pixels, not OCR text. Ported from…, test_dots_count_as_change_and_blank_does_not()
 
 ### Community 50 - "test_choose_option.py"
 Cohesion: 0.22
 Nodes (11): _fns(), Page, Dropdowns (option B): read every option and select by value, for the <select>…, Mimics SELECT_AT_JS against one <select> at (100, 50); nothing else on the page., The user's bug: two accounts, only one showed., The red box showed the whole tool reply (URL, every OCR line) instead of the…, test_lists_every_option_values_only(), test_missing_option_is_refused() (+3 more)
 
-### Community 51 - "test_capability.py"
-Cohesion: 0.23
-Nodes (7): _data(), parametrize, Path, cua.schema.Capability loads every saved artifact and refuses an unknown schema…, test_a_wrong_schema_version_is_refused(), test_an_unknown_key_is_refused(), test_every_saved_artifact_loads()
+### Community 51 - "cua.vision"
+Cohesion: 0.50
+Nodes (3): cua.vision, Read order, What may NOT go here
 
-### Community 52 - "_write"
-Cohesion: 0.24
-Nodes (9): test_replay_stops_on_an_unknown_key_before_opening_the_site(), Loading the artifact as saved, and the inputs., test_undeclared_input_refused(), test_viewport_mismatch_refused(), test_yaml_loads_with_crops_relative(), _write(), test_unknown_outcome_status_is_refused(), test_yaml_outcomes_replace_the_defaults() (+1 more)
+### Community 52 - "DiscoveryConfig"
+Cohesion: 0.67
+Nodes (3): DiscoveryConfig, Discovery-only settings., test_discovery_defaults()
 
-### Community 53 - "test_takeover.py"
-Cohesion: 0.27
-Nodes (9): HumanControlSimple, NeverAnsweredGate, A take-over is recorded as evidence (shots, page paths, send paths, no values)…, take_look screenshots the page, as the real one does., The human clicks Done while their own send's Gate 1 is still open and never…, _real_shots(), test_done_hands_back_within_a_timeout_as_stuck(), test_stash_read_on_a_held_page_times_out_to_empty() (+1 more)
-
-### Community 54 - "test_caller_inputs.py"
-Cohesion: 0.33
-Nodes (7): _cap(), FakeForm, replay(path, inputs): given values by exact name (any case); unknown keys stop;…, test_all_inputs_given_means_no_form(), test_given_inputs_match_by_exact_name_any_case(), test_only_the_missing_inputs_go_to_the_one_form(), test_unknown_key_stops_naming_what_is_accepted()
+### Community 53 - "ReplayConfig"
+Cohesion: 0.67
+Nodes (3): Replay-only settings., ReplayConfig, test_replay_defaults()
 
 ### Community 55 - "test_engine.py"
 Cohesion: 0.25
@@ -349,8 +336,8 @@ Cohesion: 0.24
 Nodes (5): AgentMiddleware, LatestScreenshotOnly, NoopAnthropicPromptCachingMiddleware, Disable prompt caching on the Iliad gateway; it rejects Anthropic cache markers., Old screenshots are stale (their numbers no longer work); send the model only…
 
 ### Community 57 - "HangPage"
-Cohesion: 0.22
-Nodes (4): HangPage, HeldPage, Like Playwright: while a form POST (a navigation) is held, `page.screenshot()`…, `evaluate` also never returns while a request is held, as live.
+Cohesion: 0.15
+Nodes (11): FormRoute, HangPage, NeverAnsweredGate, take_look screenshots the page, as the real one does., `evaluate` also never returns while a request is held, as live., The human clicks Done while their own send's Gate 1 is still open and never…, _real_shots(), test_agent_send_uses_the_stash_not_the_page() (+3 more)
 
 ### Community 58 - "test_read_runs.py"
 Cohesion: 0.15
@@ -360,9 +347,9 @@ Nodes (23): _cell(), _look(), _ns(), Read-only runs (live: view_account_details_
 Cohesion: 0.25
 Nodes (3): GateControl, HeldRoute, test_navigation_send_never_screenshots_and_the_gate_shows()
 
-### Community 62 - "test_value_types.py"
-Cohesion: 0.36
-Nodes (7): parametrize, Path, cua.schema.value_types matches both notebooks' SHAPES/TYPES exactly., SHAPES and TYPES as each notebook defines them (TYPES spreads SHAPES, so exec…, _tables(), test_tables_equal_the_notebooks(), test_value_matches_type()
+### Community 62 - "pytest"
+Cohesion: 0.17
+Nodes (14): AST, pytest, stmt, _keep(), ns(), fixture, Load replay.py's definitions via ast (no browser, no OCR model), as…, parametrize (+6 more)
 
 ### Community 63 - "Discovery decisions"
 Cohesion: 0.08
@@ -374,11 +361,7 @@ Nodes (15): 1. Diagram, 2. Each box, with an example, 3. All tools, 4. Step by s
 
 ### Community 65 - "Look"
 Cohesion: 0.09
-Nodes (44): append_rows(), clean_label(), column_header(), column_spans(), Element, element_at(), extract_table(), headings() (+36 more)
-
-### Community 66 - "events.py"
-Cohesion: 0.33
-Nodes (6): Event, _EventBase, The discovery event log entry: one tool call, as discovery's ``log()`` writes…, Extras some tools log (rung spots, click outcome, human entry, read targets)., TypedDict, typing
+Nodes (42): clean_label(), column_header(), column_spans(), Element, element_at(), extract_table(), headings(), is_word() (+34 more)
 
 ### Community 67 - "2. Components"
 Cohesion: 0.12
@@ -392,36 +375,28 @@ Nodes (8): ControlWindow, Our own page: the only place a human answers. Closing 
 Cohesion: 0.09
 Nodes (22): 10. Open risks, 1. Global constraints (every task must follow these), 2. Review focus (inputs no spec line covers, but likely to bite), 3. What already exists (reuse, or its visual version), 3a. How the agent is built today (`agent.ipynb` STEP 4, `src/cua/agent.py`), 3b. Existing handoff rules: when a human is called in, 3c. Existing tools → the new tools, 4. New dependencies (checked on PyPI, 2026-09-28) (+14 more)
 
-### Community 71 - "test_latest_screenshot.py"
-Cohesion: 0.47
-Nodes (5): _cls(), LatestScreenshotOnly keeps only the newest image in the model's context., _shot(), test_only_last_image_survives(), ToolMessage
-
 ### Community 72 - "test_evidence.py"
-Cohesion: 0.31
-Nodes (13): _artifact(), _ns(), Path, save_evidence: one masked folder per run. No run value or secret is ever…, _save(), test_a_failed_run_still_writes_evidence(), test_an_artifact_holding_a_run_value_is_refused(), test_capability_yaml_and_crops_are_copied() (+5 more)
+Cohesion: 0.10
+Nodes (26): json, _artifact(), _ns(), Path, save_evidence: one masked folder per run. No run value or secret is ever…, _save(), test_a_failed_run_still_writes_evidence(), test_an_artifact_holding_a_run_value_is_refused() (+18 more)
 
 ### Community 73 - "guard_send"
-Cohesion: 0.14
-Nodes (17): dropdown_options(), _flat(), guard_send(), hide_secrets(), _json(), list_options(), mismatches(), pretty() (+9 more)
+Cohesion: 0.16
+Nodes (16): dropdown_options(), _flat(), guard_send(), hide_secrets(), is_sensitive(), _json(), mismatches(), pretty() (+8 more)
 
-### Community 74 - "test_observable.py"
-Cohesion: 0.22
-Nodes (12): _click(), Live: find_accounts_and_transactions.yaml saved `outputs: []`, no extract, and…, navigated: the page loaded (a link, even back to the same URL); new: new text…, After login the site is already on Accounts Overview; clicking it, scrolling,…, The page heading 'Accounts Overview' sits above the menu link with the same…, test_a_click_that_changes_the_screen_on_the_same_page_is_kept(), test_a_click_that_lands_on_the_page_it_left_is_dropped(), test_a_read_or_a_send_is_enough() (+4 more)
+### Community 74 - "pathlib"
+Cohesion: 0.15
+Nodes (15): pathlib, re, _click(), Live: find_accounts_and_transactions.yaml saved `outputs: []`, no extract, and…, navigated: the page loaded (a link, even back to the same URL); new: new text…, After login the site is already on Accounts Overview; clicking it, scrolling,…, The page heading 'Accounts Overview' sits above the menu link with the same…, test_a_click_that_changes_the_screen_on_the_same_page_is_kept() (+7 more)
 
 ### Community 75 - "mk_look"
 Cohesion: 0.23
 Nodes (14): mk_look(), mk_look([(text, (x1, y1, x2, y2)), ...]) -> a Look with those OCR elements., _dup_target(), The 3 rungs + table cell; all miss -> None., test_a_single_text_match_is_rung1_as_before(), test_all_miss_is_none(), test_duplicate_text_picks_the_copy_nearest_the_anchor(), test_duplicate_text_with_no_copy_near_the_anchor_uses_rung2() (+6 more)
 
-### Community 76 - "HeldPage"
-Cohesion: 0.33
-Nodes (3): HeldPage, While a request is held, every page read hangs (the live Register bug)., test_read_dropdowns_on_a_held_page_times_out_to_empty()
-
-### Community 77 - "human_help"
-Cohesion: 0.14
-Nodes (15): ext_call(), human_help(), mark_stuck(), note_call(), offer_control(), Q21, open-ended: the human answers in words, takes over the site, or stops the…, An evidence screenshot: short timeout, None on failure. A page whose navigation…, Q21: the one time the site unlocks for a human. What they did is kept as… (+7 more)
+### Community 77 - "take_over"
+Cohesion: 0.25
+Nodes (9): ext_call(), host_allowed(), An evidence screenshot: short timeout, None on failure. A page whose navigation…, Q21: the one time the site unlocks for a human. What they did is kept as…, Q16: one bounded call into the hand-back extension's service worker, never the…, Hands back once the toolbar button's click count rises above where it was at…, snap(), take_over() (+1 more)
 
 ### Community 78 - "test_label_values.py"
-Cohesion: 0.21
+Cohesion: 0.19
 Nodes (15): parametrize, OCR joins a label to the dropdown beside it ('to account #16785') and reads its…, Live: steps 5-6 (agent, 'From account #[') and 7-8 (send, 'From account #')…, _select(), _sent(), test_a_box_border_read_as_a_bracket_is_not_part_of_the_label(), test_a_label_that_is_only_a_value_falls_back_to_the_next_nearest(), test_a_number_that_only_resembles_a_value_is_not_a_leak() (+7 more)
 
 ### Community 79 - "test_extract_types.py"
@@ -440,13 +415,9 @@ Nodes (12): _judge(), Page, parametrize, Navigate joins paths like a browser; an
 Cohesion: 0.33
 Nodes (4): Transfer's second dropdown: the 'to account #' anchor must never land on 'From…, test_the_right_label_still_matches(), test_the_to_anchor_finds_the_to_label_not_the_from_label(), test_value_glued_to_hash_confirms_the_option()
 
-### Community 84 - "BrowserConfig"
-Cohesion: 0.40
-Nodes (5): BrowserConfig, Settings shared by discovery and replay (the same page size at both, Q10)., parametrize, test_browser_defaults(), test_configs_are_frozen()
-
-### Community 85 - "resolve_secret"
-Cohesion: 0.50
-Nodes (4): Look up a secret by NAME. Raises on an unknown name or an empty/missing value.…, resolve_secret(), MonkeyPatch, test_resolve_secret()
+### Community 84 - "crops.py"
+Cohesion: 0.16
+Nodes (24): BrowserConfig, Settings shared by discovery and replay (the same page size at both, Q10)., crop_box(), cut_crop(), element_at(), Box, Element, Look (+16 more)
 
 ### Community 86 - "cua"
 Cohesion: 0.50
@@ -460,33 +431,29 @@ Nodes (12): _cap(), _click(), env(), _extract(), _finish(), fixture, Every statu
 Cohesion: 0.50
 Nodes (3): cua.schema, Read order, What may NOT go here
 
-### Community 89 - "value_types.py"
-Cohesion: 0.50
-Nodes (3): Value types an extract may declare. Shared by discovery and replay (one table,…, True when the whole value is exactly that type (string, number, boolean, or a…, value_matches_type()
-
 ### Community 92 - "test_round_trip.py"
 Cohesion: 0.39
 Nodes (7): Path, Discovery's saved artifact runs in replay unchanged: build -> save -> load ->…, _saved(), test_crop_paths_resolve_to_saved_files(), test_rung2_offset_hits_the_point_discovery_acted_on(), test_saved_artifact_loads_as_is(), test_steps_dispatch_to_replay_handlers()
 
 ### Community 106 - "test_replay_evidence.py"
-Cohesion: 0.27
-Nodes (9): _all_text(), _png(), save_evidence writes one masked folder per run: summary, drift, failure (only…, _result(), test_all_files_are_written(), test_checkpoint_miss_carries_expected_and_observed(), test_failure_json_has_step_expected_observed(), test_no_failure_file_on_success() (+1 more)
+Cohesion: 0.31
+Nodes (8): _all_text(), _png(), save_evidence writes one masked folder per run: summary, drift, failure (only…, _result(), test_all_files_are_written(), test_failure_json_has_step_expected_observed(), test_no_failure_file_on_success(), test_no_input_value_or_secret_in_any_file()
 
 ### Community 107 - "test_table_replay.py"
-Cohesion: 0.18
-Nodes (15): _cap(), _defs(), parametrize, Path, do_extract_table: find the header by its label, read the rows with discovery's…, Each scroll shows the next look., _run(), test_a_missing_header_is_a_failed_check() (+7 more)
+Cohesion: 0.05
+Nodes (55): _cap(), FakeForm, replay(path, inputs): given values by exact name (any case); unknown keys stop;…, test_all_inputs_given_means_no_form(), test_given_inputs_match_by_exact_name_any_case(), test_only_the_missing_inputs_go_to_the_one_form(), test_replay_stops_on_an_unknown_key_before_opening_the_site(), test_unknown_key_stops_naming_what_is_accepted() (+47 more)
 
 ### Community 108 - "ControlWindow"
 Cohesion: 0.39
 Nodes (3): ControlWindow, Our own page: the only place a human answers. Closing it fails closed (None)., _row()
 
 ### Community 109 - "Route"
-Cohesion: 0.22
-Nodes (4): test_the_gate_marks_a_human_approved_send(), Frame, Route, test_sends_are_noted_only_during_a_take_over()
+Cohesion: 0.17
+Nodes (6): test_the_gate_marks_a_human_approved_send(), Frame, HumanControl, Takes over; while 'in control', the human opens a page and sends a form., Route, test_sends_are_noted_only_during_a_take_over()
 
 ### Community 110 - "_meta"
-Cohesion: 0.14
-Nodes (29): test_a_continued_table_is_one_step(), test_a_scroll_before_a_read_is_kept(), _ev(), _meta(), Path, Save artifact: the event log becomes a replay-ready capability (R12, R13, R16).…, Invented inputs are ignored, a missing description gets a default, secrets stay…, Every cell of '## Save artifact', plus the helpers it uses from earlier cells. (+21 more)
+Cohesion: 0.11
+Nodes (36): test_a_continued_table_is_one_step(), test_a_scroll_before_a_read_is_kept(), _ev(), _look_ns(), _meta(), Path, Save artifact: the event log becomes a replay-ready capability (R12, R13, R16).…, Invented inputs are ignored, a missing description gets a default, secrets stay… (+28 more)
 
 ### Community 112 - "test_control_form.py"
 Cohesion: 0.14
@@ -501,16 +468,16 @@ Cohesion: 0.25
 Nodes (4): env(), FakeLock, FakePage, fixture
 
 ### Community 120 - "test_wandering.py"
-Cohesion: 0.16
-Nodes (19): re, _go(), _nav(), _open_path(), _paths(), parametrize, Live run 'Log in, bank phone number' (navigate_to_request_loan.yaml): a 404 and…, _shapes() (+11 more)
+Cohesion: 0.19
+Nodes (17): _go(), _nav(), _open_path(), _paths(), parametrize, Live run 'Log in, bank phone number' (navigate_to_request_loan.yaml): a 404 and…, _shapes(), test_a_404_and_detour_navigations_are_dropped() (+9 more)
 
 ### Community 122 - ".get"
-Cohesion: 0.08
-Nodes (36): build_capability(), CapabilityMeta, checkpoint(), describe(), field_area(), goes_to_a_page(), is_select(), log_sent_dropdowns() (+28 more)
-
-### Community 127 - "locate"
 Cohesion: 0.09
-Nodes (28): anchor_point(), append_rows(), do_extract_table(), fill(), find_template(), locate(), next_rung(), norm() (+20 more)
+Nodes (32): build_capability(), CapabilityMeta, checkpoint(), describe(), field_area(), goes_to_a_page(), is_select(), log_sent_dropdowns() (+24 more)
+
+### Community 127 - "do_extract_table"
+Cohesion: 0.16
+Nodes (15): append_rows(), do_extract_table(), norm(), A scrolled second read repeats the rows still on screen: drop only that overlap., Find the header by its label (rung 2's matching), read the rows with…, The option is in the box's OCR, even merged with its label ('to account…, Exact for anything with a digit (13344 is not 13345); fuzzy for words (PLAN P3)., Bug B: the value is one of the OCR words. Digits exact ($10.00 is 10.00); words… (+7 more)
 
 ### Community 129 - "test_extract_pattern.py"
 Cohesion: 0.29
@@ -525,44 +492,36 @@ Cohesion: 0.22
 Nodes (10): cell_shape(), col_of(), like_rows(), The column the box overlaps most, or None when it overlaps none (outside the…, A line's texts in the asked columns, left to right; two texts in one column are…, (rows under the header, whether the table may continue past the look's bottom).…, A table's end: a line that no longer looks like its rows (a footer, a menu, a…, date', 'amount', or 'text': enough to tell a row cell from a footer line in its… (+2 more)
 
 ### Community 139 - "do_type"
-Cohesion: 0.20
-Nodes (14): act(), choose_option(), do_click(), do_scroll(), do_select(), do_type(), into_box(), Step (+6 more)
-
-### Community 140 - "pathlib"
-Cohesion: 0.15
-Nodes (3): pathlib, The prompts are the first filter (user, 2026-09-30); the models and code checks…, Guard: no site value lives in src/. Site values belong in configs/<site>.yaml…
+Cohesion: 0.11
+Nodes (23): act(), ask_option(), choose_option(), do_click(), do_extract(), do_scroll(), do_select(), do_type() (+15 more)
 
 ### Community 143 - "test_login_click_kept.py"
 Cohesion: 0.31
 Nodes (8): _click(), _names(), Live pay_bill.yaml (2026-09-30) lost its LOG IN click: without_detours saw LOG…, test_a_login_click_after_a_scroll_is_still_kept(), test_a_login_click_that_stays_on_the_page_is_not_a_no_op(), test_a_menu_detour_after_login_is_still_dropped(), test_a_pay_bill_log_keeps_login_bill_pay_fields_send_logout(), _type()
 
-### Community 149 - "pytest"
-Cohesion: 0.17
-Nodes (11): pytest, stmt, _fake_llm_keys(), fixture, MonkeyPatch, Suite-wide: never let a real LLM key from `.env` reach a test (cua.config loads…, A fake Iliad key so code that builds a chat model works offline; no real key is…, _keep() (+3 more)
-
-### Community 151 - "_look_ns"
+### Community 149 - "_fake_llm_keys"
 Cohesion: 0.33
-Nodes (6): _look_ns(), Live bug: 'From account #' dropdown showing '74838' was saved as input…, Live bug: 'Sean' typed into Payee Name became the Address step's label and…, test_a_dropdowns_own_number_is_never_its_label(), test_a_typed_value_above_is_never_the_next_fields_label(), test_where_records_label_box_ordinal_offset_but_not_the_box_contents()
+Nodes (5): _fake_llm_keys(), fixture, MonkeyPatch, Suite-wide: never let a real LLM key from `.env` reach a test (cua.config loads…, A fake Iliad key so code that builds a chat model works offline; no real key is…
 
 ## Knowledge Gaps
-- **139 isolated node(s):** `MODES`, `manifest_version`, `name`, `version`, `description` (+134 more)
+- **141 isolated node(s):** `MODES`, `manifest_version`, `name`, `version`, `description` (+136 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `mk_look()` connect `mk_look` to `test_extract_pattern.py`, `test_checks.py`, `test_outcomes.py`, `test_select_index.py`, `test_handback_button.py`, `test_replay_evidence.py`, `test_table_replay.py`, `test_extract_types.py`, `test_cleanup.py`, `test_http_errors.py`, `test_adjacent_selects.py`, `FakePage`, `pytest`, `test_partial_outputs.py`, `test_engine.py`, `test_resolve_inputs.py`, `test_round_trip.py`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **Why does `mk_look()` connect `mk_look` to `test_extract_pattern.py`, `test_checks.py`, `test_handback_button.py`, `test_evidence.py`, `test_table_replay.py`, `test_extract_types.py`, `test_http_errors.py`, `test_adjacent_selects.py`, `FakePage`, `test_resolve_inputs.py`, `test_partial_outputs.py`, `test_engine.py`, `test_handback.py`, `test_round_trip.py`, `pytest`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **Why does `Site` connect `Site` to `test_handback.py`, `Ext`?**
-  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+- **Why does `LatestScreenshotOnly` connect `LatestScreenshotOnly` to `discovery.py`?**
+  _High betweenness centrality (0.011) - this node is a cross-community bridge._
 - **Are the 34 inferred relationships involving `mk_look()` (e.g. with `test_the_to_anchor_finds_the_to_label_not_the_from_label()` and `_click_env()`) actually correct?**
   _`mk_look()` has 34 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `MODES`, `manifest_version`, `name` to the rest of the system?**
-  _139 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _141 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `asyncio` be split into smaller, more focused modules?**
-  _Cohesion score 0.07215541165587419 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06485671191553545 - nodes in this community are weakly interconnected._
 - **Should `Productionize Plan: notebooks → `src/cua/` package` be split into smaller, more focused modules?**
   _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
-- **Should `test_handback_button.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.09915966386554621 - nodes in this community are weakly interconnected._

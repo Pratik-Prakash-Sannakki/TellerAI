@@ -61,6 +61,14 @@ select = ["E", "F", "I", "B", "UP", "SIM", "PL", "PT"]
 # PLW0603 (an intentional process-wide "print the fallback notice once" flag) predates this lint
 # config and is not edited here.
 "src/cua/llm.py" = ["PLW0603"]
+# ocr_engine()'s rapidocr import is deliberately local (step-2 brief): importing cua.vision must
+# never load the model, so the import happens only inside the cached builder. ocr()'s zip() is
+# moved verbatim from discovery.py (discovery.py:200-209); adding strict= would be a behavior
+# change, not a move.
+"src/cua/vision/ocr.py" = ["PLC0415", "B905"]
+# like_rows is moved verbatim from discovery.py (discovery.py:1429-1435); its docstring line length
+# and the "60" footer/link-text heuristic are the original source, not edited here.
+"src/cua/vision/table.py" = ["E501", "PLR2004"]
 
 [tool.black]
 line-length = 100

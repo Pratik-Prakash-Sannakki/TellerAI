@@ -1,7 +1,7 @@
 {
   "pyproject.toml": {
-    "mtime": 1790875610.8246734,
-    "ast_hash": "b659325c29e58d3032b4af92f0aaa32a",
+    "mtime": 1790879572.7964442,
+    "ast_hash": "9b214ad59e7c3428718d0cdf32e6ec74",
     "semantic_hash": ""
   },
   "src/cua/__init__.py": {
@@ -64,11 +64,6 @@
     "ast_hash": "17d7b537b8a0d102a1faec3ea10bc6ed",
     "semantic_hash": ""
   },
-  "tests/discovery/test_spot_changed.py": {
-    "mtime": 1790663835.9123595,
-    "ast_hash": "0281e41fc0b04704086006fa30c1f760",
-    "semantic_hash": ""
-  },
   "tests/discovery/test_latest_screenshot.py": {
     "mtime": 1790642805.0615058,
     "ast_hash": "2444cff583538c3abc183cb9706c164f",
@@ -97,11 +92,6 @@
   "tests/discovery/test_choose_option.py": {
     "mtime": 1790800692.3482544,
     "ast_hash": "cb6a019036270748bb178acb665c0730",
-    "semantic_hash": ""
-  },
-  "tests/discovery/test_canvas.py": {
-    "mtime": 1790663835.9125016,
-    "ast_hash": "a93b1e7baebbdfb95df09074b678b20a",
     "semantic_hash": ""
   },
   "tests/discovery/test_no_values_stored.py": {
@@ -1242,6 +1232,71 @@
   "src/cua/schema/README.md": {
     "mtime": 1790875460.9424245,
     "ast_hash": "49691e95f111506babdfff49939f0001",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/__init__.py": {
+    "mtime": 1790878589.0681915,
+    "ast_hash": "2df5fc2248f2ee507111ff9eb2c0c42e",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/canvas.py": {
+    "mtime": 1790878653.558782,
+    "ast_hash": "bd70a749fa5c119a2fb40ffc9b383b13",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/crops.py": {
+    "mtime": 1790878680.8153589,
+    "ast_hash": "5fba73e8ce35594d1c77ba5db37d16f1",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/look.py": {
+    "mtime": 1790878555.0032985,
+    "ast_hash": "9b860a6b659cec1e8ea9cac2b8f32a43",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/ocr.py": {
+    "mtime": 1790878576.0987883,
+    "ast_hash": "f99f2ddf4098ac7a8ae1d3a3f4be2e00",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/table.py": {
+    "mtime": 1790878839.496186,
+    "ast_hash": "1e7207d6c722638b419df94db1079577",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_canvas.py": {
+    "mtime": 1790879513.2320933,
+    "ast_hash": "f03546668f5af1cd1931c2b07f9a29b7",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_crops.py": {
+    "mtime": 1790879616.06739,
+    "ast_hash": "9f8ee45f081efdb7a0a1d6bfd44716bd",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_look.py": {
+    "mtime": 1790879535.8504078,
+    "ast_hash": "d88edf15f5f4216c1945355450c4adcc",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_ocr.py": {
+    "mtime": 1790879559.4348142,
+    "ast_hash": "3856d6d97b96521ed4eec4ac066350fc",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_spot_changed.py": {
+    "mtime": 1790878611.7588527,
+    "ast_hash": "476e4c2c0f44eec584ef535703471277",
+    "semantic_hash": ""
+  },
+  "tests/unit/vision/test_table.py": {
+    "mtime": 1790879616.0740252,
+    "ast_hash": "15172840f870cd0d1eb452cc1976f098",
+    "semantic_hash": ""
+  },
+  "src/cua/vision/README.md": {
+    "mtime": 1790878895.7016952,
+    "ast_hash": "04e613ceb2fc5ae766e00d4849cc7a5a",
     "semantic_hash": ""
   }
 }
