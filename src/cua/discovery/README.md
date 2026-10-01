@@ -23,14 +23,24 @@ that replay runs without an LLM. Built up step by step (`docs/PRODUCTIONIZE_PLAN
    `gate_click`, `needs_human_value`, `resolve_point`, `one_at_a_time(ctx)`); `human.py`
    (`human_help`, `take_over`, `offer_control`, `human_fills`); `dropdowns.py`
    (`log_sent_dropdowns`, the guard's on_sent hook); `read_helpers.py` (`clean_label`,
-   `label_near`, `spot`, `merged_label`, `where`, `is_word`, `headings`, `page_texts`; the run's
-   values are an explicit `values` argument).
+   `label_near`, `spot`, `merged_label`, `where`, `is_word`, `headings`, `page_texts`,
+   `column_header`, `row_block`, `table_cell`, `read_target`, `value_in_box`, `is_header`,
+   `off_table`; the run's values are an explicit `values` argument).
+6. `tools/` @tools (step 8b) - `build_tools(ctx)` returns the notebook's 12 tools in TOOLS order:
+   `observe.py` (`blocks`, `reply`, observe), `act.py` (`landed`, click, type_text, type_secret,
+   select_option), `nav.py` (scroll, open_path), `read.py` (extract_value, extract_table),
+   `human.py` (finish_business_outcome, request_missing_values, ask_human, `start_page_refusal`).
+   Each module has `make_<group>_tools(ctx)`. Names, signatures and docstrings are the notebook's
+   (the model reads them; `tests/unit/discovery/tools/test_build_tools.py` pins them).
 
 ## Contracts for the tools / agent (steps 8b, 8c)
 - Build the ctx once per session (`attach`), then `new_run(ctx, goal)` per goal. The run swap
   assigns `ctx.guard.state`; the same ctx (and every tool closed over it) sees the new run. Never
   cache `ctx.run` across a `new_run`.
 - A tool: `@tool(parse_docstring=True)` over `@one_at_a_time(ctx)` over an `async def` closure.
+  `tools/__init__` stays import-light (it is loaded while `context` is still importing, via
+  `tools.failed`), so `build_tools` imports the tool modules inside itself. `observe` imports
+  `guard` as a module (guard -> human -> observe -> guard).
   `one_at_a_time` counts steps, checks repeats on the call's keyword args, resets
   `run.verdict`, and turns STUCK/STOP/BLOCKED results or `unsure_limit` failures into
   `human_help`. A result is `str` or content blocks (text block first).

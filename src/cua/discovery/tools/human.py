@@ -2,8 +2,9 @@
 
 Moved from discovery.py 501-518 (human_help), 530-573 (take_over, built from cua.handoff's
 ``ext_call``/``watch_button``/``wait_held_send`` and the session's ``SiteLock.open()``), 600-603
-(offer_control) and 1038-1071 (human_fills). Globals become ``ctx``. The ``@tool`` functions that
-use these (request_missing_values, ask_human, finish_business_outcome) are step 8b's.
+(offer_control), 1038-1071 (human_fills), and the human-facing tools 1653-1704
+(finish_business_outcome, start_page_refusal, request_missing_values, ask_human). Globals become
+``ctx``; the start page is ``ctx.site.start_url``.
 """
 
 from __future__ import annotations
@@ -13,12 +14,14 @@ import time
 from collections.abc import Callable
 from urllib.parse import urlparse
 
+from langchain_core.tools import BaseTool, tool
+
 from cua.discovery.context import Ctx, act, choose_option, crop, into_box, list_options, snap
 from cua.discovery.run import run_values
-from cua.discovery.tools import guard
+from cua.discovery.tools import guard, observe
 from cua.discovery.tools.read_helpers import where
 from cua.handoff import ext_call, wait_held_send, watch_button
-from cua.safety import host_allowed, is_sensitive
+from cua.safety import host_allowed, is_sensitive, norm
 from cua.vision.crops import element_at
 from cua.vision.look import Look
 
@@ -189,3 +192,74 @@ async def human_fills(
     if failed:
         return guard.mark_stuck(ctx, f"not in the list: {', '.join(failed)}")
     return f"A human gave: {hints}. Our code entered them. Do not type them again. Continue."
+
+
+def start_page_refusal(ctx: Ctx) -> str | None:
+    """D34, generic: asking for form values on the page the run began on is too early."""
+    if urlparse(ctx.page.url).path.split(";")[0] == urlparse(ctx.site.start_url).path:
+        return "NOT YET: you are on the start page. Open the page where the task is done first."
+    return None
+
+
+def _make_finish(ctx: Ctx) -> BaseTool:
+    @tool(parse_docstring=True)
+    @guard.one_at_a_time(ctx)
+    async def finish_business_outcome(outcome: str, proof_text: str) -> guard.Result:
+        """Report the business result, with text on the screen that proves it.
+
+        Args:
+            outcome: The result in plain words.
+            proof_text: Exact text visible on the screen that proves it.
+        """
+        if norm(proof_text) not in norm(ctx.run.look.text if ctx.run.look else ""):
+            return "REFUSED: that proof text is not on the screen. Observe and copy it exactly."
+        args: dict[str, object] = {"outcome": outcome, "proof_text": proof_text}
+        guard.log(ctx, "finish_business_outcome", args, "OK")
+        return "OK"
+
+    return finish_business_outcome
+
+
+def _make_request_missing_values(ctx: Ctx) -> BaseTool:
+    @tool(parse_docstring=True)
+    @guard.one_at_a_time(ctx)
+    async def request_missing_values(fields: list[dict[str, int | str]]) -> guard.Result:
+        """Hand a human every field on this page the goal gives no value for (boxes and dropdowns).
+
+        Args:
+            fields: One entry per field: {"x": int, "y": int, "hint": "label you read",
+                "dropdown": true if it is a dropdown (a box with a small arrow)}. For a dropdown,
+                give x,y of the box itself, not its label.
+        """
+        if refusal := start_page_refusal(ctx):
+            return await observe.reply(ctx, refusal)
+        points = [
+            (guard.resolve_point(ctx, None, int(f["x"]), int(f["y"])), str(f["hint"]))
+            for f in fields
+        ]
+        if bad := next((p for p, _ in points if isinstance(p, str)), None):
+            return await observe.reply(ctx, bad)
+        flags = [bool(f.get("dropdown")) for f in fields]
+        msg = await human_fills(ctx, points, dropdowns=flags) if points else "No fields given."  # type: ignore[arg-type]
+        return await observe.reply(ctx, msg)
+
+    return request_missing_values
+
+
+def _make_ask_human(ctx: Ctx) -> BaseTool:
+    @tool(parse_docstring=True)
+    @guard.one_at_a_time(ctx)
+    async def ask_human(question: str) -> guard.Result:
+        """Ask a human whenever you are unsure: what to do, which option, what the goal means.
+
+        Args:
+            question: What you are unsure about, and what you see.
+        """
+        return await human_help(ctx, "The agent asks", question)
+
+    return ask_human
+
+
+def make_human_tools(ctx: Ctx) -> list[BaseTool]:
+    """finish_business_outcome, request_missing_values, ask_human (the notebook's TOOLS order)."""
+    return [_make_finish(ctx), _make_request_missing_values(ctx), _make_ask_human(ctx)]

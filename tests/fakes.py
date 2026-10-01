@@ -24,6 +24,7 @@ from cua.browser.session import Session
 from cua.config import BrowserConfig, DiscoveryConfig, SiteProfile
 from cua.discovery.context import Ctx
 from cua.discovery.wiring import build_ctx, new_run
+from cua.vision.look import Box, Element, Look
 from cua.vision.ocr import RefCounter
 
 
@@ -259,3 +260,74 @@ def make_ctx(
         {"username": "u-val", "password": "p-val"} if secrets is None else secrets,
     )
     return new_run(ctx, goal)
+
+
+class FakeInput:
+    """A fake ``page.mouse`` / ``page.keyboard``: every call is recorded as ``(name, args)``."""
+
+    def __init__(self, calls: list[tuple[str, tuple[object, ...]]]) -> None:
+        self._calls = calls
+
+    def __getattr__(self, name: str) -> Callable[..., object]:
+        async def record(*args: object) -> None:
+            self._calls.append((name, args))
+
+        return record
+
+
+class ActTab(FakeTab):
+    """A site tab the act/nav tools drive: ``mouse``/``keyboard`` record into ``inputs``, ``goto``
+    answers with an HTTP ``status``, ``go_back`` records."""
+
+    def __init__(self, url: str = "https://example.test/app/overview.htm", status: int = 200):
+        super().__init__(url)
+        self.inputs: list[tuple[str, tuple[object, ...]]] = []
+        self.mouse, self.keyboard = FakeInput(self.inputs), FakeInput(self.inputs)
+        self.status = status
+
+    async def goto(self, url: str) -> SimpleNamespace:  # type: ignore[override]
+        self.calls.append("goto")
+        self.url = url
+        return SimpleNamespace(status=self.status)
+
+    async def go_back(self) -> None:
+        self.calls.append("go_back")
+
+
+# The OCR table fixture (ParaBank's Account Activity, shaped from a live run): shared by the
+# discovery tool tests, cua.vision.table's tests and the old replay table test.
+COLS = ["Date", "Description", "Amount"]
+HEADER = [
+    ("Date", (100, 100, 140, 120)),
+    ("Description", (250, 100, 350, 120)),
+    ("Amount", (500, 100, 560, 120)),
+    ("Account Services", (0, 100, 80, 120)),
+]
+ROWS = [
+    ("09/01/2026", (96, 130, 180, 150)),
+    ("Funds Transfer Sent", (255, 130, 400, 150)),
+    ("$100.00", (507, 130, 560, 150)),
+    ("09/02/2026", (104, 160, 188, 180)),
+    ("Bill Payment", (245, 160, 340, 180)),
+    ("$25.00", (495, 160, 545, 180)),
+]
+FOOTER = [("About Us", (100, 260, 170, 280))]  # 80px below the last row: not in the table
+
+
+def blank_png(w: int = 1280, h: int = 800, shade: int = 255) -> bytes:
+    """A plain PNG of this canvas size (canvas/crops decode the look's png)."""
+    import numpy as np  # noqa: PLC0415 (only the look helpers need it)
+
+    from cua.vision.look import encode  # noqa: PLC0415
+
+    return encode(np.full((h, w, 3), shade, np.uint8))
+
+
+def make_look(
+    items: list[tuple[str, tuple[int, int, int, int]]],
+    url: str = "https://example.test/app/activity.htm",
+    png: bytes = b"",
+) -> Look:
+    """A look whose elements are numbered 1.. in order (ref, text, box)."""
+    els = tuple(Element(i, t, Box(*b)) for i, (t, b) in enumerate(items, 1))
+    return Look(png, png, els, url)

@@ -54,3 +54,10 @@ def test_describe_writes_only_metadata() -> None:
     for rule in ("ONLY metadata", "verb_object", "get_account_balance", "1-2 sentences",
                  "never an example value", "final screen before logout", "never a value"):
         assert rule in DESCRIBE, rule
+
+
+def test_the_prompt_keeps_the_read_and_table_rules() -> None:
+    """Moved from test_read_runs.py / test_extract_table.py (their tool code is now in cua)."""
+    for rule in ("Only saved values reach the caller", "MUST read values BEFORE logging out",
+                 "every list or table with extract_table (not extract_value)"):
+        assert rule in PROMPT, rule

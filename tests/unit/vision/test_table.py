@@ -2,7 +2,7 @@
 
 tests/replay/test_table_replay.py already proves discovery's and replay's own copies are
 byte-identical (SHARED set, ast.dump compare); this file proves cua.vision.table reproduces that
-same behaviour, by running the real fixture (reused from tests/discovery/test_extract_table.py)
+same behaviour, by running the real fixture (the shared one in tests/fakes.py)
 through BOTH notebooks (via ast, same technique as tests/replay/test_table_replay.py:24) and
 through cua.vision.table, and comparing results. It also source-checks the functions that needed
 no parameterizing (same_line, column_spans, col_of, text_lines, row_of, like_rows, cell_shape,
@@ -19,7 +19,7 @@ from pathlib import Path
 import cua.vision.table as table_mod
 from cua.vision.look import Box, Element, Look
 from cua.vision.table import TABLE_GAP, append_rows, read_rows, table_columns
-from tests.discovery.test_extract_table import COLS, FOOTER, HEADER, ROWS
+from tests.fakes import COLS, FOOTER, HEADER, ROWS
 from tests.unit.replay.test_replay_table import SHARED as REPLAY_SHARED
 
 DISCOVERY = Path(__file__).parents[3] / "notebooks/discovery/discovery.py"

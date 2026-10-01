@@ -1,8 +1,10 @@
 """Where a point is on a look, in words: labels, anchors, page texts. Pure (no page).
 
 Moved from discovery.py 320-371 (clean_label, label_near, spot, merged_label, where) and
-1457-1534 (is_word, headings, page_texts). The notebook read ``run_values()`` inside; here the
-run's values are an explicit ``values`` (``run_values(ctx.run, ctx.secrets)``) parameter.
+1457-1534 (is_word, column_header, row_block, table_cell, read_target, headings, page_texts),
+1554-1565 (value_in_box, on cua.schema.value_types) and 1594-1603 (is_header, off_table). The
+notebook read ``run_values()`` inside; here the run's values are an explicit ``values``
+(``run_values(ctx.run, ctx.secrets)``) parameter.
 """
 
 from __future__ import annotations
@@ -12,8 +14,10 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from cua.safety.redact import norm, redactor
+from cua.schema.value_types import SHAPES, value_matches_type
 from cua.vision.crops import element_at
 from cua.vision.look import Element, Look
+from cua.vision.table import TABLE_GAP
 
 Spot = dict[str, object]
 
@@ -110,3 +114,117 @@ def page_texts(look: Look, values: set[str], skip: Element | None = None) -> lis
         for e in look.elements
         if e is not skip and re.search(r"[^\W\d_]", e.text) and redact(e.text) == e.text
     ][:60]
+
+
+KEY_REACH = 600  # px: a row key further left than this is not the value's own row key
+
+
+def column_header(look: Look, el: Element, values: set[str]) -> Element | None:
+    """The value's column, walked upwards while each text is within TABLE_GAP of the one below and
+    aligned with the value (one's centre inside the other's span): its topmost text, if it is a
+    word on a line with 2+ texts (a header row). A menu or title beside the column is not in it."""
+
+    def aligned(e: Element) -> bool:
+        return e.box.x1 <= el.box.center[0] <= e.box.x2 or el.box.x1 <= e.box.center[0] <= el.box.x2
+
+    top, header = el, None
+    for e in sorted(
+        (e for e in look.elements if e.box.y2 <= el.box.y1 and aligned(e)), key=lambda e: -e.box.y2
+    ):
+        if top.box.y1 - e.box.y2 >= TABLE_GAP:
+            break
+        top = e
+    if top is not el and is_word(top.text, values):
+        header = top
+    line = [
+        e for e in look.elements if header and e.box.y1 < header.box.y2 and header.box.y1 < e.box.y2
+    ]
+    return header if len(line) >= 2 else None  # noqa: PLR2004
+
+
+def row_block(look: Look, el: Element) -> list[Element] | None:
+    """The texts on el's row, left of it, up to its table's left edge: the first CLEAR gap (1.5x
+    every gap before it). None when no such edge is found among 2+ texts: a side menu as far away
+    as the next column looks like one more column, so it is unsure."""
+    row = sorted(
+        (
+            e
+            for e in look.elements
+            if e.box.y1 < el.box.y2 and el.box.y1 < e.box.y2 and e.box.x2 <= el.box.x1
+        ),
+        key=lambda e: -e.box.x2,
+    )
+    edges = [el.box.x1, *(e.box.x1 for e in row)]
+    gaps = [edges[i] - e.box.x2 for i, e in enumerate(row)]
+    cut = next((i for i in range(1, len(gaps)) if gaps[i] >= 1.5 * max(gaps[:i])), None)
+    if cut is None and len(row) > 1:
+        return None
+    return row[:cut]
+
+
+def table_cell(look: Look, el: Element, values: set[str]) -> dict[str, str] | None:
+    """Row key + column header, only for a value in a real table, else None (replay then uses the
+    anchor). The row key is the left-most text of the value's own table block (row_block): a word,
+    not a value, within KEY_REACH, under a text of the header line."""
+    header, block = column_header(look, el, values), row_block(look, el)
+    if header is None or not block:
+        return None
+    key = block[-1]
+    heads = [
+        h
+        for h in look.elements
+        if h is not header and h.box.y1 < header.box.y2 and header.box.y1 < h.box.y2
+    ]
+    if (
+        el.box.x1 - key.box.x1 > KEY_REACH
+        or not is_word(key.text, values)
+        or not any(h.box.x1 < key.box.x2 and key.box.x1 < h.box.x2 for h in heads)
+    ):
+        return None
+    return {"row_key": key.text, "column": header.text}
+
+
+def read_target(look: Look, el: Element, values: set[str]) -> Spot:
+    """Where an extracted value is, for replay, never the value itself: its table cell when it
+    clearly sits in one; its anchor is its column header (+ offset) when it has one, else the
+    nearest label. A row's left-most text may be a menu link, so it is never the anchor."""
+    header = column_header(look, el, values)
+    if header is None:
+        return {"table": table_cell(look, el, values), **where(look, el.box.center, values)}
+    (hx, hy), (px, py) = header.box.center, el.box.center
+    return {
+        "table": table_cell(look, el, values),
+        "own": None,
+        "label": header.text,
+        "anchor": spot(look, header, lambda t: clean_label(t, values)),
+        "offset": [px - hx, py - hy],
+    }
+
+
+def value_in_box(text: str, value_type: str) -> tuple[str, str | None] | None:
+    """(value, pattern) for an extract: the whole box when it is exactly the type, else the first
+    match of the type's shape inside it ('www.x.com or call 888-305-0041' -> the phone), with that
+    shape saved so replay cuts it the same way. None when the box does not hold one."""
+    shape = SHAPES.get(value_type)
+    if shape is None:
+        return (text, None) if value_matches_type(text, value_type) else None
+    if re.fullmatch(shape, text.strip()):
+        return text.strip(), None
+    hit = re.search(shape, text)
+    return (hit.group(), shape) if hit else None
+
+
+def is_header(seen: str, want: str) -> bool:
+    return norm(seen) == norm(want)
+
+
+def off_table(look: Look, rows: list[dict[str, str]]) -> Look:
+    """The look without the table's cells: its page texts and headings pick the checkpoint, and a
+    cell is a value, never a checkpoint."""
+    cells = {t for r in rows for t in r.values()}
+    return replace(
+        look,
+        elements=tuple(
+            e for e in look.elements if e.text not in cells and not any(e.text in c for c in cells)
+        ),
+    )
