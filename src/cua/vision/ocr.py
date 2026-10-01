@@ -10,6 +10,7 @@ the run and passed in), ``draw_numbered`` (228-235).
 from __future__ import annotations
 
 import functools
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -39,11 +40,15 @@ class RefCounter:
     ``REFS = {"next": 1}``, now owned by the caller instead of the module)."""
 
     _next: int = field(default=1)
+    # take() runs in worker threads (take_look via asyncio.to_thread), so read-then-increment
+    # must be atomic
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def take(self) -> int:
-        ref = self._next
-        self._next += 1
-        return ref
+        with self._lock:
+            ref = self._next
+            self._next += 1
+            return ref
 
 
 def ocr(img: NDArray[np.uint8], min_score: float) -> list[tuple[str, Box]]:

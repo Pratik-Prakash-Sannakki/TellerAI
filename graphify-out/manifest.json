@@ -780,8 +780,8 @@
     "semantic_hash": ""
   },
   "src/cua/vision/ocr.py": {
-    "mtime": 1790878576.0987883,
-    "ast_hash": "f99f2ddf4098ac7a8ae1d3a3f4be2e00",
+    "mtime": 1790893484.082009,
+    "ast_hash": "051ee888050dff309ef6cdd456d54e43",
     "semantic_hash": ""
   },
   "src/cua/vision/table.py": {
@@ -805,8 +805,8 @@
     "semantic_hash": ""
   },
   "tests/unit/vision/test_ocr.py": {
-    "mtime": 1790879559.4348142,
-    "ast_hash": "3856d6d97b96521ed4eec4ac066350fc",
+    "mtime": 1790893594.1417556,
+    "ast_hash": "20ece7d3b4499b5cdf81f940dca03baf",
     "semantic_hash": ""
   },
   "tests/unit/vision/test_spot_changed.py": {
@@ -1065,8 +1065,8 @@
     "semantic_hash": ""
   },
   "src/cua/handoff/README.md": {
-    "mtime": 1790882598.178737,
-    "ast_hash": "cafe996ac201f30a9759e1066502cb92",
+    "mtime": 1790893584.758756,
+    "ast_hash": "4a87b66e68ebaa685d019f71af5f5907",
     "semantic_hash": ""
   },
   "src/cua/replay/README.md": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/wiring.py": {
-    "mtime": 1790886730.2907734,
-    "ast_hash": "ceacd79fcabe99f8f6ff33fd28b57d95",
+    "mtime": 1790893546.0859017,
+    "ast_hash": "21549734fbbac9df67ac7d23ab828d0d",
     "semantic_hash": ""
   },
   "src/cua/evidence.py": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "src/cua/replay/wiring.py": {
-    "mtime": 1790891954.6769707,
-    "ast_hash": "355a02b6cfd841c352b5234f8d550d3a",
+    "mtime": 1790893546.0860977,
+    "ast_hash": "31be8fe7aca4e04aedb813eda924d70e",
     "semantic_hash": ""
   },
   "tests/unit/discovery/recorder/test_recorder_runs.py": {
@@ -1180,8 +1180,8 @@
     "semantic_hash": ""
   },
   "tests/unit/discovery/test_wiring.py": {
-    "mtime": 1790886617.4167557,
-    "ast_hash": "f13b4da7c78d8424efeeb12713d33394",
+    "mtime": 1790893559.8586922,
+    "ast_hash": "d1dce34345509ae1df0da638cbd7e0f8",
     "semantic_hash": ""
   },
   "tests/unit/discovery/tools/test_read_helpers.py": {
@@ -1250,8 +1250,8 @@
     "semantic_hash": ""
   },
   "tests/unit/replay/test_replay_wiring.py": {
-    "mtime": 1790887158.5562053,
-    "ast_hash": "5b277327b99a17422c9a7c0a8e0a4309",
+    "mtime": 1790893448.4598722,
+    "ast_hash": "cb977cdd33d50191507d7e740cab7fd9",
     "semantic_hash": ""
   },
   "tests/unit/test_shared_evidence.py": {
@@ -1667,6 +1667,11 @@
   "artifacts/crops/transfer_money/s8.png": {
     "mtime": 1790806588.496488,
     "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "src/cua/handoff/binding.py": {
+    "mtime": 1790893522.129662,
+    "ast_hash": "9452bec0f4242690dd29a12378c949c1",
     "semantic_hash": ""
   }
 }

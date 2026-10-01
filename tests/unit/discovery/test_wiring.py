@@ -27,9 +27,12 @@ async def test_attach_routes_the_guard_and_opens_the_control_window() -> None:
     assert page.routes == [ctx.guard]
     assert isinstance(ctx.guard, SendGuard)
     assert ctx.guard.state is ctx.run
-    assert ctl.exposed["cuaReply"] == ctx.control.on_reply
     assert "Agent is working" in ctl.html
     assert page.calls[-1] == "bring_to_front"
+    task = asyncio.create_task(ctx.control.ask("q", "", "approve"))  # cuaReply answers ctx.control
+    await asyncio.sleep(0)
+    ctl.exposed["cuaReply"]("reject")
+    assert await asyncio.wait_for(task, 1) == "reject"
 
 
 @pytest.mark.asyncio
@@ -238,3 +241,42 @@ async def test_act_without_a_send_does_not_wait(monkeypatch: pytest.MonkeyPatch)
 def test_wiring_module_exposes_build_ctx() -> None:
     assert callable(wiring.build_ctx)
     assert isinstance(make_ctx().run, DiscoveryRun)
+
+
+@pytest.mark.asyncio
+async def test_after_a_re_run_the_exposed_reply_answers_the_second_window() -> None:
+    """C1: one cuaReply forwarder per control page, dispatching to the current window."""
+    ctl = FakeTab("about:blank")
+    session = make_session(control_page=ctl)
+    await attach(session, DiscoveryConfig(), SECRETS)
+    second = await attach(session, DiscoveryConfig(), SECRETS)
+    task = asyncio.create_task(second.control.ask("q", "", "approve"))
+    await asyncio.sleep(0)
+    ctl.exposed["cuaReply"]("approve")
+    assert await asyncio.wait_for(task, 1) == "approve"
+
+
+@pytest.mark.asyncio
+async def test_after_a_re_run_one_close_listener_closes_the_second_window() -> None:
+    ctl = FakeTab("about:blank")
+    session = make_session(control_page=ctl)
+    await attach(session, DiscoveryConfig(), SECRETS)
+    second = await attach(session, DiscoveryConfig(), SECRETS)
+    assert len(ctl.handlers["close"]) == 1
+    task = asyncio.create_task(second.control.ask("q", "", "approve"))
+    await asyncio.sleep(0)
+    ctl.emit("close", None)
+    assert await asyncio.wait_for(task, 1) is None
+
+
+@pytest.mark.asyncio
+async def test_after_a_re_run_one_nav_listener_counts_on_the_second_ctx() -> None:
+    """I1: framenavigated is wired once per page and forwards to the current ctx."""
+    page = FakeTab()
+    session = make_session(page)
+    first = await attach(session, DiscoveryConfig(), SECRETS)
+    second = await attach(session, DiscoveryConfig(), SECRETS)
+    assert len(page.handlers["framenavigated"]) == 1
+    page.navigate("https://example.test/a")
+    assert second.run.navs == 1
+    assert first.run.navs == 0

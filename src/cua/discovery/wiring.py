@@ -3,7 +3,8 @@ window, the navigation counter. And ``new_run``: a fresh DiscoveryRun for the ne
 
 Moved from discovery's setup cell (discovery.py 1074-1084; the lock itself is set by
 ``open_session``) and the post-approve part of guard_send (836-847) as SendGuard hooks.
-``expose_function`` tolerates "already registered" on a re-run (as replay's setup cell does).
+Re-run safe: one nav listener per page and one ``cuaReply``/close binding per control tab
+(:func:`cua.handoff.binding.bind_control`), each forwarding to the latest attach.
 
 Run swap (design choice): ``Ctx.run`` reads ``guard.state``, so ``new_run`` assigns the guard a
 fresh run and returns the same ctx. Tools and the agent built over a ctx never go stale. The
@@ -22,6 +23,7 @@ from cua.discovery.run import DiscoveryRun
 from cua.discovery.tools.dropdowns import log_sent_dropdowns
 from cua.discovery.tools.guard import log
 from cua.handoff import discovery_control
+from cua.handoff.binding import bind_control
 from cua.safety import DISCOVERY_OPTIONS, Request, SendGuard, SendHooks
 from cua.safety.send_guard import LookLike
 from cua.vision.look import Look
@@ -78,25 +80,26 @@ def new_run(ctx: Ctx, goal: str) -> Ctx:
 
 async def attach(session: Session, cfg: DiscoveryConfig, secrets: Mapping[str, str]) -> Ctx:
     """Route every request through a new send guard, open the control window. Re-run safe: the
-    old route is removed first, and an already exposed ``cuaReply`` is kept."""
+    old route is removed first; the nav listener, ``cuaReply`` and the close listener are added
+    once per page and forward to the latest ctx / window."""
     ctx = build_ctx(session, cfg, secrets)
     page, control_page = session.page, session.control_page
     await page.unroute("**/*")
     await page.route("**/*", ctx.guard)
-    page.on("framenavigated", lambda f: _count_nav(ctx, f))
-    try:
-        await control_page.expose_function("cuaReply", ctx.control.on_reply)
-    except Exception as e:
-        if "already registered" not in str(e):
-            raise
-    control_page.on("close", lambda _: ctx.control.on_reply(None))
+    page._cua_ctx = ctx  # type: ignore[attr-defined]  # the one nav listener reads the latest
+    if not getattr(page, "_cua_navs", False):  # once per page, even on a re-run
+        page.on("framenavigated", lambda f: _count_nav(page, f))
+        page._cua_navs = True  # type: ignore[attr-defined]
+    await bind_control(control_page, ctx.control)
     await ctx.control.show("Agent is working")
     await page.bring_to_front()
     print("site locked | control window open")
     return ctx
 
 
-def _count_nav(ctx: Ctx, frame: object) -> None:
+def _count_nav(page: object, frame: object) -> None:
+    """Counts on the ctx of the latest attach to this page."""
+    ctx: Ctx = page._cua_ctx  # type: ignore[attr-defined]
     ctx.run.navs += frame == ctx.page.main_frame
 
 

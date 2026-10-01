@@ -4,10 +4,10 @@ thin page wrappers every step uses -- :func:`look`, :func:`canvas`, :func:`to_pa
 
 Globals become ``ctx`` (see :mod:`cua.replay.context`). The setup is the notebook's, in order:
 route every request through the send guard (``unroute`` first, so a re-run never stacks two), a
-response listener once per page (network metadata only), the replay control window with
-``cuaReply`` exposed (tolerating "already registered" on a re-run), the control tab's close ->
-``on_reply(None)`` (fail closed), "Replay is working", and the site tab back to front. The site
-lock is already set by ``open_session``.
+response listener once per page (network metadata only; it reads the latest ctx), the replay
+control window bound via :func:`cua.handoff.binding.bind_control` (one ``cuaReply`` and one close
+-> ``on_reply(None)`` per tab, fail closed, forwarding to the latest window), "Replay is
+working", and the site tab back to front. The site lock is already set by ``open_session``.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from cua.browser import input as browser_input
 from cua.browser.dropdown import DROPDOWNS_JS, read_dropdowns
 from cua.browser.session import Session
 from cua.config import ReplayConfig, SiteProfile, secret_values  # noqa: F401  re-export (D config)
+from cua.handoff.binding import bind_control
 from cua.handoff.control_window import replay_control
 from cua.replay.context import Ctx
 from cua.replay.run import url_path
@@ -60,24 +61,20 @@ async def attach(session: Session, site: SiteProfile, cfg: ReplayConfig) -> Ctx:
     ctx = Ctx(session, cfg, control, secret_values(site), shoot)
     await page.unroute("**/*")
     await page.route("**/*", ctx.guard)  # type: ignore[arg-type]
+    page._cua_ctx = ctx  # type: ignore[attr-defined]  # the one listener reads the latest ctx
     if not getattr(page, "_cua_responses", False):  # once per page, even on a re-run
-        page.on("response", lambda r: note_response(ctx, r))  # type: ignore[arg-type]
+        page.on("response", lambda r: _note_latest(page, r))  # type: ignore[arg-type]
         page._cua_responses = True  # type: ignore[attr-defined]
-    await _expose(ctx)
+    await bind_control(session.control_page, control)
     await control.show("Replay is working")
     if not page.is_closed():
         await page.bring_to_front()
     return ctx
 
 
-async def _expose(ctx: Ctx) -> None:
-    control_page = ctx.session.control_page
-    try:
-        await control_page.expose_function("cuaReply", ctx.control.on_reply)
-    except Exception as e:
-        if "already registered" not in str(e):
-            raise
-    control_page.on("close", lambda _: ctx.control.on_reply(None))
+def _note_latest(page: object, resp: Response) -> None:
+    """The once-per-page listener: note on the ctx of the latest attach to this page."""
+    note_response(page._cua_ctx, resp)  # type: ignore[attr-defined]
 
 
 def note_response(ctx: Ctx, resp: Response) -> None:

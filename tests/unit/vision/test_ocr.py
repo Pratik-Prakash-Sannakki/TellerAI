@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import threading
 
 from cua.vision.look import Box
 from cua.vision.ocr import RefCounter, number
@@ -48,3 +49,40 @@ def test_importing_cua_vision_does_not_import_rapidocr() -> None:
         check=True,
     )
     assert out.stdout.strip() == "False"
+
+
+def test_ref_counter_take_is_thread_safe() -> None:
+    """M1: take() runs in worker threads (take_look via asyncio.to_thread)."""
+    refs, seen, lock = RefCounter(), [], threading.Lock()
+    old = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)  # force frequent thread switches so a race shows
+
+    def worker() -> None:
+        got = [refs.take() for _ in range(1000)]
+        with lock:
+            seen.extend(got)
+
+    try:
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        sys.setswitchinterval(old)
+    assert len(set(seen)) == 8000  # noqa: PLR2004
+
+
+def test_ref_counter_take_waits_for_its_lock() -> None:
+    """M1, the red half: under the GIL the race above rarely shows, so pin the mechanism -- take()
+    holds the counter's own lock."""
+    refs, got = RefCounter(), []
+    with refs._lock:
+        t = threading.Thread(target=lambda: got.append(refs.take()))
+        t.start()
+        t.join(0.1)
+        assert got == []
+    t.join(1)
+    assert got == [1]
+    assert "_lock" not in repr(refs)
+    assert RefCounter() == RefCounter()

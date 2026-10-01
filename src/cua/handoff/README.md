@@ -12,7 +12,9 @@ pieces of a take-over.
 2. `extension.py` - `ext_call` (one bounded call into the extension's service worker, None on any
    failure), `button_clicked` (poll the click count), `handback_button` (badge YOU, yield the
    click task, badge AI after), `watch_button` (discovery: a click answers the take-over).
-3. `takeover.py` - `takeover_text`, `hand_back(control, button, text)` (panel Done or toolbar
+3. `binding.py` - `bind_control(control_page, control)`: one `cuaReply` forwarder and one
+   `close` listener per control tab, both dispatching to the window bound last (setup re-runs).
+4. `takeover.py` - `takeover_text`, `hand_back(control, button, text)` (panel Done or toolbar
    click, whichever first), `wait_held_send(lock, timeout_s)` (after Done: wait for a send still
    held at the gates).
 

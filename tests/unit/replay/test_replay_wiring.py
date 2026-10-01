@@ -3,8 +3,10 @@ run holds no input values, given text or look (review focus 5)."""
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +18,7 @@ from cua.replay.run import ReplayRun
 from cua.replay.wiring import attach
 from cua.safety.send_guard import REPLAY_OPTIONS
 from cua.schema import Capability
+from tests.fakes import FakeTab
 from tests.unit.replay.helpers import make_replay_ctx, mk_look, write_cap
 
 SITE = load_site("parabank")
@@ -149,3 +152,44 @@ async def test_the_run_is_wiped_even_when_the_capability_is_invalid(tmp_path: Pa
     res = await engine.replay(ctx, bad)
     assert res.status == "FAILED" and res.reason.startswith("invalid capability")
     assert ctx.run == ReplayRun() and ctx.last.values == {"1"}
+
+
+def _fake_session() -> tuple[FakeTab, FakeTab, object]:
+    page, control = FakeTab(), FakeTab("about:blank")
+    return page, control, _session(page, control)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_after_a_re_run_the_exposed_reply_and_close_reach_the_second_window() -> None:
+    """C1: one cuaReply forwarder and one close listener per control page, both forwarding to the
+    window of the latest attach."""
+    _, control, session = _fake_session()
+    await attach(session, SITE, ReplayConfig())  # type: ignore[arg-type]
+    second = await attach(session, SITE, ReplayConfig())  # type: ignore[arg-type]
+    assert len(control.handlers["close"]) == 1
+    task = asyncio.create_task(second.control.ask("q", "", "approve"))
+    await asyncio.sleep(0)
+    control.exposed["cuaReply"]("approve")
+    assert await asyncio.wait_for(task, 1) == "approve"
+    task = asyncio.create_task(second.control.ask("q", "", "approve"))
+    await asyncio.sleep(0)
+    control.emit("close", None)
+    assert await asyncio.wait_for(task, 1) is None
+
+
+class _Resp:
+    def __init__(self, frame: object) -> None:
+        self.request = SimpleNamespace(is_navigation_request=lambda: True)
+        self.frame, self.status, self.url = frame, 200, "https://example.test/app/b.htm"
+
+
+@pytest.mark.asyncio
+async def test_after_a_re_run_a_navigation_response_updates_the_second_run() -> None:
+    """I1: the once-per-page response listener reads the current ctx."""
+    page, _, session = _fake_session()
+    first = await attach(session, SITE, ReplayConfig())  # type: ignore[arg-type]
+    second = await attach(session, SITE, ReplayConfig())  # type: ignore[arg-type]
+    assert len(page.handlers["response"]) == 1
+    page.emit("response", _Resp(page.main_frame))
+    assert second.run.http == (200, "/app/b.htm") and second.run.navs == 1
+    assert first.run.navs == 0
