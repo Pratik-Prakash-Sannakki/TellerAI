@@ -1,0 +1,6 @@
+{
+  "step": 3,
+  "action": "click",
+  "expected": "",
+  "observed": "the step's check failed"
+}

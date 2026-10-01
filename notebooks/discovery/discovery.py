@@ -5,6 +5,8 @@
 #     text_representation:
 #       extension: .py
 #       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: BankerAgent (.venv)
 #     language: python
@@ -51,7 +53,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rapidocr import RapidOCR
 
 from cua.models import make_chat_model
-from cua.recorder import value_matches_type
 
 load_dotenv(override=True)
 MODEL = make_chat_model("sonnet")
@@ -348,11 +349,20 @@ def spot(look: Look, el: Element, text=lambda t: t) -> dict:
             "ordinal": same.index(el.ref) + 1}
 
 
+def merged_label(el: Element | None, values: set[str]) -> Element | None:
+    """The box under the point, when OCR merged a label with this run's value in it ('to account
+    #|15120'): its cleaned label is the field's own. A box with no value cut from it is not one."""
+    if el is None or redactor(values, " ")(el.text) == el.text:
+        return None
+    return replace(el, text=t) if (t := clean_label(el.text, values)) else None
+
+
 def where(look: Look, point: tuple[int, int], own: Element | None = None) -> dict:
     """R14: anchor label + offset (rung 2) and the clicked element (rung 1). The text under the
-    point is never the anchor: in a box it could be a value."""
+    point is never the anchor (in a box it could be a value), except a label merged with a value."""
     values = run_values()
-    label = label_near(look, point, skip=element_at(look, point), avoid=values)
+    under = element_at(look, point)
+    label = merged_label(under, values) or label_near(look, point, skip=under, avoid=values)
     if label is None:
         return {"own": spot(look, own) if own else None}
     cx, cy = label.box.center
@@ -409,7 +419,8 @@ def screens_same(a: bytes, b: bytes) -> bool:
 class HandoffState:
     goal: str = ""
     look: Look | None = None
-    saved: dict[str, str] = field(default_factory=dict)
+    saved: dict[str, str | list[dict[str, str]]] = field(default_factory=dict)   # a table: its rows
+    tables: dict[str, list] = field(default_factory=dict)   # save_as -> a table's column spans
     declined: set[str] = field(default_factory=set)
     recent: list[str] = field(default_factory=list)
     log: list[dict] = field(default_factory=list)     # the one event log
@@ -650,7 +661,7 @@ async def log_sent_dropdowns(look: Look, sent: dict[str, str]) -> None:
     a gate form: replay must choose it, never inherit the page's default. Logged before the send
     click, with its label and position only. The value is never logged, and the crop blanks it."""
     values = {v for v in sent.values() if v}
-    for d in HANDOFF.dropdowns:            # read before the click: the page is not touched here
+    for index, d in enumerate(HANDOFF.dropdowns):   # read before the click: the page is not touched
         if d["at"] and values & {d["value"], d["text"]}:
             point = (round(d["at"][0] / look.scale), round(d["at"][1] / look.scale))
             here = {"url": look.url, "point": point, "field_box": [round(v / look.scale) for v in d["box"]]}
@@ -658,7 +669,8 @@ async def log_sent_dropdowns(look: Look, sent: dict[str, str]) -> None:
                 continue                   # the agent already chose this one: never a second step
             spots = where(look, point)
             log("select_option", {"hint": spots.get("label") or "option"}, "sent dropdown", point,
-                cut_crop(look, point, None), dropdown=True, field_box=here["field_box"], **spots)
+                cut_crop(look, point, None), dropdown=True, field_box=here["field_box"], index=index,
+                **spots)
 
 
 FIELD_GAP = (40, 12)     # a dropdown is wide and short: points this close (x, y) are the same one
@@ -1001,7 +1013,7 @@ SELECT_AT_JS = """([x, y, want]) => {
   el.dispatchEvent(new Event('input', {bubbles: true}));
   el.dispatchEvent(new Event('change', {bubbles: true}));
   const r = el.getBoundingClientRect();
-  return [r.left + r.width / 2, r.top + r.height / 2];
+  return [r.left + r.width / 2, r.top + r.height / 2, [...document.querySelectorAll('select')].indexOf(el)];
 }"""
 
 
@@ -1010,15 +1022,17 @@ async def list_options(point: tuple[int, int], label: str = "") -> list[str]:
     return [hide_secrets(o) for o in (await page.evaluate(SELECT_AT_JS, [*to_page(point), None]) or [])]
 
 
-async def choose_option(point: tuple[int, int], option: str, label: str = "") -> bool:
+async def choose_option(point: tuple[int, int], option: str, label: str = "") -> int | None:
     """Select the first option containing this text in the dropdown at (or next to) this point;
-    OCR of the dropdown's own box confirms it."""
+    OCR of the dropdown's own box confirms it. The dropdown's index among the page's <select>s
+    (replay picks it by that), or None."""
     at = await page.evaluate(SELECT_AT_JS, [*to_page(point), option])
     if not isinstance(at, list):
-        return False
+        return None
     await page.wait_for_timeout(CFG.settle_ms)
     look = await take_look()
-    return norm(option) in norm(read_near(look, (round(at[0] / look.scale), round(at[1] / look.scale))))
+    seen = read_near(look, (round(at[0] / look.scale), round(at[1] / look.scale)))
+    return at[2] if norm(option) in norm(seen) else None
 
 
 async def human_fills(fields: list[tuple[tuple[int, int], str]], dropdown: bool = False,
@@ -1038,8 +1052,9 @@ async def human_fills(fields: list[tuple[tuple[int, int], str]], dropdown: bool 
     for (point, hint), value, is_dropdown in zip(fields, answers, kinds):
         if not value:
             continue
+        index = None
         if is_dropdown:
-            if not await choose_option(point, value, hint):
+            if (index := await choose_option(point, value, hint)) is None:
                 failed.append(hint)
                 continue
         else:
@@ -1049,7 +1064,7 @@ async def human_fills(fields: list[tuple[tuple[int, int], str]], dropdown: bool 
             HANDOFF.given.append(value)
         log("request_value", {"hint": hint}, "human entry", point,
             cut_crop(look, point, element_at(look, point) if is_dropdown else None),
-            human_entry=True, dropdown=is_dropdown, **where(look, point))
+            human_entry=True, dropdown=is_dropdown, index=index, **where(look, point))
     if failed:
         return mark_stuck(f"not in the list: {', '.join(failed)}")
     return f"A human gave: {hints}. Our code entered them. Do not type them again. Continue."
@@ -1176,7 +1191,8 @@ async def click(ref: int | None = None, x: int | None = None, y: int | None = No
     if norm(text) in CFG.login_words:
         HANDOFF.typed_secrets.clear()
         msg = after_login_click(after.text) or msg
-    log("click", args, msg, point, crop, text=text, **spots, from_texts=page_texts(before),
+    log("click", args, msg, point, crop, text=text, **spots, login=norm(text) in CFG.login_words,
+        from_texts=page_texts(before),
         from_url=before.url, loaded=page.url != before.url, navigated=NAVS["main"] != navs,
         new_texts=bool({norm(e.text) for e in after.elements} - {norm(e.text) for e in before.elements}),
         **({"landed": landed(before, after)} if sent else {}))
@@ -1270,11 +1286,11 @@ async def select_option(option: str, ref: int | None = None, x: int | None = Non
         return await reply(await human_fills([(point, hint)], dropdown=True))
     own = element_at(HANDOFF.look, point)
     crop, spots = cut_crop(HANDOFF.look, point, own), where(HANDOFF.look, point)
-    if not await choose_option(point, option, hint):
+    if (index := await choose_option(point, option, hint)) is None:
         return await reply(mark_stuck(f"'{option}' is not an option in '{hint}'"))
     msg = f"Selected '{option}' at {point}."
     HANDOFF.entered[hint] = option
-    log("select_option", {"ref": ref, "x": x, "y": y}, "Selected.", point, crop, **spots)
+    log("select_option", {"ref": ref, "x": x, "y": y}, "Selected.", point, crop, index=index, **spots)
     return await reply(msg)
 
 
@@ -1329,6 +1345,113 @@ async def open_path(path: str) -> list:
 
 TABLE_GAP = 40     # px: a bigger vertical gap between two lines ends a table block
 KEY_REACH = 600    # px: a row key further left than this is not the value's own row key
+
+
+# Table reading, shared with replay: keep identical (tests/replay/test_table_replay.py checks it).
+def same_line(a: Box, b: Box) -> bool:
+    return a.y1 < b.y2 and b.y1 < a.y2
+
+
+def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
+    """Each header's x-range: out to the midpoint with its neighbours on the header line; an
+    outer header reaches one own width further (a cell may be wider than its header)."""
+    line = sorted(line, key=lambda e: e.box.x1)
+    out = []
+    for i, e in enumerate(line):
+        w = e.box.x2 - e.box.x1
+        lo = (line[i - 1].box.x2 + e.box.x1) / 2 if i else e.box.x1 - w
+        hi = (e.box.x2 + line[i + 1].box.x1) / 2 if i + 1 < len(line) else e.box.x2 + w
+        out.append((e, lo, hi))
+    return out
+
+
+def table_columns(look: Look, head: Element, columns: list[str],
+                  match) -> tuple[list[tuple[str | None, float, float]], int] | None:
+    """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
+    None when an asked column is not on head's line. Unasked columns stay: they bound the others."""
+    spans = column_spans([e for e in look.elements if same_line(e.box, head.box)])
+    names = {id(e): next((c for c in columns if match(e.text, c)), None) for e, _, _ in spans}
+    if set(columns) - set(names.values()):
+        return None
+    below = max(e.box.y2 for e, _, _ in spans)
+    return [(names[id(e)], lo, hi) for e, lo, hi in spans], below
+
+
+def col_of(box: Box, cols: list[tuple[str | None, float, float]]) -> int | None:
+    """The column the box overlaps most, or None when it overlaps none (outside the table)."""
+    lap = [min(box.x2, hi) - max(box.x1, lo) for _, lo, hi in cols]
+    best = max(range(len(cols)), key=lap.__getitem__, default=None)
+    return best if best is not None and lap[best] > 0 else None
+
+
+def text_lines(els: list[Element]) -> list[list[Element]]:
+    """Texts grouped into lines, top to bottom."""
+    lines: list[list[Element]] = []
+    for e in sorted(els, key=lambda e: e.box.y1):
+        if lines and same_line(lines[-1][0].box, e.box):
+            lines[-1].append(e)
+        else:
+            lines.append([e])
+    return lines
+
+
+def row_of(line: list[Element], cols: list[tuple[str | None, float, float]]) -> dict[str, str]:
+    """A line's texts in the asked columns, left to right; two texts in one column are joined."""
+    row: dict[str, str] = {}
+    for e in sorted(line, key=lambda e: e.box.x1):
+        if (name := cols[col_of(e.box, cols)][0]) is not None:
+            row[name] = f"{row[name]} {e.text}" if name in row else e.text
+    return row
+
+
+def read_rows(look: Look, cols: list[tuple[str | None, float, float]], below: int | None,
+              limit: int) -> tuple[list[dict[str, str]], bool]:
+    """(rows under the header, whether the table may continue past the look's bottom). Rows end at
+    a vertical gap >= TABLE_GAP, a line with no text in any asked column, or `limit`. below=None:
+    a scrolled table with its header gone, read from the look's top."""
+    inside = [e for e in look.elements if col_of(e.box, cols) is not None
+              and (below is None or e.box.y1 >= below)]
+    rows: list[dict[str, str]] = []
+    prev, height = below, None
+    for line in text_lines(inside):
+        row = row_of(line, cols)
+        top = min(e.box.y1 for e in line)
+        gap = prev is not None and top - prev >= max(TABLE_GAP, 2 * (height or 0))
+        if gap or not row or len(rows) >= limit or not like_rows(row, rows):
+            return rows, False
+        rows.append(row)
+        height = height or max(e.box.y2 for e in line) - top
+        prev = max(e.box.y2 for e in line)
+    return rows, len(rows) < limit
+
+
+def like_rows(row: dict[str, str], rows: list[dict[str, str]]) -> bool:
+    """A table's end: a line that no longer looks like its rows (a footer, a menu, a copyright). Each
+    column's cells keep one shape (a date stays a date, an amount an amount); a line breaking the
+    shape of a column the rows so far all agree on is not a row. Links joined by '|' never are."""
+    if any("|" in v or len(v) > 60 for v in row.values()):
+        return False
+    for name, v in row.items():
+        seen = {cell_shape(r[name]) for r in rows if name in r}
+        if len(seen) == 1 and cell_shape(v) not in seen:
+            return False
+    return True
+
+
+def cell_shape(text: str) -> str:
+    """'date', 'amount', or 'text': enough to tell a row cell from a footer line in its column."""
+    t = text.strip()
+    if re.fullmatch(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}", t):
+        return "date"
+    if re.fullmatch(r"[-−]?\$?[-−]?[\d,]+(\.\d{2})?", t):
+        return "amount"
+    return "text"
+
+
+def append_rows(old: list[dict[str, str]], new: list[dict[str, str]]) -> list[dict[str, str]]:
+    """A scrolled second read repeats the rows still on screen: drop only that overlap."""
+    k = next((k for k in range(min(len(old), len(new)), 0, -1) if old[-k:] == new[:k]), 0)
+    return [*old, *new[k:]]
 
 
 def is_word(text: str, values: set[str]) -> bool:
@@ -1419,6 +1542,13 @@ SHAPES = {     # a value's shape inside a longer box: generic, never a site's ow
     "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
     "id": r"[A-Za-z]*\d[\w-]*",
 }
+# Every extract type: the shapes plus the three whole-box-only kinds. Same table as replay's TYPES.
+TYPES = {"string": r"\S.*", "number": r"-?[\d,]*\.?\d+", "boolean": r"true|false|yes|no", **SHAPES}
+
+
+def value_matches_type(value: str, value_type: str) -> bool:
+    """True when the whole value is exactly that type (string, number, boolean, or a shape)."""
+    return value_type in TYPES and bool(re.fullmatch(TYPES[value_type], value.strip(), re.I))
 
 
 def value_in_box(text: str, value_type: str) -> tuple[str, str | None] | None:
@@ -1442,7 +1572,7 @@ async def extract_value(ref: int, save_as: str, value_type: str, description: st
     Args:
         ref: Number of the box holding the value, not its header.
         save_as: Name to save it under, e.g. 'savings_balance'.
-        value_type: Expected type: 'currency', 'phone', 'email', 'date', 'integer', 'id' or 'string'.
+        value_type: Expected type: 'string', 'integer', 'number', 'currency', 'date', 'phone', 'email' or 'id'.
         description: What the value is, in plain words.
     """
     look = HANDOFF.look
@@ -1459,6 +1589,65 @@ async def extract_value(ref: int, save_as: str, value_type: str, description: st
         page_texts=page_texts(look, el), headings=headings(look, el), pattern=pattern,
         **read_target(look, el))
     return f"Saved {save_as} = {value!r}."
+
+
+def is_header(seen: str, want: str) -> bool:
+    return norm(seen) == norm(want)
+
+
+def off_table(look: Look, rows: list[dict[str, str]]) -> Look:
+    """The look without the table's cells: its page texts and headings pick the checkpoint, and a
+    cell is a value, never a checkpoint."""
+    cells = {t for r in rows for t in r.values()}
+    return replace(look, elements=tuple(e for e in look.elements
+                                        if e.text not in cells and not any(e.text in c for c in cells)))
+
+
+def saved_texts(saved: dict) -> set[str]:
+    """Every saved text, table cells included (evidence masking only)."""
+    return {t for v in saved.values() for t in ([v] if isinstance(v, str) else
+                                                 [c for r in v for c in r.values()]) if t}
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def extract_table(header_ref: int, save_as: str, columns: list[str], description: str,
+                        row_limit: int = 50) -> str:
+    """Save a table or list the goal asked for: our code reads its rows under the header.
+
+    Args:
+        header_ref: Number of one header cell of the table (e.g. its 'Date' header).
+        save_as: Name to save the rows under, e.g. 'transactions_1'.
+        columns: The header texts of the columns you want, exactly as shown.
+        description: What the table is, in plain words.
+        row_limit: Most rows to read.
+    """
+    look, values = HANDOFF.look, run_values()
+    head = look.get(header_ref) if look else None
+    if head is None:
+        return f"STALE: [{header_ref}] is not in the latest look. Call observe."
+    if bad := [c for c in columns if not is_word(c, values)]:
+        return f"REFUSED: {bad} are not header texts (a header never holds a value)."
+    if save_as in HANDOFF.tables and not any(is_header(head.text, c) for c in columns):
+        cols, below = HANDOFF.tables[save_as], None          # scrolled on: the header is gone
+    elif found := table_columns(look, head, columns, is_header):
+        cols, below = found
+    else:
+        return f"REFUSED: not every one of {columns} is a header on the line of [{header_ref}]."
+    old = HANDOFF.saved.get(save_as, [])
+    rows, more = read_rows(look, cols, below, row_limit)
+    HANDOFF.tables[save_as], HANDOFF.saved[save_as] = cols, append_rows(old, rows)[:row_limit]
+    first = next((e for e in look.elements if same_line(e.box, head.box) and is_header(e.text, columns[0])), None)
+    rest = off_table(look, HANDOFF.saved[save_as])
+    args = {"header_ref": header_ref, "save_as": save_as, "columns": columns,
+            "description": description, "row_limit": row_limit}
+    log("extract_table", args, "saved", label=columns[0], continued=below is None,
+        header=spot(look, first) if first else None, page_texts=page_texts(rest), headings=headings(rest),
+        columns_x=[[lo, hi] for name, lo, hi in cols if name])
+    total = len(HANDOFF.saved[save_as])
+    tail = " The table may continue below: scroll and call extract_table again with the same save_as." \
+        if more and total < row_limit else ""
+    return f"Saved {total - len(old)} rows to {save_as} ({total} in all).{tail}"
 
 
 @tool(parse_docstring=True)
@@ -1515,58 +1704,64 @@ async def ask_human(question: str) -> str:
 
 
 TOOLS = [observe, click, type_text, type_secret, select_option, scroll, open_path, extract_value,
-         finish_business_outcome, request_missing_values, ask_human]
+         extract_table, finish_business_outcome, request_missing_values, ask_human]
 
 # %% [markdown]
 # ## Agent
 # The system prompt and the deep agent, with a checkpointer so a run can be resumed.
 
 # %%
-VISUAL_SYSTEM_PROMPT = """You are an expert browser operator. You drive a real browser on a banking demo site. You see it only as a screenshot.
+VISUAL_SYSTEM_PROMPT = """You are an expert browser operator. You drive a real browser on a bank website. You see it only as a screenshot.
+
+## Your job
+Do the goal ONCE, by the shortest path, so it can be recorded and replayed without you. Every step you take is recorded. Wandering, retries and detours make a bad recording.
 
 ## What you see
-Every look shows a screenshot with red numbered boxes, plus a text list like [7] 'Transfer'. Only text gets a number. Empty input boxes and icons have none: point at them by x,y on the screenshot. Numbers change after every look; use only the latest ones.
+Every look shows a screenshot with red numbered boxes, plus a text list like [7] 'Transfer'. Only text gets a number. Empty input boxes and icons have none: point at them by x,y on the screenshot. Numbers change after every look; use ONLY the latest ones.
+
+## What gets recorded, and what you MUST do so it is correct
+- You MUST save every value the goal asks for with extract_value, and you MUST save every list or table with extract_table (not extract_value). Only saved values reach the caller; text in your final message is NOT returned.
+- You MUST read values BEFORE logging out.
+- Login is exactly 3 calls, no observe in between: type_secret('username', x, y) -> type_secret('password', x, y) -> click the 'Log In' number. Aim at the empty box that belongs to each label. On a side-panel form the box is BELOW its label (x = label's left edge + 60, y = label bottom + 15); on a wide form it is to the RIGHT (x = label right edge + 100, same y). If a tool says NOTHING TYPED, try the other placement once.
+- save_as MUST use the goal's own words, in snake_case (e.g. savings_balance). For one table per item, call extract_table on each item's page with save_as name_1, name_2 … If it says the table may continue below, scroll and call it again with the same save_as.
+- For every dropdown the task uses, call select_option: with the goal's option, or option="" if the goal names none, so a human picks.
+- Fill every field the goal needs BEFORE you click the final button. Anything the page sends (a transfer, a payment, a form) is held for a human's two gates: details, then send.
+- You MUST log out last, after everything else.
+- Make ONE tool call at a time. Do not click into a field before typing; the typing tools click it.
+
+## NEVER (these leak data or break replay)
+- NEVER put a value you see on screen (account numbers, balances, names, addresses, amounts) into a typed text, in save_as, a hint or a question, unless the goal itself gave it.
+- NEVER copy a value by hand instead of extracting it.
+- NEVER invent, guess or substitute a value, and never pick one yourself. A dropdown's default option is NOT a choice: NEVER accept a dropdown default silently.
+- NEVER approve a send yourself.
+- NEVER ask a human for credentials; the stored ones are correct.
+- NEVER use ls, read_file, write_file, edit_file, glob, grep or task.
+- NEVER click the same thing twice to "make sure", and NEVER open pages you do not need.
+- NEVER leave this site. NEVER retry or work around anything that says DECLINED.
+- NEVER type again a value a human entered.
+- NEVER save anything that is not part of what the goal asked for: no menus, navigation links, headers, footers, banners, copyright lines, page titles or ads. With extract_table, name only the columns of the one table the goal is about, and point header_ref at that table's own header row, never at a menu or a page title.
+
+## When unsure
+- Unsure about ANYTHING (a value, which option, which page, what the goal means)? Call ask_human at once. A human can answer, take over, or stop.
+- Values missing from the goal? FIRST open the page where the task is done, THEN call request_missing_values ONCE, listing every box AND every dropdown the goal gives no value for, even a dropdown that already shows something.
+- If the human answers, follow it. If a human took over, call observe and carry on from what you see. If a result says STOPPED, or the page says the login failed, stop. If you keep failing or a tool says STUCK, the system asks a human by itself.
 
 ## Tools
-- observe: take a new look.
+- observe(): take a new look. Call it first.
 - click(ref), or click(x, y) for something with no number.
-- type_text(text, ref or x,y), select_option(option, ref or x,y).
+- type_text(text, ref or x,y): type text from the goal into a box.
 - type_secret(name, ref or x,y): type a stored secret ('username' or 'password'). You never see the value.
-- scroll(direction), open_path(path).
-- extract_value(ref, save_as, value_type, description): save a value the goal asks for. Copy nothing by hand.
-- finish_business_outcome(outcome, proof_text): report the business result.
-- request_missing_values(fields): every field the goal gives no value for on this page (boxes AND dropdowns) in ONE go, as [{"x":..,"y":..,"hint":..,"dropdown":true|false}]. Point at the box itself. A human answers in the control window; our code types them in; then you click submit.
-- ask_human(question): whenever you are unsure. If you keep failing or a tool says STUCK, the system asks a human by itself.
+- select_option(option, ref or x,y): pick the dropdown option whose visible text matches; option="" lets a human choose.
+- scroll(direction): 'up' or 'down'; give x,y to scroll a small panel.
+- open_path(path): open a path you SAW on this site. Never guess one.
+- extract_value(ref, save_as, value_type, description): save one value. ref is the box holding the value, not its header. value_type is one of 'string', 'integer', 'number', 'currency', 'date', 'phone', 'email', 'id'. description says what it is in plain words.
+- extract_table(header_ref, save_as, columns, description): save a table or list. header_ref is one header cell; columns are the header texts you want, exactly as shown. Our code reads the rows.
+- finish_business_outcome(outcome, proof_text): report the business result; proof_text is exact text on screen that proves it.
+- request_missing_values(fields): every field the goal gives no value for on this page, in ONE go, as [{"x":..,"y":..,"hint":..,"dropdown":true|false}]. Point at the box itself; hint is the label you read. A human answers; our code types them in; then you click submit.
+- ask_human(question): what you are unsure about, and what you see.
 
-## How to work
-1. Call observe first. Login is exactly 3 calls, no observe in between:
-   type_secret('username', x, y) -> type_secret('password', x, y) -> click the 'Log In' number.
-   Aim at the empty box that belongs to each label. On a side-panel form the box is BELOW its
-   label (same x as the label's left edge + 60, y = label bottom + 15); on a wide form it is to
-   the RIGHT (x = label right edge + 100, same y). If a tool says NOTHING TYPED, try the other
-   placement once. Never ask a human for credentials; the stored ones are correct.
-2. Do the task by the shortest path. Never invent, substitute or guess a value, and never pick
-   one yourself. If you are unsure or uncertain about ANYTHING (a value, which option, which
-   page, what the goal means), call ask_human at once. A human can answer, take over, or stop.
-3. A dropdown always shows a default option; that is NOT a choice. For every dropdown the task
-   uses (e.g. from/to account), call select_option: with the goal's option, or option="" if
-   the goal does not name one, so a human picks. Never accept a default silently.
-   Use ONLY values the user gave you. If values are missing: FIRST open the page where the task is
-   done, THEN call request_missing_values ONCE, listing every box AND every dropdown the goal gives
-   no value for, even a dropdown that already shows something.
-4. If a tool says a human entered a value, do not type it again.
-5. Move around and fill in values yourself; no approval is needed for that. If a result says DECLINED, never retry or work around it.
-6. Make ONE tool call at a time. Do not click into a field before typing; the typing tools click it.
-7. Stay on this site. If the human answers, follow it. If a human took over, call observe and carry on from what you see. If a result says STOPPED, stop.
-8. If the page says the login failed, stop.
-9. Do not use ls, read_file, write_file, edit_file, glob, grep or task.
-10. Always log out before you stop. Anything the page sends (a transfer, a payment, a form)
-    is held for a human's two gates: details, then send. You never approve it yourself.
-    Fill every field the goal needs BEFORE you click the final button.
-11. For a read-only goal, save EVERY value the goal asks for with extract_value. Only saved values
-    are returned to the caller; anything you only describe in your final message is lost. Read
-    values before you log out.
-12. Your final message is the answer. Start it with 'STUCK:' or 'DECLINED:' when that is what happened.
+## Final message
+A short plain summary of what happened. Start it with 'STUCK:' or 'DECLINED:' when that is what happened. Values in it are for the human only; they are NOT saved.
 """
 
 class NoopAnthropicPromptCachingMiddleware(AgentMiddleware):
@@ -1631,7 +1826,7 @@ async def run_goal(goal: str, thread_id: str | None = None) -> str:
         raise
     finally:        # banking: values live only for the run. Keep the log (labels only), drop the rest
         flag_leaks(HANDOFF.log, run_values())
-        HANDOFF.redact |= run_values() | {v for v in HANDOFF.saved.values() if v}   # for save_evidence only
+        HANDOFF.redact |= run_values() | saved_texts(HANDOFF.saved)   # for save_evidence only
         HANDOFF.entered, HANDOFF.given, HANDOFF.look = {}, [], None
         HANDOFF.typed_texts.clear()
 
@@ -1702,6 +1897,7 @@ class Select(Strict):
     action: Literal["select"] = "select"
     target: Target
     option: str                      # "{{input}}"
+    index: int | None = None         # Nth <select> on the page (document order); None = by point
 
 
 class Scroll(Strict):
@@ -1716,7 +1912,21 @@ class Extract(Strict):
     pattern: str | None = None       # the value is the first match inside the box (a phone in a sentence)
 
 
-Step = Annotated[Navigate | Click | Type | Select | Scroll | Extract, Field(discriminator="action")]
+class Header(Strict):           # a table's first asked column header, found like a rung 2 label
+    label: str
+    ordinal: int = 1
+
+
+class ExtractTable(Strict):
+    action: Literal["extract_table"] = "extract_table"
+    header: Header
+    columns: list[str] = Field(min_length=1)    # header texts; the first is `header`
+    save_as: Name
+    row_limit: int = Field(50, ge=1)
+
+
+Step = Annotated[Navigate | Click | Type | Select | Scroll | Extract | ExtractTable,
+                 Field(discriminator="action")]
 
 
 class Input(Strict):
@@ -1727,8 +1937,9 @@ class Input(Strict):
 
 class Output(Strict):
     name: Name
-    type: str
+    type: str                        # a value type, or "table": a list of {column: text} rows
     description: str
+    columns: list[str] | None = None     # a table's columns
 
 
 class Capability(Strict):
@@ -1755,7 +1966,8 @@ class CapabilityMeta(Strict):        # R11: the only part the model writes. Loos
 
 # %%
 FIELD_TOOLS = {"type_text", "type_secret", "select_option", "request_value"}
-STEP_TOOLS = FIELD_TOOLS | {"click", "scroll", "open_path", "extract_value"}
+READ_TOOLS = {"extract_value", "extract_table"}
+STEP_TOOLS = FIELD_TOOLS | READ_TOOLS | {"click", "scroll", "open_path"}
 LOGOUT_WORDS = {"log out", "logout", "sign out", "sign off"}
 
 
@@ -1788,13 +2000,38 @@ def step_events(log: list[dict]) -> list[dict]:
     later_select = lambda i: any(is_select(b) and same_spot(ok[i], b) for b in ok[i + 1:])  # noqa: E731
     keep = [ev for i, ev in enumerate(ok) if ev["tool"] not in FIELD_TOOLS
             or (not later_select(i) if is_select(ev) else last[key(ev)] == i)]
-    return without_logout(without_detours(without_no_ops(keep)))
+    return without_logout(without_detours(without_no_ops(one_read_per_table(mark_submits(keep)))))
+
+
+def mark_submits(events: list[dict]) -> list[dict]:
+    """A click right after typing into a box on the same page is that form's submit (a login, a
+    search), and so is a login click: it changes state, so it is never a detour or a no-op."""
+    typed = lambda ev: ev["tool"] in {"type_text", "type_secret"}  # noqa: E731
+    page_of = lambda ev: urlparse(ev.get("from_url") or ev["url"]).path  # noqa: E731
+    return [{**ev, "submit": True} if ev["tool"] == "click" and (ev.get("login") or (
+        i and typed(events[i - 1]) and page_of(events[i - 1]) == page_of(ev))) else ev
+        for i, ev in enumerate(events)]
+
+
+def one_read_per_table(events: list[dict]) -> list[dict]:
+    """A table read again after a scroll is one step: replay scrolls on by itself. The scrolls
+    between the reads go too."""
+    out: list[dict] = []
+    for ev in events:
+        name = ev["args"].get("save_as") if ev["tool"] == "extract_table" else None
+        first = next((i for i, o in enumerate(out) if o["tool"] == "extract_table"
+                      and o["args"]["save_as"] == name), None)
+        if first is None:
+            out.append(ev)
+        elif all(o["tool"] == "scroll" for o in out[first + 1:]):
+            del out[first + 1:]
+    return out
 
 
 def no_op(ev: dict) -> bool:
     """A click that left the site as it was: same page, and it either reloaded that page (a link
     to where you already are) or showed nothing new. A NO CHANGE click never gets here (FAILED)."""
-    if ev["tool"] != "click" or "from_url" not in ev or ev.get("landed"):
+    if ev["tool"] != "click" or "from_url" not in ev or ev.get("landed") or ev.get("submit"):
         return False
     same = urlparse(ev["url"]).path == urlparse(ev["from_url"]).path
     return same and (ev.get("navigated") or not ev.get("new_texts"))
@@ -1825,7 +2062,9 @@ def same_click(a: dict, b: dict) -> bool:
 
 
 def goes_to_a_page(ev: dict) -> bool:
-    return ev["tool"] == "open_path" or (ev["tool"] == "click" and bool(ev.get("loaded")))
+    """A move between pages. A submit is not a move: it is a step (see mark_submits)."""
+    return ev["tool"] == "open_path" or (ev["tool"] == "click" and bool(ev.get("loaded"))
+                                         and not ev.get("submit"))
 
 
 def without_detours(events: list[dict]) -> list[dict]:
@@ -1866,7 +2105,7 @@ def checkpoint(log: list[dict], fallback: str) -> str:
     response = next((ev["landed"] for ev in reversed(log) if ev.get("landed")), [])
     if response:
         return next((p for p in reversed(proof) if any(norm(p) in norm(t) for t in response)), response[0])
-    read = next((ev for ev in reversed(log) if ev["tool"] == "extract_value"), None)
+    read = next((ev for ev in reversed(log) if ev["tool"] in READ_TOOLS), None)
     if read:
         start = next((ev for ev in log if ev["tool"] == "start"), {})
         common = {t for t, n in start.get("text_counts", {}).items() if n >= start.get("looks", 0) / 2}
@@ -1899,10 +2138,13 @@ def to_step(ev: dict, template: str) -> Step:
         return Extract(save_as=args["save_as"], pattern=ev.get("pattern"),
                        target=Target(table_cell=TableCell(**cell)) if cell
                        else target({**ev, "crop": None}, template))   # its crop shows the value
+    if tool == "extract_table":
+        return ExtractTable(header=Header(label=args["columns"][0], ordinal=(ev.get("header") or {}).get("ordinal", 1)),
+                            columns=args["columns"], save_as=args["save_as"], row_limit=args["row_limit"])
     if tool == "click":
         return Click(target=target(ev, template), cleanup=bool(ev.get("cleanup")))
     if tool == "select_option" or (tool == "request_value" and ev.get("dropdown")):
-        return Select(target=target(ev, template), option=f"{{{{{name}}}}}")
+        return Select(target=target(ev, template), option=f"{{{{{name}}}}}", index=ev.get("index"))
     value = f"{{{{secret:{args['secret_name']}}}}}" if tool == "type_secret" else f"{{{{{name}}}}}"
     return Type(target=target(ev, template), value=value)
 
@@ -1924,8 +2166,12 @@ def build_capability(log: list[dict], meta: CapabilityMeta) -> Capability:
     if leaks := [i for i, ev in enumerate(events) if ev.get("leak")]:
         raise ValueError(f"steps {leaks}: a label or target text is a value typed this run. "
                          "Not saved (it would store the value). Re-run discovery.")
-    if not any(ev["tool"] == "send" for ev in log) and not any(ev["tool"] == "extract_value" for ev in events):
-        raise ValueError("nothing was read or sent: re-run and save the values with extract_value. "
+    if blind := [i for i, ev in enumerate(events) if is_select(ev) and not ev.get("anchor")]:
+        raise ValueError(f"steps {blind}: a dropdown with no label to find it by (only its crop). "
+                         "Not saved (replay would guess between dropdowns). Re-run discovery.")
+    if not any(ev["tool"] == "send" for ev in log) and not any(ev["tool"] in READ_TOOLS for ev in events):
+        raise ValueError("nothing was read or sent: re-run and save the values with extract_value "
+                         "(a table: extract_table). "
                          "Not saved (a caller would get SUCCESS with no data).")
     steps = [to_step(ev, f"crops/{name}/s{i}.png") for i, ev in enumerate(events)]
     names = step_inputs(steps)
@@ -1933,11 +2179,16 @@ def build_capability(log: list[dict], meta: CapabilityMeta) -> Capability:
         name=name, description=meta.description, base_url=start["base_url"],
         viewport=start["viewport"], device_scale_factor=start["device_scale_factor"],
         inputs=[Input(name=n, description=meta.inputs.get(n) or n.replace("_", " ")) for n in names],
-        outputs=[Output(name=ev["args"]["save_as"], type=ev["args"]["value_type"],
-                        description=ev["args"]["description"])
-                 for ev in events if ev["tool"] == "extract_value"],
+        outputs=[output(ev) for ev in events if ev["tool"] in READ_TOOLS],
         secrets=list(dict.fromkeys(ev["args"]["secret_name"] for ev in events if ev["tool"] == "type_secret")),
         steps=steps, checkpoint=checkpoint(log, meta.success_text))
+
+
+def output(ev: dict) -> Output:
+    a = ev["args"]
+    if ev["tool"] == "extract_table":
+        return Output(name=a["save_as"], type="table", description=a["description"], columns=a["columns"])
+    return Output(name=a["save_as"], type=a["value_type"], description=a["description"])
 
 
 def crops_for(log: list[dict], cap: Capability) -> dict[str, bytes]:
@@ -1959,14 +2210,21 @@ async def describe(goal: str, log: list[dict]) -> CapabilityMeta:
     """R11: name, description, input descriptions, success text. Labels only, no values."""
     lines = [f"{ev['tool']} {ev.get('label') or ev.get('text') or ''}" for ev in step_events(log)]
     names = used_inputs(log)
+    tables = list(dict.fromkeys(ev["args"]["save_as"] for ev in step_events(log) if ev["tool"] == "extract_table"))
     prompt = (f"Goal: {goal}\nSteps (tool, field label):\n" + "\n".join(lines) +
               f"\nInputs a caller fills in: {', '.join(names) or 'none'}.\n"
-              "Name this capability (snake_case) after the GOAL, what the caller gets done (e.g. "
-              "get_bank_phone_number), not the pages it passes through; describe it in one sentence, "
-              "give `inputs` as a map "
-              "from EXACTLY those input names to a one-line description (no other keys; secrets such "
-              "as the login are not inputs), and give the text that proves success. Never include "
-              "a value from the goal.")
+              f"Tables it returns (rows): {', '.join(tables) or 'none'}.\n"
+              "You write ONLY metadata for this recorded capability; the steps are already fixed.\n"
+              "- name: snake_case verb_object named after the GOAL, what the caller gets done (e.g. "
+              "get_account_balance), not the pages it passes through.\n"
+              "- description: 1-2 sentences on what the capability does and what it returns.\n"
+              "- inputs: a map from EXACTLY those input names to one line on what the caller must "
+              "supply, never an example value (no other keys; secrets such as the login are not "
+              "inputs).\n"
+              "- success_text: text shown on the final screen before logout that proves success, "
+              "never a value.\n"
+              "NEVER include a value from the goal or the screen (an account number, amount, name) "
+              "anywhere.")
     return await MODEL.with_structured_output(CapabilityMeta).ainvoke(prompt)
 
 

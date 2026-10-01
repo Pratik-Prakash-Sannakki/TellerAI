@@ -1,0 +1,19 @@
+{
+  "status": "STUCK",
+  "reason": "target not found",
+  "summary": "STUCK (human intervened at step 6)",
+  "outputs": {},
+  "human": [
+    {
+      "step": 5,
+      "reason": "the step's check failed",
+      "actions": {
+        "pages": [],
+        "sends": [
+          "/parabank/services_proxy/bank/billpay"
+        ]
+      }
+    }
+  ],
+  "failing_step": 6
+}

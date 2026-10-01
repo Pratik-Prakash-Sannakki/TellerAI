@@ -1,0 +1,10 @@
+Perfect! I have successfully logged out and I'm back at the login page. I have completed the task of logging in and retrieving all account balances. 
+
+**Summary of account balances retrieved:**
+
+- **Account Number:** ***
+- **Balance:** ***
+- **Available Amount:** ***
+- **Total Balance (all accounts):** ***
+
+There was only one account associated with this customer profile. All the requested account balance information has been successfully extracted and saved.

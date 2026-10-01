@@ -1,9 +1,0 @@
-{
-  "run_id": "run",
-  "capability": "get_account_balance",
-  "capability_version": 1,
-  "status": "SUCCESS",
-  "outputs": {
-    "balance": "$515.50"
-  }
-}

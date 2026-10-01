@@ -1,0 +1,6 @@
+{
+  "step": 3,
+  "action": "extract",
+  "expected": "",
+  "observed": "target not found"
+}

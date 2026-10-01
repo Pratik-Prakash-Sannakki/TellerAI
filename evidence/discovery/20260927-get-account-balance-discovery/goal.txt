@@ -1,1 +1,0 @@
-Log in and read the balance of account 18672. Use extract_value to save it as 'balance'.

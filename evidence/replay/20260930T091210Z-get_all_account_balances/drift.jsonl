@@ -1,0 +1,14 @@
+{"step": 0, "action": "type", "rung": "rung2", "point": [365, 310], "attempt": 1, "checked": true}
+{"step": 1, "action": "type", "rung": "rung2", "point": [365, 360], "attempt": 1, "checked": true}
+{"step": 2, "action": "click", "rung": "rung1", "point": [324, 391], "attempt": 1, "checked": true}
+{"step": 3, "action": "extract", "rung": "rung2", "point": [510, 357], "attempt": 1, "checked": true}
+{"step": 4, "action": "extract", "rung": "rung2", "point": [643, 355], "attempt": 1, "checked": true}
+{"step": 5, "action": "extract", "rung": "rung2", "point": [800, 357], "attempt": 1, "checked": true}
+{"step": 6, "action": "extract", "rung": "rung2", "point": [510, 385], "attempt": 1, "checked": true}
+{"step": 7, "action": "extract", "rung": "rung2", "point": [641, 384], "attempt": 1, "checked": true}
+{"step": 8, "action": "extract", "rung": "rung2", "point": [838, 384], "attempt": 1, "checked": true}
+{"step": 9, "action": "extract", "rung": "table", "point": [510, 413], "attempt": 1, "checked": true}
+{"step": 10, "action": "extract", "rung": "rung2", "point": [636, 412], "attempt": 1, "checked": true}
+{"step": 11, "action": "extract", "rung": "rung2", "point": [835, 412], "attempt": 1, "checked": true}
+{"step": 12, "action": "extract", "rung": "rung2", "point": [587, 440], "attempt": 1, "checked": true}
+{"step": 13, "action": "click", "rung": "rung1", "point": [322, 485], "attempt": 1, "checked": true, "cleanup": true}

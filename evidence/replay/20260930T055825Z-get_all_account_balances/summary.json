@@ -1,0 +1,13 @@
+{
+  "status": "SUCCESS",
+  "reason": "",
+  "summary": "SUCCESS",
+  "outputs": {
+    "account_number": "***",
+    "account_balance": "***",
+    "available_amount": "***"
+  },
+  "human": [],
+  "failing_step": null,
+  "cleanup": "done"
+}

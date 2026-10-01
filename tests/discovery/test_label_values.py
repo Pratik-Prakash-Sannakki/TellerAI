@@ -14,7 +14,7 @@ from tests.discovery.test_save_artifact import NS, SENT, START, _ev, _meta
 
 SRC = Path(__file__).parents[2] / "notebooks/discovery/discovery.py"
 TRANSFER = "https://parabank.parasoft.com/parabank/transfer.htm"
-LABEL_FNS = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "norm",
+LABEL_FNS = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "merged_label", "norm",
              "clean_label", "redactor", "_num"}
 
 

@@ -1,0 +1,73 @@
+schema_version: 2
+name: get_para_bank_phone_number
+version: 1
+description: Logs into the ParaSoft Demo Website and retrieves the Para Bank phone
+  number.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: bank_phone_number
+  type: phone
+  description: ParaBank phone number
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 11
+      - 45
+    template: crops/get_para_bank_phone_number/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 19
+    template: crops/get_para_bank_phone_number/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: About Us
+      ordinal: 1
+    anchor:
+      label: Solutions
+      ordinal: 1
+      offset:
+      - 1
+      - 24
+    template: crops/get_para_bank_phone_number/s2.png
+  cleanup: false
+- action: extract
+  target:
+    table_cell:
+      row_key: Find Transactions
+      column: ParaSoft Demo Website
+  save_as: bank_phone_number
+  pattern: \+?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -16
+      - 25
+    template: crops/get_para_bank_phone_number/s4.png
+  cleanup: true
+checkpoint: Request Loan

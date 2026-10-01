@@ -5,6 +5,8 @@
 #     text_representation:
 #       extension: .py
 #       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: interface-ai-cua (3.12.2)
 #     language: python
@@ -313,7 +315,7 @@ class ReplayState:
     look: Look | None = None
     values: dict[str, str] = field(default_factory=dict)
     given: list[str] = field(default_factory=list)      # input values + human edits (mismatch check)
-    outputs: dict[str, str] = field(default_factory=dict)
+    outputs: dict[str, str | list[dict[str, str]]] = field(default_factory=dict)   # a table: its rows
     allow_send: bool = False       # set only around a login click
     sent: bool = False             # a non-GET request went out during this action
     gated: bool = False            # this run sent something through the human gates (not the login)
@@ -645,9 +647,10 @@ def into_box(point: tuple[int, int], value: str) -> tuple:
 
 
 # D-B: the one non-visual exception. Sets only the <select> under (or next to) the point.
-SELECT_AT_JS = """([x, y, want]) => {
-  let el = document.elementFromPoint(x, y)?.closest('select');
-  if (!el) {
+SELECT_AT_JS = """([x, y, want, index]) => {
+  let el = index === null ? document.elementFromPoint(x, y)?.closest('select')
+                          : document.querySelectorAll('select')[index];
+  if (!el && index === null) {
     let best = 250;
     for (const s of document.querySelectorAll('select')) {
       const r = s.getBoundingClientRect();
@@ -685,14 +688,21 @@ def read_field(look: Look, point: tuple[int, int]) -> str:
     return " ".join(e.text for e in look.elements if e.box.overlaps(b))
 
 
-async def choose_option(point: tuple[int, int], option: str, label: str = "") -> bool:
-    """Select this exact live option; the dropdown's selected text and its OCR'd box confirm it."""
-    at = await page.evaluate(SELECT_AT_JS, [*to_page(point), option])
+def shows_option(seen: str, option: str) -> bool:
+    """The option is in the box's OCR, even merged with its label ('to account #|15120'): the
+    option's own words, whole. Box borders read as `[ ] |` are cut first."""
+    return typed_ok(re.sub(r"[\[\]|#]", " ", seen), option)
+
+
+async def choose_option(point: tuple[int, int], option: str, index: int | None = None) -> bool:
+    """Select this exact live option in the Nth <select> (`index`), else the one at the point;
+    the dropdown's selected text and its OCR'd box confirm it."""
+    at = await page.evaluate(SELECT_AT_JS, [*to_page(point), option, index])
     if not isinstance(at, list) or at[2] != option:
         return False
     await page.wait_for_timeout(CFG.settle_ms)
     look = await take_look()
-    return typed_ok(read_field(look, (round(at[0] / look.scale), round(at[1] / look.scale))), at[2])
+    return shows_option(read_field(look, (round(at[0] / look.scale), round(at[1] / look.scale))), at[2])
 
 
 # %%
@@ -869,9 +879,13 @@ def typed_ok(seen: str, want: str) -> bool:
 
 def same_label(seen: str, label: str) -> bool:
     """Rung 2 anchors only. Discovery saves labels cleaned ('to account #'); live OCR may merge the
-    label with its field's value ('to account #[16785'). Strip `[ ] |`, then a label at the start counts."""
+    label with its field's value ('to account #[16785'). Strip `[ ] |`, then a label at the start counts.
+    Else fuzzy, but the first word must match too: 'From account #' is 0.85 like 'to account #'."""
     a, b = norm(re.sub(r"[\[\]|]", " ", seen)), norm(re.sub(r"[\[\]|]", " ", label))
-    return bool(b) and a.startswith(b) or same_text(a, b)
+    if b and a.startswith(b):
+        return True
+    first = lambda t: (t.split() or [""])[0]   # noqa: E731  'From account #' is not 'to account #'
+    return same_text(a, b) and same_text(first(a), first(b))
 
 
 def find_text(look: Look, text: str, ordinal: int = 1, match=same_text) -> Element | None:
@@ -1030,7 +1044,7 @@ async def do_type(step: Step, point: tuple[int, int], cap: Capability) -> bool:
 
 
 async def do_select(step: Step, point: tuple[int, int], cap: Capability) -> bool:
-    options = await page.evaluate(SELECT_AT_JS, [*to_page(point), None])
+    options = await page.evaluate(SELECT_AT_JS, [*to_page(point), None, step.index])
     if not isinstance(options, list) or not options:
         return False
     m = PLACEHOLDER.fullmatch(step.option.strip())
@@ -1038,7 +1052,7 @@ async def do_select(step: Step, point: tuple[int, int], cap: Capability) -> bool
     if m and want not in options:
         want = STATE.values[m[2]] = await ask_option(cap, m[2], options)
         STATE.given.append(want)
-    return await choose_option(point, want)
+    return await choose_option(point, want, step.index)
 
 
 async def do_scroll(step: Step, point, cap: Capability) -> bool:
@@ -1098,8 +1112,138 @@ async def do_extract(step: Step, point: tuple[int, int], cap: Capability) -> boo
     return True
 
 
+TABLE_GAP = 40     # px: same as discovery's; a bigger vertical gap between two lines ends a table
+
+
+# Table reading, copied from discovery: keep identical (tests/replay/test_table_replay.py checks it).
+def same_line(a: Box, b: Box) -> bool:
+    return a.y1 < b.y2 and b.y1 < a.y2
+
+
+def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
+    """Each header's x-range: out to the midpoint with its neighbours on the header line; an
+    outer header reaches one own width further (a cell may be wider than its header)."""
+    line = sorted(line, key=lambda e: e.box.x1)
+    out = []
+    for i, e in enumerate(line):
+        w = e.box.x2 - e.box.x1
+        lo = (line[i - 1].box.x2 + e.box.x1) / 2 if i else e.box.x1 - w
+        hi = (e.box.x2 + line[i + 1].box.x1) / 2 if i + 1 < len(line) else e.box.x2 + w
+        out.append((e, lo, hi))
+    return out
+
+
+def table_columns(look: Look, head: Element, columns: list[str],
+                  match) -> tuple[list[tuple[str | None, float, float]], int] | None:
+    """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
+    None when an asked column is not on head's line. Unasked columns stay: they bound the others."""
+    spans = column_spans([e for e in look.elements if same_line(e.box, head.box)])
+    names = {id(e): next((c for c in columns if match(e.text, c)), None) for e, _, _ in spans}
+    if set(columns) - set(names.values()):
+        return None
+    below = max(e.box.y2 for e, _, _ in spans)
+    return [(names[id(e)], lo, hi) for e, lo, hi in spans], below
+
+
+def col_of(box: Box, cols: list[tuple[str | None, float, float]]) -> int | None:
+    """The column the box overlaps most, or None when it overlaps none (outside the table)."""
+    lap = [min(box.x2, hi) - max(box.x1, lo) for _, lo, hi in cols]
+    best = max(range(len(cols)), key=lap.__getitem__, default=None)
+    return best if best is not None and lap[best] > 0 else None
+
+
+def text_lines(els: list[Element]) -> list[list[Element]]:
+    """Texts grouped into lines, top to bottom."""
+    lines: list[list[Element]] = []
+    for e in sorted(els, key=lambda e: e.box.y1):
+        if lines and same_line(lines[-1][0].box, e.box):
+            lines[-1].append(e)
+        else:
+            lines.append([e])
+    return lines
+
+
+def row_of(line: list[Element], cols: list[tuple[str | None, float, float]]) -> dict[str, str]:
+    """A line's texts in the asked columns, left to right; two texts in one column are joined."""
+    row: dict[str, str] = {}
+    for e in sorted(line, key=lambda e: e.box.x1):
+        if (name := cols[col_of(e.box, cols)][0]) is not None:
+            row[name] = f"{row[name]} {e.text}" if name in row else e.text
+    return row
+
+
+def read_rows(look: Look, cols: list[tuple[str | None, float, float]], below: int | None,
+              limit: int) -> tuple[list[dict[str, str]], bool]:
+    """(rows under the header, whether the table may continue past the look's bottom). Rows end at
+    a vertical gap >= TABLE_GAP, a line with no text in any asked column, or `limit`. below=None:
+    a scrolled table with its header gone, read from the look's top."""
+    inside = [e for e in look.elements if col_of(e.box, cols) is not None
+              and (below is None or e.box.y1 >= below)]
+    rows: list[dict[str, str]] = []
+    prev, height = below, None
+    for line in text_lines(inside):
+        row = row_of(line, cols)
+        top = min(e.box.y1 for e in line)
+        gap = prev is not None and top - prev >= max(TABLE_GAP, 2 * (height or 0))
+        if gap or not row or len(rows) >= limit or not like_rows(row, rows):
+            return rows, False
+        rows.append(row)
+        height = height or max(e.box.y2 for e in line) - top
+        prev = max(e.box.y2 for e in line)
+    return rows, len(rows) < limit
+
+
+def like_rows(row: dict[str, str], rows: list[dict[str, str]]) -> bool:
+    """A table's end: a line that no longer looks like its rows (a footer, a menu, a copyright). Each
+    column's cells keep one shape (a date stays a date, an amount an amount); a line breaking the
+    shape of a column the rows so far all agree on is not a row. Links joined by '|' never are."""
+    if any("|" in v or len(v) > 60 for v in row.values()):
+        return False
+    for name, v in row.items():
+        seen = {cell_shape(r[name]) for r in rows if name in r}
+        if len(seen) == 1 and cell_shape(v) not in seen:
+            return False
+    return True
+
+
+def cell_shape(text: str) -> str:
+    """'date', 'amount', or 'text': enough to tell a row cell from a footer line in its column."""
+    t = text.strip()
+    if re.fullmatch(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}", t):
+        return "date"
+    if re.fullmatch(r"[-−]?\$?[-−]?[\d,]+(\.\d{2})?", t):
+        return "amount"
+    return "text"
+
+
+def append_rows(old: list[dict[str, str]], new: list[dict[str, str]]) -> list[dict[str, str]]:
+    """A scrolled second read repeats the rows still on screen: drop only that overlap."""
+    k = next((k for k in range(min(len(old), len(new)), 0, -1) if old[-k:] == new[:k]), 0)
+    return [*old, *new[k:]]
+
+
+async def do_extract_table(step: Step, point, cap: Capability) -> bool:
+    """Find the header by its label (rung 2's matching), read the rows with discovery's own
+    reader, and scroll on while the table runs past the screen, up to `row_limit`. No rows is a
+    valid output ([]); a header not on screen is a failed check."""
+    head = find_text(STATE.look, fill(step.header.label, STATE.values), step.header.ordinal, same_label)
+    found = head and table_columns(STATE.look, head, step.columns, same_text)
+    if not found:
+        return False
+    cols, below = found
+    rows, more = read_rows(STATE.look, cols, below, step.row_limit)
+    while more and len(rows) < step.row_limit:
+        await act(lambda: page.mouse.wheel(0, CFG.scroll_px))
+        new, more = read_rows(STATE.look, cols, None, step.row_limit)
+        if len(grown := append_rows(rows, new)[:step.row_limit]) == len(rows):
+            break                             # the scroll showed nothing new: the table's end
+        rows = grown
+    STATE.outputs[step.save_as] = rows
+    return True
+
+
 ACTIONS = {"navigate": do_navigate, "click": do_click, "type": do_type, "select": do_select,
-           "scroll": do_scroll, "extract": do_extract}
+           "scroll": do_scroll, "extract": do_extract, "extract_table": do_extract_table}
 
 # %% [markdown]
 # ## Replay engine
@@ -1109,7 +1253,7 @@ ACTIONS = {"navigate": do_navigate, "click": do_click, "type": do_type, "select"
 @dataclass(frozen=True)
 class ReplayResult:
     status: str               # SUCCESS | BUSINESS_OUTCOME | DECLINED | STUCK | FAILED (R17)
-    outputs: dict[str, str]
+    outputs: dict[str, str | list[dict[str, str]]]     # a table output is its list of rows
     drift: list[dict]         # per step: rung, point, attempt. No values (R18)
     reason: str = ""
     human: list[dict] = field(default_factory=list)   # R17: take-overs; [] = unattended
@@ -1329,7 +1473,7 @@ def read_only_done(cap: Capability, missing: list[str]) -> bool:
     """R17: a read-only run whose last main step read the last output, and every output was read.
     Its checkpoint was picked after the cleanup (e.g. the login page after Log Out): accept it."""
     main = [s for s in cap.steps if not is_cleanup(s)]
-    last_reads = bool(main) and main[-1].action == "extract"
+    last_reads = bool(main) and main[-1].action in ("extract", "extract_table")
     return bool(cap.outputs) and not missing and not STATE.gated and last_reads
 
 
@@ -1474,6 +1618,12 @@ def _png(path: Path, png: bytes | None, redact) -> str | None:
     return path.name
 
 
+def masked_outputs(outputs: dict) -> dict:
+    """Names and shape only: a value is ***, a table keeps its rows and columns, every cell ***."""
+    return {k: [dict.fromkeys(r, "***") for r in v] if isinstance(v, list) else "***"
+            for k, v in outputs.items()}
+
+
 def save_evidence(result: ReplayResult, cap_path: str | Path,
                   out_dir: Path = ROOT / "evidence" / "replay") -> Path:
     """Write the last run's evidence, masked. Call right after `replay`, successful or not."""
@@ -1492,7 +1642,7 @@ def save_evidence(result: ReplayResult, cap_path: str | Path,
         lines.append(json.dumps(_clean(row, redact), default=str))
     (run / "drift.jsonl").write_text("\n".join(lines) + "\n")
     summary = {"status": result.status, "reason": result.reason, "summary": result.summary,
-               "outputs": {k: "***" for k in result.outputs}, "human": result.human,
+               "outputs": masked_outputs(result.outputs), "human": result.human,
                "failing_step": result.failure["step"] if result.failure else None, "cleanup": result.cleanup}
     (run / "summary.json").write_text(json.dumps(_clean(summary, redact), indent=2) + "\n")
     if result.failure:

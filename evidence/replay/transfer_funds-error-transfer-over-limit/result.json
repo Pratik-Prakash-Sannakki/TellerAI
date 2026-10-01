@@ -1,9 +1,0 @@
-{
-  "run_id": "run",
-  "capability": "transfer_funds",
-  "capability_version": 1,
-  "status": "NEEDS_APPROVAL",
-  "outputs": {},
-  "pending_step": 3,
-  "reason": "amount 750.0 is at or above the auto-approve limit 500.0"
-}

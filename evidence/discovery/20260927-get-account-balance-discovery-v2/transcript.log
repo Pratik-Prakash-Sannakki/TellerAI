@@ -1,7 +1,0 @@
-GOAL: Log in and read the balance of account 18672. Use extract_value to save it as 'balance'.
-[0] observe status=ok /index.htm -> /index.htm
-[1] type_secret status=ok /index.htm -> /index.htm
-[2] type_secret status=ok /index.htm -> /index.htm
-[3] click status=ok /index.htm -> /overview.htm
-[4] extract_value status=ok /overview.htm -> /overview.htm
-[5] finish status=ok /overview.htm -> /overview.htm

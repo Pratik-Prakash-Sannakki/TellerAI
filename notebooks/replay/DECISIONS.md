@@ -29,6 +29,7 @@ Status key: **DECIDED** = settled by an existing doc or a user rule (source give
 | R16 | Dead ends and retries | Keep the last successful action per target; drop failures and take-overs | PROPOSED |
 | R17 | Replay result statuses | `SUCCESS`, `BUSINESS_OUTCOME`, `DECLINED`, `STUCK`, `FAILED` | PROPOSED |
 | R18 | Drift log | Rung used per step; falls to rung 2/3 flag review | DECIDED |
+| R21 | Table reads | `extract_table` step: header by label, discovery's own row reader, scroll on to `row_limit` | DECIDED |
 
 ---
 
@@ -308,3 +309,16 @@ Best-effort: one retry, no rescue panel. It never changes the main status; `resu
 - Per step: which rung matched (1, 2, 3, table, scroll+N) and how many polls the check took.
 - A step that keeps falling to rung 2 or 3 flags the capability for review.
 - No values in it (R7).
+
+## R21: table reads — DECIDED (2026-09-30)
+
+- Step `extract_table` (discovery Q8b) has no target. `do_extract_table` finds the header with
+  rung 2's matching (`find_text(label, ordinal, same_label)`), maps the columns on its line, and
+  reads the rows with discovery's own functions, copied verbatim (`same_line`, `column_spans`,
+  `table_columns`, `col_of`, `text_lines`, `row_of`, `read_rows`, `append_rows`, `TABLE_GAP`;
+  `tests/replay/test_table_replay.py` checks they are identical).
+- While the table runs past the screen: scroll `CFG.scroll_px`, read again from the top, append
+  (overlap dropped), until it ends, a scroll adds nothing, or `row_limit`.
+- No rows = a valid output `[]`. The header not on screen = a failed check (retry, then rescue).
+- `result.outputs[name]` is the list of `{column: text}` rows (in `outputs_line` too). Evidence
+  `summary.json` keeps the shape, every cell `***` (`masked_outputs`).

@@ -6,16 +6,11 @@ dependencies = [
     "deepagents>=0.7.15",
     "langchain>=1.4.2",
     "langchain-anthropic>=1.7.2",
-    "langchain-typesafe>=0.0.1a3",
     "playwright>=1.63.0",
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
-    "typesafe-sdk>=0.7.1",
 ]
-
-[project.scripts]
-cua = "cua.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -31,18 +26,13 @@ dev = [
     "nbstripout>=0.9.1",
     "pytest>=8.0.0",
 ]
-# Pure-visual discovery notebook (notebooks/discovery/, Q-E). Moves to main deps at the src/cua/ port.
+# OCR + image deps for the pure-visual discovery and replay notebooks.
 discovery = [
     "rapidocr>=3.9.2",
     "onnxruntime>=1.30.0",
     "numpy>=2",
-    "ultimate-sitemap-parser>=1.8.1",
 ]
 
 [tool.pytest.ini_options]
-# Scope discovery to tests/ only. Without this, pytest's default discovery walks the whole repo
-# and will import notebooks/scratch/*_test.py -- git-ignored, per-developer scratch files that
-# can (and, found live during this port, do) run top-level browser code on import. tests/ is the
-# only place this port's own test suite lives; this also means `uv run pytest` never depends on
-# what happens to be sitting in a contributor's local, git-ignored scratch directory.
+# Scope collection to tests/ (git-ignored notebooks/scratch/ files may launch a browser on import).
 testpaths = ["tests"]

@@ -1,0 +1,9 @@
+{
+  "status": "STUCK",
+  "reason": "target not found",
+  "summary": "STUCK",
+  "outputs": {},
+  "human": [],
+  "failing_step": 3,
+  "cleanup": "failed: target not found"
+}

@@ -1,0 +1,6 @@
+{
+  "step": 3,
+  "action": "type",
+  "expected": "",
+  "observed": "target not found"
+}

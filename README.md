@@ -12,11 +12,6 @@ discovery.ipynb (LLM + browser)  ->  capability.yaml + crops/  ->  replay.ipynb 
 Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md`
 (Q7-Q21) and `notebooks/replay/DECISIONS.md` (R1-R18). This README covers setup and running.
 
-> The older DOM-based stack (`src/cua/cli.py`, `cua discover` / `cua replay`, the numbered
-> notebooks `01_`-`05_`, `DECISIONS.md` D1-D102, `PHASE1-5.md`) is superseded by the two
-> notebooks below. It is still in the repo. Only `src/cua/models.py` (the model factory),
-> `src/cua/config.py` and `cua.recorder.value_matches_type` are used by the new notebooks.
-
 ## How to set up and run it
 
 Needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and a desktop with a display (the
@@ -45,16 +40,13 @@ The offline tests need no key, no browser and no network. They load the notebook
 (via `ast`) and drive them against fake pages:
 
 ```bash
-.venv/bin/python -m pytest -q tests/discovery tests/replay     # 132 passed (2026-09-29)
+.venv/bin/python -m pytest -q tests     # 352 passed (2026-10-01)
 ```
 
 They cover the send gates and mismatch check, the "nothing stored" rule, evidence masking,
 artifact save, the rungs, replay's step engine, take-over evidence, and a round trip
 (discovery's `build_capability` -> `save_artifact` -> replay's `load_capability`, unchanged).
-
-`.venv/bin/python -m pytest -q tests` also runs the old stack's tests. Today that gives
-`310 passed, 7 errors`: the 7 errors are in `tests/test_live.py`, which reads
-`artifacts/pay_bill.yaml`, a file removed in this working tree.
+`tests/test_models.py` covers the model factory.
 
 ## Demo path
 
@@ -78,14 +70,14 @@ Both notebooks are jupytext pairs: the `.py` is the source, the `.ipynb` is what
      directory, normally `notebooks/discovery/`). It refuses a run that had a take-over.
    - `save_evidence(capability=path)` - writes a masked `evidence/discovery/<UTC>-<goal>/` folder.
 
-Saved examples from earlier runs: `notebooks/discovery/artifacts/visual/` (`transfer_funds.yaml`,
-`pay_bill_to_payee.yaml`, ...).
+Saved examples from earlier runs: `notebooks/discovery/artifacts/visual/` (`transfer_money.yaml`,
+`pay_bill_to_payee.yaml`, `get_all_account_balances.yaml`, ...).
 
 ### 2. Replay the artifact (no LLM)
 
 1. Open `notebooks/replay/replay.ipynb` (same kernel).
 2. In the `## Run` cell set `cap_path` to the YAML from step 1, e.g.
-   `ROOT / "notebooks" / "discovery" / "artifacts" / "visual" / "transfer_funds.yaml"`.
+   `ROOT / "notebooks" / "discovery" / "artifacts" / "visual" / "transfer_money.yaml"`.
 3. **Run all.** Replay loads and checks the YAML, opens `base_url`, then shows **one form** in
    the control tab asking every input the capability needs (e.g. amount, from/to account). It
    walks the steps; any send still stops at Gate 1 and Gate 2 for you.
@@ -103,8 +95,9 @@ notebooks/discovery/   discovery.py/.ipynb, decisions.md, discovery_architecture
 notebooks/replay/      replay.py/.ipynb, DECISIONS.md, replay_architecture.md, PLAN.md
 tests/discovery/       offline tests for discovery's cells
 tests/replay/          offline tests for replay's cells, incl. the discovery -> replay round trip
-src/cua/models.py      the one place a chat model is built (Iliad gateway)
-evidence/              discovery/ and replay/ run folders (older folders there are from the DOM stack)
+src/cua/               config.py (site, secrets by name, host gate) + models.py (the one chat-model factory, Iliad gateway)
+extensions/handback/   Chrome toolbar extension for handing control back
+evidence/              discovery/ and replay/ run folders (see evidence/README.md)
 ```
 
 ## Rules this code keeps

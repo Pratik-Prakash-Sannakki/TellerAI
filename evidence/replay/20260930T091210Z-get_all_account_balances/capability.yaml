@@ -1,0 +1,181 @@
+schema_version: 2
+name: get_all_account_balances
+version: 1
+description: Logs into the banking system and retrieves all accounts with their available
+  balances.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: account_1_number
+  type: id
+  description: First account number
+- name: account_1_balance
+  type: currency
+  description: First account balance
+- name: account_1_available
+  type: currency
+  description: First account available amount
+- name: account_2_number
+  type: id
+  description: Second account number
+- name: account_2_balance
+  type: currency
+  description: Second account balance
+- name: account_2_available
+  type: currency
+  description: Second account available amount
+- name: account_3_number
+  type: id
+  description: Third account number
+- name: account_3_balance
+  type: currency
+  description: Third account balance
+- name: account_3_available
+  type: currency
+  description: Third account available amount
+- name: total_balance
+  type: currency
+  description: Total balance across all accounts
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 11
+      - 42
+    template: crops/get_all_account_balances/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 18
+    template: crops/get_all_account_balances/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_all_account_balances/s2.png
+  cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - -62
+      - 69
+  save_as: account_1_number
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 71
+      - 67
+  save_as: account_1_balance
+- action: extract
+  target:
+    anchor:
+      label: Available Amount
+      ordinal: 1
+      offset:
+      - -39
+      - 28
+  save_as: account_1_available
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - -62
+      - 97
+  save_as: account_2_number
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 69
+      - 96
+  save_as: account_2_balance
+- action: extract
+  target:
+    anchor:
+      label: Available Amount
+      ordinal: 1
+      offset:
+      - -1
+      - 55
+  save_as: account_2_available
+- action: extract
+  target:
+    table_cell:
+      row_key: Find Transactions
+      column: Accounts Overview
+  save_as: account_3_number
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 64
+      - 124
+  save_as: account_3_balance
+- action: extract
+  target:
+    anchor:
+      label: Available Amount
+      ordinal: 1
+      offset:
+      - -4
+      - 83
+  save_as: account_3_available
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 15
+      - 152
+  save_as: total_balance
+  pattern: -?\$-?[\d,]*\d(?:\.\d{2})?|-?[\d,]*\d\.\d{2}
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_all_account_balances/s13.png
+  cleanup: true
+checkpoint: Account

@@ -55,7 +55,7 @@ def test_a_send_still_takes_the_pages_response() -> None:
 
 
 TABLE_FNS = {"Box", "Element", "Look", "table_cell", "row_block", "column_header", "is_word",
-             "read_target", "where", "label_near", "element_at", "spot", "clean_label", "redactor",
+             "read_target", "where", "merged_label", "label_near", "element_at", "spot", "clean_label", "redactor",
              "_num", "norm"}
 
 
@@ -162,9 +162,9 @@ def test_a_header_far_above_the_value_is_not_its_column() -> None:
 def test_the_prompt_says_to_save_every_value_a_read_goal_asks_for() -> None:
     text = SRC.read_text()
     prompt = text[text.index("VISUAL_SYSTEM_PROMPT = "):]
-    for part in ("save EVERY value the goal asks for with extract_value",
-                 "Only saved values are returned to the caller",
-                 "Read values before you log out"):
+    for part in ("MUST save every value the goal asks for with extract_value",
+                 "Only saved values reach the caller",
+                 "MUST read values BEFORE logging out"):
         assert part in " ".join(prompt[:prompt.index('"""\n', 30)].split())
 
 

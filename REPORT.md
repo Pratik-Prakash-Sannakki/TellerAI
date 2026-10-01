@@ -6,8 +6,8 @@ engine runs the artifact again with plain code and no LLM. Both engines are note
 the production design: `notebooks/discovery/discovery.py` and `notebooks/replay/replay.py`
 (jupytext pairs of the `.ipynb` files). Decision IDs: `Q*` are in
 `notebooks/discovery/decisions.md`, `R*` and `P*` are in `notebooks/replay/DECISIONS.md` /
-`PLAN.md`. The earlier DOM-based stack (`src/cua/cli.py`, D1-D102) is superseded. Only its model
-factory and config are reused.
+`PLAN.md`. An earlier DOM-based stack was removed (2026-10-01). Only its model factory and config
+remain, in `src/cua/models.py` and `src/cua/config.py`.
 
 Status words used below: **built** (in the code and tested), **designed** (decided, not in the
 code), **in progress** (being added now), **cut**.
@@ -101,8 +101,7 @@ other text inside them is blanked, so no customer data is saved (Q14).
    - If all miss, scroll once and retry (`CFG.scroll_retries`).
    - Act through discovery's `act` / `into_box` / `choose_option`.
    - Check by OCR on a bounded poll.
-   - A failed check is retried once. It is **never** retried for a send or a secret (R15, the old
-     D26). A slow page can never fire a payment twice.
+   - A failed check is retried once. It is **never** retried for a send or a secret (R15). A slow page can never fire a payment twice.
 6. Check the `checkpoint` text and the declared outputs.
 
 **Statuses (R17).** `ReplayResult(status, outputs, drift, reason, human, failure)`:
@@ -158,7 +157,7 @@ of heterogeneity. The engine never assumes a clean DOM, `id`s, `<label>`s, or ev
 that draws text on a screen can be targeted. The rungs describe *what a control looks like and
 where it sits relative to its label*. They never store an app-specific ID or a raw pixel.
 
-The design, carried over from the old D21/D64 reasoning:
+The design, carried over from the earlier DOM stack's reasoning:
 
 - **One base capability per vendor product, plus small per-tenant overrides.** Not one artifact
   per tenant. An override patches only what differs, e.g. rung 1 text "Sign In" instead of
@@ -193,7 +192,7 @@ take-over.
   - 3 failed tool results in a row (`unsure_limit`);
   - the same call repeated 3 times;
   - 40 steps (`step_budget`);
-  - login hitting its limit or a failure text (D69).
+  - login hitting its limit or a failure text.
   The panel has three choices: **answer** (text back to the agent), **take over**, **stop**.
 - Sends: the two gates (see Safety).
 

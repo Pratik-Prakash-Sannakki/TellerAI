@@ -1,0 +1,123 @@
+schema_version: 2
+name: transfer_money
+version: 1
+description: Transfers a specified amount of money from one account to another. This
+  capability logs into the banking system, navigates to the transfer functionality,
+  and completes the transfer between the specified accounts.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: amount
+  type: string
+  description: The dollar amount to transfer
+- name: from_account
+  type: string
+  description: The account number to transfer money from
+- name: to_account
+  type: string
+  description: The account number to transfer money to
+outputs: []
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Username
+      ordinal: 1
+      offset:
+      - 25
+      - 20
+    template: crops/transfer_money/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 25
+      - 20
+    template: crops/transfer_money/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/transfer_money/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Transfer Funds
+      ordinal: 1
+    anchor:
+      label: Accounts Overview
+      ordinal: 2
+      offset:
+      - -12
+      - 24
+    template: crops/transfer_money/s3.png
+  cleanup: false
+- action: type
+  target:
+    anchor:
+      label: 'Amount: $'
+      ordinal: 1
+      offset:
+      - 70
+      - 0
+    template: crops/transfer_money/s4.png
+  value: '{{amount}}'
+- action: select
+  target:
+    anchor:
+      label: 'From account #'
+      ordinal: 1
+      offset:
+      - 66
+      - 0
+    template: crops/transfer_money/s5.png
+  option: '{{from_account}}'
+- action: select
+  target:
+    template: crops/transfer_money/s6.png
+  option: '{{to_account}}'
+- action: click
+  target:
+    ocr_text:
+      text: TRANSFER
+      ordinal: 1
+    anchor:
+      label: Bill Pay.
+      ordinal: 1
+      offset:
+      - 210
+      - 4
+    template: crops/transfer_money/s7.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/transfer_money/s8.png
+  cleanup: true
+checkpoint: Transfer Complete!

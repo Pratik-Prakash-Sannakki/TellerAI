@@ -24,7 +24,7 @@ class Page:
         if i < 0:
             return False
         self.selected = i
-        return [100, 50]
+        return [100, 50, 0]          # centre, then its index among the page's selects
 
     async def wait_for_timeout(self, ms: int) -> None:
         return None
@@ -55,13 +55,13 @@ def test_not_a_dropdown_gives_no_options() -> None:
 
 def test_selects_by_value_and_confirms_on_screen() -> None:
     pg = Page(["14898", "124677"])
-    assert asyncio.run(_fns(pg)["choose_option"]((100, 50), "124677")) is True
+    assert asyncio.run(_fns(pg)["choose_option"]((100, 50), "124677")) == 0     # the index
     assert pg.options[pg.selected] == "124677"
 
 
 def test_missing_option_is_refused() -> None:
     pg = Page(["14898", "124677"])
-    assert asyncio.run(_fns(pg)["choose_option"]((100, 50), "99999")) is False
+    assert asyncio.run(_fns(pg)["choose_option"]((100, 50), "99999")) is None
     assert pg.selected == 0
 
 

@@ -1,0 +1,9 @@
+{
+  "status": "STUCK",
+  "reason": "the step's check failed",
+  "summary": "STUCK",
+  "outputs": {},
+  "human": [],
+  "failing_step": 6,
+  "cleanup": "done"
+}

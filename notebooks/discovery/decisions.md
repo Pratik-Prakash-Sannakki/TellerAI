@@ -138,6 +138,39 @@ Account    Balance     Available
   uses the normal rungs.
 - Fallback, only if the hostile page shows this is not enough: an OpenCV grid-line detector.
 
+## Q8b: reading a whole table — DECIDED (2026-09-30)
+
+**Why.** Live goal "Log in, get all transactions per account": the agent read 6 accounts and ~15
+rows by eye, wrote them in its final message, and saved nothing (`extract_value` = one value per
+box), so the save refused ("nothing was read or sent").
+
+**Decision.**
+- New tool `extract_table(header_ref, save_as, columns, description, row_limit=50)`. The agent
+  points at one header cell and names the columns by their header texts. **Code** reads the rows
+  from the look's OCR: the header line = the texts on the header's line; each header's x-range
+  runs to the midpoint with its neighbours; rows below it end at a vertical gap >= `TABLE_GAP`, a
+  line with no text in any asked column, or `row_limit`; each text goes to the column it overlaps
+  most. `HANDOFF.saved[save_as] = [{column: text}, ...]`.
+- Past the screen's bottom the tool says "may continue below"; a second call with the same
+  `save_as` after a scroll appends, dropping only the rows the two reads share. At compile, the
+  second read and the scrolls before it fold into the first: one step (replay scrolls itself).
+- The event holds labels only: the columns, their x-ranges, the header's ordinal, `row_limit`.
+  Never a cell. A column name holding a run value is refused. Page texts/headings for the
+  checkpoint skip the table's cells.
+- Schema (additive): step `ExtractTable {action: extract_table, header: {label, ordinal},
+  columns, save_as, row_limit}`; `Output.type = "table"` with optional `columns`. A table read
+  counts as a read for "nothing was read or sent". `describe()` is told the table outputs.
+- One table per step. One table per item (per account) = one call per item page, `save_as`
+  `name_1`, `name_2`, ... (a fixed name + an index, never a value).
+- The reading functions (`same_line` ... `append_rows`) are copied verbatim into replay; a test
+  checks they stay identical.
+
+## Cuts
+
+- **For-each over a list output** (next step): a step that runs a sub-sequence once per row of a
+  table output (e.g. click each account, then `extract_table`). Today a variable number of
+  accounts is not supported: a capability replays exactly the items discovery visited.
+
 ## Q9: image library — DECIDED
 
 **Options considered:** A. OpenCV. B. Pillow only (can't find a picture inside a picture, so

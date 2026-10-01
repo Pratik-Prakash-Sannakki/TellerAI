@@ -1,11 +1,7 @@
-"""Shared configuration: the app this whole system points at, and secret lookup.
+"""Shared configuration: the app this system points at, secret lookup, and the Iliad gateway.
 
-Ported from the identical config cells duplicated three times across the notebooks
-(``agent.ipynb`` Setup 1/4, ``03_recorder.py`` OFFLINE 1 + BROWSER 1, ``05_replay_live.py``
-Setup 1) -- see DECISIONS.md's Phase 9 packaging decision for why this one module now holds a
-single copy instead of three. Every value below is config, per CLAUDE.md's own rule ("No
-ParaBank-specific code in agent tools. ParaBank values live in config or ground-truth cells
-only.") -- nothing here is agent or replay logic.
+Every value below is config, per CLAUDE.md ("ParaBank values live in config or ground-truth
+cells only") -- nothing here is agent or replay logic.
 """
 
 from __future__ import annotations
@@ -22,9 +18,6 @@ ALLOWED_HOSTS = {"parabank.parasoft.com"}
 SECRETS = {"username": "PARABANK_USERNAME", "password": "PARABANK_PASSWORD"}   # names only (D32)
 APP_ID = "parabank"
 SESSION_EXPIRED_TEXT = "Customer Login"   # login page text, used for the relogin outcome rule
-
-# Optional (D50): routes discovery steps to Haiku or Sonnet via TypeSafe. Off unless set.
-TYPESAFE_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
 
 # Company Iliad gateway (every LLM call goes here; see cua.models). The key is read only from
 # the ILIAD_API_KEY env var, inside cua.models -- never stored in this module. `or` so a blank

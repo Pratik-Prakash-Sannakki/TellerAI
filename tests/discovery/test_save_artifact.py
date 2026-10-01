@@ -164,7 +164,7 @@ def test_open_path_query_values_become_inputs() -> None:
 
 def _look_ns() -> dict:
     tree = ast.parse(TEXT)
-    names = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "norm",
+    names = {"Box", "Element", "Look", "element_at", "label_near", "spot", "where", "merged_label", "norm",
              "clean_label", "redactor", "_num"}
     keep = [n for n in tree.body if getattr(n, "name", None) in names
             or (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "NUMBER")]

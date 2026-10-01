@@ -1,0 +1,9 @@
+{
+  "status": "FAILED",
+  "reason": "the site showed an error page",
+  "summary": "FAILED",
+  "outputs": {},
+  "human": [],
+  "failing_step": 3,
+  "cleanup": "done"
+}

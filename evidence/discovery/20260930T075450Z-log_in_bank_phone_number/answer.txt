@@ -1,0 +1,7 @@
+Perfect! I have successfully:
+1. Logged into the ParaBank system
+2. Found the bank's phone number on the About Us page: **888-305-0041**
+3. Extracted the phone number information
+4. Logged out
+
+The task is complete. The bank's phone number is **888-305-0041**, which was found on the About Us page with the text "***".
