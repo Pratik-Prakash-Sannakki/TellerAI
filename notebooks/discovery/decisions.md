@@ -27,6 +27,7 @@ Status key: **DECIDED** = user-confirmed. **OPEN** = not answered yet. All quest
 | Q18 | Where to prove it live | ParaBank only, purely visual; no local hostile page for now | DECIDED |
 | Q19 | What the builder may run | OFFLINE cells only, via `run_offline.py` | DECIDED |
 | Q20 | Where the new libraries go | A separate `discovery` dependency group | DECIDED |
+| Q22 | TypeSafe tool selection + model routing | Restored, off unless `TYPESAFE_API_KEY`; fails open | DECIDED |
 
 ---
 
@@ -475,3 +476,23 @@ do the manual steps, "then hand control back", and that we "record what the huma
   entries). They live in memory on the event, like crops. They must be redacted, or kept out of
   the artifact, before anything persists them (the `evidence/` saving path decides). They are
   never written into a capability YAML.
+
+## Q22: TypeSafe tool selection + model routing — DECIDED
+
+**Why.** Planned in `PLAN.md` (D50/D52/D76) for the DOM agent, never wired into this notebook, then
+deleted with `src/cua/agent.py` in 4f692a8.
+
+**Decision (user, 2026-10-01): restore it in the package, off by default.**
+- `src/cua/discovery/agent/routing.py`: a tool router (TypeSafe `Choice` picks the step's job and
+  narrows the tools to it) and a model router (Haiku "fast" / Sonnet "powerful", both via
+  `cua.llm.make_chat_model`). Appended after the notebook's own middleware by `build_agent`.
+- Jobs map to the visual tools. Always kept: `observe`, `click`, `type_secret`, `ask_human`.
+  `login` + `type_secret`; `fill_form` + `type_text`, `select_option`, `scroll`; `read_value` +
+  `extract_value`, `extract_table`, `scroll`; `navigate` + `open_path`, `scroll`; `need_human` +
+  `request_missing_values`, `ask_human`; `finish` + `finish_business_outcome`.
+- Off unless `TYPESAFE_API_KEY` is set (then `[]`, the notebook's agent unchanged).
+  `langchain-typesafe` is the optional `typesafe` extra, imported only when on.
+- **Privacy caveat:** when on, every model call sends the page path and the last tool result's
+  text (first 400 chars) to typesafe.ai. Never turn it on with real data.
+- **Fail open:** classifier confidence below 0.8, or any error (network, auth, timeout), keeps
+  every tool. A wrong guess must never hide the tool the agent needs.

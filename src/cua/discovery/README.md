@@ -33,6 +33,13 @@ that replay runs without an LLM. Built up step by step (`docs/PRODUCTIONIZE_PLAN
    Each module has `make_<group>_tools(ctx)`. Names, signatures and docstrings are the notebook's
    (the model reads them; `tests/unit/discovery/tools/test_build_tools.py` pins them).
 
+7. `agent/` (step 8c) - prompt, middleware, optional TypeSafe routing, `build_agent(ctx, model)`
+   (see `agent/README.md`).
+8. `goal.py` - `run_goal(ctx, agent, goal, thread_id=None) -> str`: `new_run` + the start event
+   (new thread only), the answer, the final shot on STUCK/DECLINED or a crash, `wipe` in `finally`.
+9. `evidence.py` - `save_evidence(ctx, out_dir, capability=None, model=None, ocr_fn=None)`: one
+   masked folder per run, plus `run.json` (prompt version, model, config hash, git sha).
+
 ## Contracts for the tools / agent (steps 8b, 8c)
 - Build the ctx once per session (`attach`), then `new_run(ctx, goal)` per goal. The run swap
   assigns `ctx.guard.state`; the same ctx (and every tool closed over it) sees the new run. Never
