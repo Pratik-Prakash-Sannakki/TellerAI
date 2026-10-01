@@ -189,3 +189,15 @@ def test_every_saved_artifact_loads_with_fake_secrets(
     cap, crops = load_capability(path, SITE, CFG)
     assert cap.schema_version == 2  # noqa: PLR2004
     assert crops == path.parent
+
+
+def test_an_input_of_an_unknown_type_does_not_load(tmp_path: Path, username_set: None) -> None:
+    data = CAP | {"inputs": [{"name": "account_id", "type": "money"}]}
+    with pytest.raises(Stop, match=r"unknown type \['money'\]"):
+        load_capability(_write(tmp_path, data), SITE, CFG)
+
+
+def test_an_input_of_a_value_type_loads(tmp_path: Path, username_set: None) -> None:
+    data = CAP | {"inputs": [{"name": "account_id", "type": "number"}]}
+    cap, _ = load_capability(_write(tmp_path, data), SITE, CFG)
+    assert cap.inputs[0].type == "number"

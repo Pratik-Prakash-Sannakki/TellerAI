@@ -359,6 +359,7 @@ async def test_human_fills_enters_values_and_never_logs_them(entry: list[str]) -
     assert [e["tool"] for e in ctx.run.log] == ["request_value", "request_value"]
     assert "90210" not in str(ctx.run.log)
     assert "123-45" not in str(ctx.run.log)
+    assert [e.get("shapes") for e in ctx.run.log] == [["number", "integer", "id"], None]
 
 
 @pytest.mark.asyncio

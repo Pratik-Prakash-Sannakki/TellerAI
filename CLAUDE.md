@@ -67,7 +67,7 @@ import rules), then the subpackage it points you to.
 - No ParaBank-specific code in agent tools. ParaBank values live in config or ground-truth cells only.
 - Login is done by the agent with `type_secret` (model sees the name, never the value). 
 - Agent = deep agents (discovery only). Replay = plain code, no LLM.
-- Every LLM call goes through `cua.models.make_chat_model` (Iliad gateway; see `.env.example`).
+- Every LLM call goes through `cua.llm.make_chat_model` (direct Anthropic by default; gateway opt-in, see `.env.example`).
 - Don't touch the old repo `~/Documents/interface-ai-computer-use`.
 
 ## The system (pure visual)

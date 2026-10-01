@@ -32,6 +32,7 @@ from cua.discovery.recorder.events import (
     without_no_ops,
 )
 from cua.discovery.recorder.save import crops_for, describe, save_artifact
+from cua.discovery.recorder.types import input_types, pick_type, shapes_of
 
 __all__ = [
     "FIELD_GAP",
@@ -46,6 +47,7 @@ __all__ = [
     "field_area",
     "flag_leaks",
     "goes_to_a_page",
+    "input_types",
     "input_name",
     "is_select",
     "mark_submits",
@@ -53,9 +55,11 @@ __all__ = [
     "no_op",
     "one_read_per_table",
     "output",
+    "pick_type",
     "same_click",
     "same_spot",
     "save_artifact",
+    "shapes_of",
     "step_events",
     "step_inputs",
     "target",

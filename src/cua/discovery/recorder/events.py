@@ -91,15 +91,20 @@ def without_logout(events: list[Event]) -> list[Event]:
     return [*events[:end], {**clicks[-1], "cleanup": True}]  # type: ignore[typeddict-unknown-key]
 
 
-def step_events(log: list[Event]) -> list[Event]:
-    """R16: drop failures, keep the last success per field. Refuse a take-over."""
-    if any(ev.get("recordable") is False for ev in log):
-        raise ValueError("a human take-over happened: steps we cannot see. Not saved.")
-    ok = [
+def succeeded(log: list[Event]) -> list[Event]:
+    """The step-tool calls that did not fail, block or stop: every value an input really took."""
+    return [
         ev
         for ev in log
         if ev["tool"] in STEP_TOOLS and not ev["result"].startswith((*FAILED, "BLOCKED", "STOP"))
     ]
+
+
+def step_events(log: list[Event]) -> list[Event]:
+    """R16: drop failures, keep the last success per field. Refuse a take-over."""
+    if any(ev.get("recordable") is False for ev in log):
+        raise ValueError("a human take-over happened: steps we cannot see. Not saved.")
+    ok = succeeded(log)
     key = lambda ev: (urlparse(ev["url"]).path, ev.get("label") or ev["point"])  # noqa: E731
     last = {key(ev): i for i, ev in enumerate(ok) if ev["tool"] in FIELD_TOOLS}  # type: ignore[no-untyped-call]
     later_select = lambda i: any(  # noqa: E731

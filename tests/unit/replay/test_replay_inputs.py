@@ -275,3 +275,56 @@ async def test_replay_stops_on_an_unknown_key_before_opening_the_site(
         and res.reason == "not a permissible input: acct. Accepts: account_id."
     )
     assert opened == []
+
+
+# --- typed inputs: a given value must match its declared type ---
+
+
+def _typed_cap(**types: str) -> Capability:
+    return cap(
+        [_type(n) for n in types],
+        inputs=[{"name": n, "type": t, "description": f"the {n}"} for n, t in types.items()],
+    )
+
+
+def test_a_given_value_of_the_declared_type_is_accepted() -> None:
+    cp = _typed_cap(amount="currency", when="date", memo="string")
+    given = {"amount": "123.45", "when": "2026-01-01", "memo": "anything at all"}
+    assert loader.given_inputs(cp, given) == given
+
+
+def test_a_given_value_of_the_wrong_type_stops_naming_input_and_type() -> None:
+    with pytest.raises(Stop) as e:
+        loader.given_inputs(_typed_cap(amount="currency"), {"amount": "ten dollars"})
+    assert e.value.status == "STUCK"
+    assert e.value.reason == "amount must be of type currency"
+    assert "ten dollars" not in e.value.reason
+
+
+def test_the_form_states_each_inputs_type() -> None:
+    assert loader.type_hint("currency") == " (currency, e.g. 123.45)"
+    assert loader.type_hint("string") == ""
+
+
+@pytest.mark.asyncio
+async def test_a_form_answer_of_the_wrong_type_is_asked_again(
+    env: tuple[Ctx, list[str]],
+) -> None:
+    ctx, _ = env
+    set_control(ctx, form := FakeForm(["abc"], ["123.45"]))
+    assert await loader.ask_inputs(ctx, _typed_cap(amount="currency")) == {"amount": "123.45"}
+    assert len(form.asked) == 2  # noqa: PLR2004
+    assert form.asked[0][0] == [("amount: the amount (currency, e.g. 123.45)", False)]
+    again = "amount: the amount (currency, e.g. 123.45) -- must be currency"
+    assert form.asked[1][0] == [(again, False)]
+
+
+@pytest.mark.asyncio
+async def test_a_form_answer_still_wrong_after_the_retry_stops(
+    env: tuple[Ctx, list[str]],
+) -> None:
+    ctx, _ = env
+    set_control(ctx, FakeForm(["abc"], ["abc"]))
+    with pytest.raises(Stop) as e:
+        await loader.ask_inputs(ctx, _typed_cap(amount="currency"))
+    assert e.value.reason == "amount must be of type currency"

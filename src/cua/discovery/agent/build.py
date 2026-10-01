@@ -11,6 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 from cua.discovery.agent.middleware import (
     LatestScreenshotOnly,
     NoopAnthropicPromptCachingMiddleware,
+    RecordWhy,
 )
 from cua.discovery.agent.prompt import VISUAL_SYSTEM_PROMPT
 from cua.discovery.agent.routing import build_routing_middleware
@@ -28,6 +29,7 @@ def build_agent(ctx: Ctx, model: BaseChatModel) -> CompiledStateGraph:  # type: 
         system_prompt=VISUAL_SYSTEM_PROMPT,
         checkpointer=MemorySaver(),
         middleware=[
+            RecordWhy(ctx),  # outermost: sees the model's final answer
             NoopAnthropicPromptCachingMiddleware(),
             LatestScreenshotOnly(),
             *build_routing_middleware(lambda: ctx.page.url),

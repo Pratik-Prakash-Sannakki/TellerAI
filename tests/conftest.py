@@ -7,6 +7,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _fake_llm_keys(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A fake Iliad key so code that builds a chat model works offline; no real key is used."""
-    monkeypatch.setenv("ILIAD_API_KEY", "test-key-not-real")
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    """A fake direct-Anthropic key so code that builds a chat model works offline; no gateway."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    for name in ("ILIAD_API_KEY", "ILIAD_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)

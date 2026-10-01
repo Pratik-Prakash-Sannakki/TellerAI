@@ -46,6 +46,7 @@ class DiscoveryRun:
     dropdowns: list[dict[str, object]] = field(default_factory=list)  # read before each action
     redact: set[str] = field(default_factory=set)  # run values, only to mask evidence (in memory)
     answer: str = ""  # the agent's final message
+    why: str = ""  # the model's masked reason for its latest tool calls (RecordWhy)
     messages: list[object] = field(default_factory=list)  # the run's chat, for the transcript
     final_shot: bytes | None = None  # the page when a run ends STUCK/DECLINED or crashes
     navs: int = 0  # main-frame navigations so far (a link back to the same URL is one too)

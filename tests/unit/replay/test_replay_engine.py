@@ -4,6 +4,7 @@ test_cleanup.py and test_partial_outputs.py."""
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -479,3 +480,49 @@ async def test_checkpoint_miss_carries_expected_and_observed() -> None:
         mp.undo()
     assert e.value.expected == "Transfer Complete!" and e.value.observed == lk.text[:200]
     assert ctx.run.step == 1 and ctx.run.action == "checkpoint"
+
+
+# --- the action-type allowlist (assignment 3.4) ---------------------------------------------
+
+
+def _only(ctx: Ctx, *actions: str) -> None:
+    site = dataclasses.replace(ctx.session.site, allowed_actions=frozenset(actions))
+    ctx.session = dataclasses.replace(ctx.session, site=site)
+
+
+@pytest.mark.asyncio
+async def test_a_step_whose_action_is_not_allowed_fails_before_acting(
+    ectx: Ctx, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = script(monkeypatch, ectx, "click", [True])
+    found: list[object] = []
+
+    async def find(*a: object) -> None:
+        found.append(a)
+
+    monkeypatch.setattr(steps, "find", find)
+    _only(ectx, "navigate", "type")
+    res = await walk(ectx, cap([click("Transfer")], checkpoint="Transfer"))
+    assert isinstance(res, Stop)
+    assert res.status == "FAILED"
+    assert res.reason == "action 'click' is not in allowed_actions"
+    assert calls == [] and found == [] and ectx.run.action == "click"
+
+
+@pytest.mark.asyncio
+async def test_an_allowed_action_still_runs(ectx: Ctx, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = script(monkeypatch, ectx, "click", [True])
+    _only(ectx, "click")
+    res = await walk(ectx, cap([click("Transfer")], checkpoint="Transfer"))
+    assert res.status == "SUCCESS" and len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_cleanup_step_whose_action_is_not_allowed_is_not_run(
+    clean: tuple[Ctx, list[str], set[str]],
+) -> None:
+    ctx, order, _ = clean
+    _only(ctx, "type")
+    res = await engine.run_cleanup(ctx, cap([click("Log Out", cleanup=True)]), None, [])
+    assert res == "failed: action 'click' is not in allowed_actions"
+    assert order == []

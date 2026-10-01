@@ -10,7 +10,6 @@ step (see `docs/PRODUCTIONIZE_PLAN.md`); later steps append their folders here.
 2. `schema/` - the contract between discovery and replay (capability, value types, results,
    events). Pure, no I/O.
 3. `llm.py` - `make_chat_model`, the one place a chat model is built (Iliad gateway).
-   `models.py` is a re-export kept so `from cua.models import make_chat_model` still works.
 
 ## Rules
 - No site value (host, URL, words, env-var names) in `src/`: they live in `configs/<site>.yaml`

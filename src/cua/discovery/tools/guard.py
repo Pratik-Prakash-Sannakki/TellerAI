@@ -23,6 +23,23 @@ from cua.schema.events import Event
 P = ParamSpec("P")
 Result = str | list[dict[str, str]]  # a tool's text, or content blocks (text first)
 
+# Assignment 3.4: each tool -> the capability step action it performs, checked against
+# ``ctx.site.allowed_actions``. None = not a site action (looking, finishing, asking a human).
+TOOL_ACTIONS: dict[str, str | None] = {
+    "observe": None,
+    "click": "click",
+    "type_text": "type",
+    "type_secret": "type",
+    "select_option": "select",
+    "scroll": "scroll",
+    "open_path": "navigate",
+    "extract_value": "extract",
+    "extract_table": "extract_table",
+    "finish_business_outcome": None,
+    "request_missing_values": None,
+    "ask_human": None,
+}
+
 
 def log(
     ctx: Ctx, tool: str, args: dict[str, object], result: str, *at: object, **extra: object
@@ -40,6 +57,8 @@ def log(
         "crop": crop,
         **extra,
     }
+    if ctx.run.why and tool in TOOL_ACTIONS:  # 3.5: why the agent made this call (masked)
+        event["why"] = ctx.run.why
     ctx.run.log.append(cast("Event", event))
 
 
@@ -65,6 +84,19 @@ def note_call(ctx: Ctx, tool: str, args: dict[str, object]) -> str | None:
     if len(ctx.run.recent) == limit and len(set(ctx.run.recent)) == 1:
         return mark_stuck(ctx, f"repeated {tool} {limit} times")
     return None
+
+
+def refuse_action(ctx: Ctx, tool: str, args: dict[str, object]) -> str | None:
+    """3.4: a tool whose action type the site does not allow is refused (and logged), not run."""
+    action = TOOL_ACTIONS.get(tool)
+    if action is None or action in ctx.site.allowed_actions:
+        return None
+    msg = (
+        f"REFUSED: action '{action}' is not in allowed_actions. "
+        "Use another tool or reply 'STUCK: <why>'."
+    )
+    log(ctx, tool, args, msg)
+    return msg
 
 
 def after_login_click(ctx: Ctx, screen_text: str) -> str | None:
@@ -146,7 +178,9 @@ def one_at_a_time(
                 run.steps += 1
                 over = run.steps > budget and mark_stuck(ctx, f"{budget} steps without finishing")
                 run.verdict = ""
-                result = over or note_call(ctx, fn.__name__, dict(k)) or await fn(*a, **k)
+                name, args = fn.__name__, dict(k)
+                refused = over or refuse_action(ctx, name, args) or note_call(ctx, name, args)
+                result = refused or await fn(*a, **k)
                 return await _checked(ctx, result)
 
         return wrapper

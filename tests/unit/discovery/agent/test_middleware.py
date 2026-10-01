@@ -7,12 +7,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from cua.discovery.agent.middleware import (
+    WHY_CHARS,
     LatestScreenshotOnly,
     NoopAnthropicPromptCachingMiddleware,
+    RecordWhy,
 )
+from tests.fakes import make_ctx
 
 
 def _shot(i: int) -> ToolMessage:
@@ -56,3 +59,93 @@ async def test_noop_caching_passes_the_request_through() -> None:
         return r
 
     assert await mw.awrap_model_call(req, handler) is req  # type: ignore[arg-type]
+
+
+def _answer(text: str, *calls: dict[str, object]) -> SimpleNamespace:
+    msg = AIMessage(
+        content=text,
+        tool_calls=[
+            {"name": c["name"], "args": c["args"], "id": f"c{i}"} for i, c in enumerate(calls)
+        ],
+    )
+    return SimpleNamespace(result=[msg])
+
+
+@pytest.mark.asyncio
+async def test_record_why_keeps_the_text_before_a_tool_call() -> None:
+    ctx = make_ctx()
+    why = "The login form is open, so I type the username."
+    resp = _answer(why, {"name": "observe", "args": {}})
+
+    async def handler(r: object) -> object:
+        return resp
+
+    assert await RecordWhy(ctx).awrap_model_call(object(), handler) is resp  # type: ignore[arg-type]
+    assert ctx.run.why == why
+
+
+def test_record_why_masks_values_secrets_and_the_calls_own_args() -> None:
+    ctx = make_ctx(secrets={"username": "u-val", "password": "p-val"})
+    ctx.run.typed_texts.add("Springfield")
+    text = "Typed Springfield and u-val; now 74838 goes in To account, then p-val."
+    resp = _answer(text, {"name": "type_text", "args": {"text": "74838", "ref": 3}})
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: resp)  # type: ignore[arg-type, return-value]
+    why = ctx.run.why
+    for value in ("Springfield", "u-val", "p-val", "74838"):
+        assert value not in why
+    assert "To account" in why
+
+
+def test_record_why_is_truncated_after_masking() -> None:
+    ctx = make_ctx()
+    text = "x" * 195 + " 74838 and more words after it"
+    resp = _answer(text, {"name": "type_text", "args": {"text": "74838"}})
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: resp)  # type: ignore[arg-type, return-value]
+    assert len(ctx.run.why) <= WHY_CHARS
+    assert "7483" not in ctx.run.why  # masked first, so no prefix of the value survives
+
+
+def test_record_why_ignores_an_answer_with_no_tool_call() -> None:
+    ctx = make_ctx()
+    ctx.run.why = "earlier"
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: _answer("Done."))  # type: ignore[arg-type, return-value]
+    assert ctx.run.why == "earlier"
+
+
+def test_record_why_reads_text_blocks() -> None:
+    ctx = make_ctx()
+    msg = AIMessage(
+        content=[{"type": "text", "text": "Opening bill pay."}],
+        tool_calls=[{"name": "open_path", "args": {"path": "/billpay.htm"}, "id": "c0"}],
+    )
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: SimpleNamespace(result=[msg]))  # type: ignore[arg-type, return-value]
+    assert ctx.run.why == "Opening bill pay."
+
+
+@pytest.mark.parametrize(
+    "shown",
+    [
+        "13344",
+        "1334 4556",
+        "$1,250.00",
+        "75.50",
+        "jo.doe@example.test",
+        "(555) 010-0199",
+        "9/30/2026",
+    ],
+)
+def test_record_why_blanks_value_shapes_seen_only_in_the_ai_text(shown: str) -> None:
+    ctx = make_ctx()  # the value is no run value and no tool arg: only its shape gives it away
+    resp = _answer(
+        f"I see {shown} on screen, so I open the next page.", {"name": "observe", "args": {}}
+    )
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: resp)  # type: ignore[arg-type, return-value]
+    assert shown not in ctx.run.why
+    assert ctx.run.why == "I see [value] on screen, so I open the next page."
+
+
+def test_record_why_keeps_short_numbers_like_refs() -> None:
+    ctx = make_ctx()
+    resp = _answer("Box 12 is the Payee Name field.", {"name": "observe", "args": {}})
+    RecordWhy(ctx).wrap_model_call(object(), lambda r: resp)  # type: ignore[arg-type, return-value]
+    assert ctx.run.why == "Box 12 is the Payee Name field."

@@ -9,7 +9,14 @@ import re
 from urllib.parse import parse_qsl, urlparse
 
 from cua.discovery.recorder.checkpoint import checkpoint
-from cua.discovery.recorder.events import READ_TOOLS, input_name, is_select, step_events
+from cua.discovery.recorder.events import (
+    READ_TOOLS,
+    input_name,
+    is_select,
+    step_events,
+    succeeded,
+)
+from cua.discovery.recorder.types import input_types
 from cua.schema import (
     Anchor,
     Capability,
@@ -109,7 +116,7 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
     events, name = step_events(log), input_name(meta.name)
     _refuse(log, events)
     steps = [to_step(ev, f"crops/{name}/s{i}.png") for i, ev in enumerate(events)]
-    names = step_inputs(steps)
+    names, types = step_inputs(steps), input_types(succeeded(log))  # every value, retries too
     return Capability(
         name=name,
         description=meta.description,
@@ -117,7 +124,12 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
         viewport=start["viewport"],  # type: ignore[arg-type]
         device_scale_factor=start["device_scale_factor"],  # type: ignore[arg-type]
         inputs=[
-            Input(name=n, description=meta.inputs.get(n) or n.replace("_", " ")) for n in names
+            Input(
+                name=n,
+                type=types.get(n, "string"),
+                description=meta.inputs.get(n) or n.replace("_", " "),
+            )
+            for n in names
         ],
         outputs=[output(ev) for ev in events if ev["tool"] in READ_TOOLS],
         secrets=list(

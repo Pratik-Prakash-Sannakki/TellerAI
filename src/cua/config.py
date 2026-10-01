@@ -1,4 +1,4 @@
-"""Shared configuration: the site profile, browser/discovery/replay settings, and the Iliad gateway.
+"""Shared configuration: the site profile, browser/discovery/replay settings, and model names.
 
 Site values (start URL, hosts, secret env-var names, words, outcome rules) live only in
 ``configs/<site>.yaml`` and are loaded into a frozen :class:`SiteProfile` by :func:`load_site`.
@@ -17,14 +17,16 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# Company Iliad gateway (every LLM call goes here; see cua.llm). The key is read only from
-# the ILIAD_API_KEY env var, inside cua.llm -- never stored in this module. `or` so a blank
-# `.env` line (e.g. `ILIAD_BASE_URL=`) still means "use the default".
-ILIAD_BASE_URL = os.getenv("ILIAD_BASE_URL") or "https://iliad-emerging-api.abbvienet.com/anthropic"
+# Model names (env overrides keep working). The LLM endpoint itself is chosen in cua.llm:
+# direct Anthropic by default; an LLM gateway only when ILIAD_BASE_URL + ILIAD_API_KEY are set.
 SONNET_MODEL_NAME = os.getenv("ILIAD_SONNET_MODEL") or "claude-sonnet-4-5-20250929"
 HAIKU_MODEL_NAME = os.getenv("ILIAD_HAIKU_MODEL") or "claude-haiku-4-5-20251001"
 
 OUTCOME_STATUSES = frozenset({"BUSINESS_OUTCOME", "RECOVER", "FAILED"})  # replay's load_outcomes
+# Assignment 3.4: the action types a site may allow -- exactly the capability Step `action`s.
+STEP_ACTIONS = frozenset(
+    {"navigate", "click", "type", "select", "scroll", "extract", "extract_table"}
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,7 @@ class SiteProfile:
     login_words: frozenset[str] = frozenset()
     login_failure_texts: tuple[str, ...] = ()
     outcomes: tuple[OutcomeRule, ...] = ()
+    allowed_actions: frozenset[str] = STEP_ACTIONS  # 3.4; yaml omits the key = all allowed
 
     @property
     def base_url(self) -> str:
@@ -86,6 +89,7 @@ class DiscoveryConfig:
     repeat_limit: int = 3
     unsure_limit: int = 3  # failed tool results in a row = the agent is unsure
     step_budget: int = 40  # tool calls per run before it counts as a loop
+    run_timeout_s: float = 900  # a whole run's wall-clock deadline; past it the run is STUCK
 
 
 @dataclass(frozen=True)
@@ -127,6 +131,14 @@ def _outcomes(rules: list[dict[str, str]], path: Path) -> tuple[OutcomeRule, ...
     return tuple(OutcomeRule(r["text"], r["status"], r.get("meaning", "")) for r in rules)
 
 
+def _actions(names: list[str] | None, path: Path) -> frozenset[str]:
+    if names is None:
+        return STEP_ACTIONS
+    if bad := sorted(set(names) - STEP_ACTIONS):
+        raise ValueError(f"{path}: allowed_actions with an unknown action: {bad}")
+    return frozenset(names)
+
+
 def load_site(name: str, root: Path | None = None) -> SiteProfile:
     """Read and validate ``configs/<name>.yaml`` (root defaults to the repo root)."""
     path = (root or _repo_root()) / "configs" / f"{name}.yaml"
@@ -142,6 +154,7 @@ def load_site(name: str, root: Path | None = None) -> SiteProfile:
         login_words=frozenset(data.get("login_words") or ()),
         login_failure_texts=tuple(data.get("login_failure_texts") or ()),
         outcomes=_outcomes(data.get("outcomes") or [], path),
+        allowed_actions=_actions(data.get("allowed_actions"), path),
     )
 
 

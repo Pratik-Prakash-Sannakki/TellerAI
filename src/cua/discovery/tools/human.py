@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from langchain_core.tools import BaseTool, tool
 
 from cua.discovery.context import Ctx, act, choose_option, crop, into_box, list_options, snap
+from cua.discovery.recorder.types import shapes_of
 from cua.discovery.run import run_values
 from cua.discovery.tools import guard, observe
 from cua.discovery.tools.read_helpers import where
@@ -163,6 +164,7 @@ async def _enter(ctx: Ctx, look: Look | None, field: Field, value: str, is_dropd
         crop(ctx, look, point, keep),  # type: ignore[arg-type]
         human_entry=True,
         dropdown=is_dropdown,
+        shapes=None if sensitive else shapes_of(value),  # names only; a sensitive one: none
         index=index,
         **where(look, point, run_values(ctx.run, ctx.secrets)),  # type: ignore[arg-type]
     )

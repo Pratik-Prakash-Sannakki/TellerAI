@@ -107,7 +107,7 @@ The same two flows as one command each, once `uv sync` installs `cua` as a scrip
 src/cua/               the package (see src/cua/README.md for read order and import rules)
   config.py            SiteProfile (from configs/<site>.yaml), BrowserConfig/DiscoveryConfig/
                        ReplayConfig, resolve_secret/secret_values, host_allowed, Iliad gateway env
-  llm.py               make_chat_model (models.py kept as a 1-line re-export)
+  llm.py               make_chat_model
   schema/              the contract: Capability, value types, results, events
   vision/              pixels -> text: screenshots, OCR, canvas math, crops, table reader
   browser/             Playwright session, site lock, input, native dropdowns

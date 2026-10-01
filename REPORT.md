@@ -41,8 +41,7 @@ OS permissions and a big build).
 `click`, `type_text`, `type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`,
 `extract_table`, `finish_business_outcome`, `request_missing_values`, `ask_human`
 (`cua.discovery.tools.build_tools`). It runs with a `MemorySaver`
-checkpointer. The model is Sonnet through the Iliad gateway (`cua.llm.make_chat_model`;
-`cua.models` is kept as a one-line re-export). Two small middlewares: one turns off prompt
+checkpointer. The model is Sonnet through the Iliad gateway (`cua.llm.make_chat_model`). Two small middlewares: one turns off prompt
 caching (the gateway rejects it), one sends the model only the latest screenshot (old numbers
 are stale). An optional third layer, TypeSafe tool/model routing (`cua.discovery.agent.routing`),
 is off unless `TYPESAFE_API_KEY` is set. The rule that matters most: the agent picks the tool,

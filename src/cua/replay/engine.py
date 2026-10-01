@@ -46,6 +46,13 @@ def error_page(ctx: Ctx, after: str) -> Stop | None:
     return None
 
 
+def action_allowed(ctx: Ctx, step: Step) -> Stop | None:
+    """Assignment 3.4: a step whose action type the site does not allow FAILS before acting."""
+    if step.action in ctx.site.allowed_actions:
+        return None
+    return Stop("FAILED", f"action '{step.action}' is not in allowed_actions")
+
+
 def starts_with_login(cap: Capability) -> bool:
     """A secret is typed before the first click: the capability logs in itself."""
     for s in cap.steps:
@@ -102,6 +109,8 @@ async def run_step(  # noqa: PLR0913 (constraints allow 6)
 ) -> None:
     run = ctx.run
     run.step, run.action = i, step.action
+    if refused := action_allowed(ctx, step):
+        raise refused
     attempt = 0
     while attempt < 2:  # noqa: PLR2004
         attempt += 1
@@ -200,6 +209,8 @@ async def _cleanup_step(  # noqa: PLR0913 (constraints allow 6)
     ctx: Ctx, i: int, step: Step, cap: Capability, crops: Path | None, drift: Drift
 ) -> str:
     """One cleanup step, one retry. "" = done, else the failure."""
+    if refused := action_allowed(ctx, step):
+        return f"failed: {refused.reason}"
     for attempt in (1, 2):
         try:
             target = getattr(step, "target", None)

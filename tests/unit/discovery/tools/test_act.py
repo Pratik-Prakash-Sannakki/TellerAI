@@ -400,3 +400,15 @@ async def test_nothing_typed_when_the_point_is_no_box(monkeypatch: pytest.Monkey
     out = _head(await _tool(d.ctx, "type_secret").ainvoke({"name": "username", "x": 175, "y": 70}))
     assert out.startswith("NOTHING TYPED at (175, 70)")
     assert not d.ctx.run.typed_secrets
+
+
+@pytest.mark.asyncio
+async def test_type_text_logs_the_value_shape_never_the_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    after = make_look([*FORM, ("123.45", (150, 100, 200, 120))], png=PNG)
+    d = _driven(monkeypatch, make_look(FORM, png=PNG), after, goal="pay 123.45")
+    await _tool(d.ctx, "type_text").ainvoke({"text": "123.45", "x": 175, "y": 110})
+    ev = d.ctx.run.log[-1]
+    assert ev["shapes"] == ["currency", "number"]
+    assert "123.45" not in str(ev)

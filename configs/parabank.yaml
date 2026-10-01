@@ -10,6 +10,10 @@ secret_env:
   password: PARABANK_PASSWORD
 deny_words: [register, lookup, admin]   # refused outright (D33)
 login_words: ["log in"]
+# Assignment 3.4: the action types discovery may perform and replay may run (capability Step
+# `action`s). Omit the key to allow all of them. observe / finish / ask tools are not site
+# actions and are always allowed.
+allowed_actions: [navigate, click, type, select, scroll, extract, extract_table]
 login_failure_texts:
   - could not be verified
   - user does not exist

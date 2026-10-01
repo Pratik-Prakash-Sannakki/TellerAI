@@ -131,6 +131,7 @@ def test_discovery_defaults() -> None:
     c = DiscoveryConfig()
     assert (c.send_wait_ms, c.snap_ms, c.handback_s) == (8000, 3000, 120)
     assert (c.login_limit, c.repeat_limit, c.unsure_limit, c.step_budget) == (3, 3, 3, 40)
+    assert (c.run_timeout_s,) == (900,)
 
 
 def test_replay_defaults() -> None:
@@ -150,3 +151,23 @@ def test_configs_are_frozen(cls: type[BrowserConfig]) -> None:
 def test_no_site_constants_left() -> None:
     for name in ("BASE", "ALLOWED_HOSTS", "SECRETS", "APP_ID", "SESSION_EXPIRED_TEXT"):
         assert not hasattr(config, name), name
+
+
+def test_parabank_lists_its_allowed_actions(site: SiteProfile) -> None:
+    assert site.allowed_actions == config.STEP_ACTIONS
+
+
+def test_allowed_actions_default_to_all(tmp_path: Path) -> None:
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "configs/s.yaml").write_text("start_url: https://a.example/\nallowed_hosts: [a]\n")
+    assert load_site("s", root=tmp_path).allowed_actions == config.STEP_ACTIONS
+
+
+def test_allowed_actions_subset_and_unknown(tmp_path: Path) -> None:
+    (tmp_path / "configs").mkdir()
+    base = "start_url: https://a.example/\nallowed_hosts: [a]\nallowed_actions: "
+    (tmp_path / "configs/s.yaml").write_text(base + "[click, extract]\n")
+    assert load_site("s", root=tmp_path).allowed_actions == {"click", "extract"}
+    (tmp_path / "configs/bad.yaml").write_text(base + "[click, teleport]\n")
+    with pytest.raises(ValueError, match="teleport"):
+        load_site("bad", root=tmp_path)

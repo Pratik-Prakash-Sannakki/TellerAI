@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from langchain_core.tools import BaseTool, tool
 
 from cua.discovery.context import Ctx, act, canvas, choose_option, crop, into_box, look, to_page
+from cua.discovery.recorder.types import shapes_of
 from cua.discovery.run import run_values
 from cua.discovery.tools.guard import (
     Result,
@@ -159,7 +160,8 @@ async def _typed(  # noqa: PLR0913 (constraints allow 6)
         else f"TYPED at {point} but the box shows {shown!r}. Look again."
     )
     ctx.run.entered[hint] = text
-    log(ctx, "type_text", args, msg.split(" Box shows")[0], point, cut, **spots)
+    shapes = shapes_of(text)  # the value's shape names only: the recorder types the input
+    log(ctx, "type_text", args, msg.split(" Box shows")[0], point, cut, shapes=shapes, **spots)
     return blocks(ctx, msg, after)
 
 
@@ -173,7 +175,8 @@ async def _selected(  # noqa: PLR0913 (constraints allow 6)
         return await reply(ctx, mark_stuck(ctx, f"'{option}' is not an option in '{hint}'"))
     msg = f"Selected '{option}' at {point}."
     ctx.run.entered[hint] = option
-    log(ctx, "select_option", args, "Selected.", point, cut, index=index, **spots)
+    shapes = shapes_of(option)  # names only, never the option
+    log(ctx, "select_option", args, "Selected.", point, cut, index=index, shapes=shapes, **spots)
     return await reply(ctx, msg)
 
 

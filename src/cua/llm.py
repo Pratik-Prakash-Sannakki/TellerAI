@@ -1,15 +1,15 @@
 """The one place that builds a chat model. Every LLM call in the project goes through here.
 
-Default: the company Iliad gateway, via ``ChatAnthropic(anthropic_api_url=ILIAD_BASE_URL, ...)``
-with the key from the ``ILIAD_API_KEY`` env var (loaded from the git-ignored `.env`).
+Default: direct Anthropic -- a plain ``ChatAnthropic(model_name=...)`` with the key from the
+``ANTHROPIC_API_KEY`` env var (loaded from the git-ignored `.env`), against Anthropic's own API.
 
-Fallback (kept so the old setup still works): if ``ILIAD_API_KEY`` is unset but
-``ANTHROPIC_API_KEY`` is set, build a plain ``ChatAnthropic(model_name=...)`` against Anthropic's
-own API and say so once. With neither key, raise a clear ``RuntimeError``.
+Opt-in gateway: only when ``ILIAD_BASE_URL`` is set, calls go to that URL with the key from
+``ILIAD_API_KEY``. A gateway URL with no gateway key is an error (never a silent switch to
+direct). With no usable key at all, raise a clear ``RuntimeError``.
 
-TLS: the gateway is internal and may need the corporate CA. httpx (used by the Anthropic SDK)
-already honours ``SSL_CERT_FILE``; if only ``REQUESTS_CA_BUNDLE`` is set, it is copied to
-``SSL_CERT_FILE``. Verification is never turned off.
+TLS: a gateway may need a corporate CA. httpx (used by the Anthropic SDK) already honours
+``SSL_CERT_FILE``; if only ``REQUESTS_CA_BUNDLE`` is set, it is copied to ``SSL_CERT_FILE``.
+Verification is never turned off.
 
 The key value is never printed, logged or put in an error message. ``ChatAnthropic`` stores it as
 a pydantic ``SecretStr``, so ``repr(model)`` shows ``**********``.
@@ -27,8 +27,6 @@ from cua import config
 
 ModelKind = Literal["sonnet", "haiku"]
 
-_FALLBACK_NOTED = False   # the fallback notice is printed once per process
-
 
 def model_name_for(kind: ModelKind) -> str:
     """The configured model name for `kind` (``ILIAD_SONNET_MODEL`` / ``ILIAD_HAIKU_MODEL``)."""
@@ -45,25 +43,21 @@ def _pass_through_ca_bundle() -> None:
         os.environ["SSL_CERT_FILE"] = bundle
 
 
-def _note_fallback() -> None:
-    global _FALLBACK_NOTED
-    if not _FALLBACK_NOTED:
-        print("ILIAD_API_KEY not set; falling back to ANTHROPIC_API_KEY (Anthropic's own API).")
-        _FALLBACK_NOTED = True
-
-
 def make_chat_model(kind: ModelKind = "sonnet", **overrides: object) -> BaseChatModel:
-    """Build the Sonnet or Haiku chat model, through the Iliad gateway by default.
+    """Build the Sonnet or Haiku chat model: direct Anthropic, or the opt-in gateway.
 
     `overrides` are passed to ``ChatAnthropic`` (e.g. ``max_tokens=...``, ``temperature=...``).
     """
     name = model_name_for(kind)
     _pass_through_ca_bundle()
-    iliad_key = os.environ.get("ILIAD_API_KEY", "")
-    if iliad_key:
-        return ChatAnthropic(anthropic_api_url=config.ILIAD_BASE_URL, api_key=iliad_key,
-                             model_name=name, **overrides)
+    gateway_url = os.environ.get("ILIAD_BASE_URL", "")
+    if gateway_url:
+        gateway_key = os.environ.get("ILIAD_API_KEY", "")
+        if not gateway_key:
+            raise RuntimeError("ILIAD_BASE_URL is set but ILIAD_API_KEY is not set in .env")
+        return ChatAnthropic(
+            anthropic_api_url=gateway_url, api_key=gateway_key, model_name=name, **overrides
+        )
     if os.environ.get("ANTHROPIC_API_KEY", ""):
-        _note_fallback()
-        return ChatAnthropic(model_name=name, **overrides)   # key read from env by the library
-    raise RuntimeError("ILIAD_API_KEY is not set in .env")
+        return ChatAnthropic(model_name=name, **overrides)  # key read from env by the library
+    raise RuntimeError("ANTHROPIC_API_KEY is not set in .env")

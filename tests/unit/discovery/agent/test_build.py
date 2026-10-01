@@ -9,6 +9,7 @@ from cua.discovery.agent import build
 from cua.discovery.agent.middleware import (
     LatestScreenshotOnly,
     NoopAnthropicPromptCachingMiddleware,
+    RecordWhy,
 )
 from cua.discovery.agent.prompt import VISUAL_SYSTEM_PROMPT
 from tests.fakes import make_ctx
@@ -35,6 +36,7 @@ def test_build_agent_wires_the_notebooks_agent(monkeypatch: pytest.MonkeyPatch) 
     assert [t.name for t in seen["tools"]][:2] == ["observe", "click"]  # type: ignore[attr-defined]
     mw = seen["middleware"]
     assert [type(m) for m in mw] == [  # type: ignore[attr-defined]
+        RecordWhy,
         NoopAnthropicPromptCachingMiddleware,
         LatestScreenshotOnly,
     ]
@@ -45,7 +47,7 @@ def test_routing_is_appended_after_the_notebooks_middleware(
 ) -> None:
     seen = _capture(monkeypatch, ["TOOLS", "MODELS"])
     build.build_agent(make_ctx(), "MODEL")  # type: ignore[arg-type]
-    assert list(seen["middleware"])[2:] == ["TOOLS", "MODELS"]  # type: ignore[call-overload]
+    assert list(seen["middleware"])[3:] == ["TOOLS", "MODELS"]  # type: ignore[call-overload]
 
 
 def test_the_page_path_is_read_live(monkeypatch: pytest.MonkeyPatch) -> None:

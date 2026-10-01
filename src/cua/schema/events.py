@@ -62,3 +62,5 @@ class Event(_EventBase, total=False):
     leak: bool
     text_counts: dict[str, int]
     start_texts: list[str]
+    why: str  # the model's short reason for this tool call, values masked (assignment 3.5)
+    shapes: list[str] | None  # a typed/entered value's shape names (value_types), never the value

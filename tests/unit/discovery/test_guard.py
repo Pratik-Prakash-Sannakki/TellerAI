@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
-from cua.config import DiscoveryConfig
-from cua.discovery.tools import guard, human
+from cua.config import STEP_ACTIONS, DiscoveryConfig
+from cua.discovery.tools import build_tools, guard, human
 from cua.discovery.tools.guard import (
     after_login_click,
     gate_click,
@@ -17,7 +19,7 @@ from cua.discovery.tools.guard import (
     resolve_point,
 )
 from cua.vision.look import Box, Element, Look
-from tests.fakes import make_ctx
+from tests.fakes import SITE, make_ctx, make_session
 
 LOOK = Look(b"", b"", (Element(4, "Pay", Box(10, 10, 50, 30)),), "u")
 
@@ -36,6 +38,13 @@ def test_log_appends_one_event_with_the_first_result_line_and_page_url() -> None
             "own": None,
         }
     ]
+
+
+def test_log_attaches_the_models_why_when_there_is_one() -> None:
+    ctx = make_ctx()
+    ctx.run.why = "The form is open, so I fill it."
+    log(ctx, "click", {"ref": 1}, "Clicked.")
+    assert ctx.run.log[-1]["why"] == "The form is open, so I fill it."
 
 
 def test_mark_stuck_sets_the_reason() -> None:
@@ -241,3 +250,52 @@ def test_log_takes_point_and_crop_by_keyword_too() -> None:
         "crop": b"c",
         "own": None,
     }
+
+
+def _only(*actions: str):  # type: ignore[no-untyped-def]
+    site = dataclasses.replace(SITE, allowed_actions=frozenset(actions))
+    return make_ctx(dataclasses.replace(make_session(), site=site))
+
+
+@pytest.mark.asyncio
+async def test_a_tool_whose_action_is_not_allowed_is_refused_and_logged(
+    helped: list[object],
+) -> None:
+    ctx = _only("extract")
+    ran: list[str] = []
+
+    @one_at_a_time(ctx)
+    async def scroll(direction: str = "down") -> str:
+        """Doc."""
+        ran.append(direction)
+        return "Scrolled."
+
+    out = await scroll(direction="down")
+    assert out == (
+        "REFUSED: action 'scroll' is not in allowed_actions. "
+        "Use another tool or reply 'STUCK: <why>'."
+    )
+    assert ran == []
+    assert ctx.run.log[-1]["tool"] == "scroll"
+    assert ctx.run.log[-1]["args"] == {"direction": "down"}
+    assert ctx.run.log[-1]["result"].startswith("REFUSED: action 'scroll'")
+
+
+@pytest.mark.asyncio
+async def test_allowed_and_non_site_tools_still_run(helped: list[object]) -> None:
+    ctx = _only("click")
+
+    @one_at_a_time(ctx)
+    async def observe() -> str:
+        """Doc."""
+        return "Looked."
+
+    assert await _tool(ctx, ["Clicked."])(ref=1) == "Clicked."
+    assert await observe() == "Looked."
+    assert ctx.run.log == []
+
+
+def test_every_built_tool_has_an_action_type() -> None:
+    names = {t.name for t in build_tools(make_ctx())}
+    assert names == set(guard.TOOL_ACTIONS)
+    assert {a for a in guard.TOOL_ACTIONS.values() if a} <= STEP_ACTIONS
