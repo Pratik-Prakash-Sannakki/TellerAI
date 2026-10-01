@@ -55,15 +55,16 @@ select = ["E", "F", "I", "B", "UP", "SIM", "PL", "PT"]
 [tool.ruff.lint.per-file-ignores]
 "tests/discovery/*" = ["B023", "E501", "I001", "PLC0415", "PLR0913", "PLR0917", "PLR2004", "PT018"]
 "tests/replay/*" = ["B007", "E501", "I001", "PLC0415", "PLR2004", "PT018"]
-# Not yet ported (test_models.py -> unit/test_llm.py per the plan's table); not touched here.
-"tests/test_models.py" = ["PLC0415", "PLR2004", "PT011"]
+# Ported verbatim from tests/test_models.py (step 1); its local imports and checks are unchanged.
+"tests/unit/test_llm.py" = ["PLC0415", "PLR2004", "PT011"]
 # src/cua is out of scope for step 0 (owned by later migration steps); the single pre-existing
 # PLW0603 (an intentional process-wide "print the fallback notice once" flag) predates this lint
 # config and is not edited here.
-"src/cua/models.py" = ["PLW0603"]
+"src/cua/llm.py" = ["PLW0603"]
 
 [tool.black]
 line-length = 100
+target-version = ["py312"]
 
 [tool.mypy]
 strict = true

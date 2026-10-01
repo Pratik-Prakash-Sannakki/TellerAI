@@ -1,0 +1,58 @@
+"""The contract between discovery and replay: the capability schema, value types, results and
+events. Pure Pydantic / dataclasses, no I/O, imports nothing else from cua."""
+
+from cua.schema.capability import (
+    SCHEMA_VERSION,
+    Anchor,
+    Capability,
+    CapabilityMeta,
+    Click,
+    Extract,
+    ExtractTable,
+    Header,
+    Input,
+    Name,
+    Navigate,
+    OcrText,
+    Output,
+    Scroll,
+    Select,
+    Step,
+    Strict,
+    TableCell,
+    Target,
+    Type,
+)
+from cua.schema.events import Event
+from cua.schema.result import ReplayResult, Status, Stop
+from cua.schema.value_types import SHAPES, TYPES, value_matches_type
+
+__all__ = [
+    "SCHEMA_VERSION",
+    "SHAPES",
+    "TYPES",
+    "Anchor",
+    "Capability",
+    "CapabilityMeta",
+    "Click",
+    "Event",
+    "Extract",
+    "ExtractTable",
+    "Header",
+    "Input",
+    "Name",
+    "Navigate",
+    "OcrText",
+    "Output",
+    "ReplayResult",
+    "Scroll",
+    "Select",
+    "Status",
+    "Step",
+    "Stop",
+    "Strict",
+    "TableCell",
+    "Target",
+    "Type",
+    "value_matches_type",
+]

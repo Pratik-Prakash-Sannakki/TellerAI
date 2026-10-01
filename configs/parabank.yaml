@@ -1,0 +1,28 @@
+# ParaBank site profile. The ONLY place ParaBank lives: no ParaBank value belongs in src/.
+# Loaded by cua.config.load_site("parabank") into a frozen SiteProfile.
+# Secrets: env var NAMES only; the values come from .env, never from here.
+name: parabank
+start_url: "https://parabank.parasoft.com/parabank/"
+allowed_hosts:
+  - parabank.parasoft.com
+secret_env:
+  username: PARABANK_USERNAME
+  password: PARABANK_PASSWORD
+deny_words: [register, lookup, admin]   # refused outright (D33)
+login_words: ["log in"]
+login_failure_texts:
+  - could not be verified
+  - user does not exist
+  - invalid username or password
+  - please enter a username and password
+# R17 taxonomy: text seen after a step -> status. First match wins; a capability's own
+# `outcomes:` list replaces these. RECOVER = log in again once and retry the step.
+outcomes:
+  - {text: not found, status: BUSINESS_OUTCOME, meaning: the item asked for was not found}
+  - {text: no such, status: BUSINESS_OUTCOME, meaning: the item asked for does not exist}
+  - {text: does not exist, status: BUSINESS_OUTCOME, meaning: the item does not exist}
+  - {text: insufficient funds, status: BUSINESS_OUTCOME, meaning: not enough funds}
+  - {text: could not be verified, status: BUSINESS_OUTCOME, meaning: details not verified}
+  - {text: session expired, status: RECOVER, meaning: the session expired}
+  - {text: access denied, status: FAILED, meaning: the site denied access}
+  - {text: error, status: FAILED, meaning: the site showed an error page}
