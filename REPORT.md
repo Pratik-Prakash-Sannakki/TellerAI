@@ -1,290 +1,182 @@
 # REPORT
 
-A computer-use system for a real banking web app (ParaBank). It has three parts. A discovery
-agent learns a task from screenshots. The capability artifact records what it learned. A replay
-engine runs the artifact again with plain code and no LLM. Both engines are a real, installable
-package, `src/cua/` (see `src/cua/README.md` for the full package map), demoed by two thin
-notebooks (`notebooks/discovery/discovery.py`, `notebooks/replay/replay.py`, jupytext pairs of the
-`.ipynb` files) and by a `cua` CLI (`cua discover`, `cua replay`; `src/cua/cli.py`). Decision IDs:
-`Q*` are in `notebooks/discovery/decisions.md`, `R*` and `P*` are in
-`notebooks/replay/DECISIONS.md` / `PLAN.md`. An earlier DOM-based stack was removed before this
-package existed; its model factory and config survived as `src/cua/llm.py` and `src/cua/config.py`.
+A computer-use system for a banking web app (ParaBank), in three parts:
 
-Status words used below: **built** (in the code and tested), **designed** (decided, not in the
-code), **in progress** (being added now), **cut**.
+- A **discovery agent** learns a task from screenshots.
+- A **capability artifact** (YAML) records what it learned.
+- A **replay engine** runs the artifact again with plain code and no LLM.
+
+One installable package, `src/cua/` (map in `src/cua/README.md`), with a `cua` CLI and two demo
+notebooks. Decision IDs: `Q*` in `notebooks/discovery/decisions.md`; `R*`/`P*` in
+`notebooks/replay/`.
+
+Status words: **built** (in the code and tested), **designed** (decided, not in the code),
+**cut**.
 
 ## Architecture
 
-**Seeing and acting are pure visual (built).** Each step works like this:
+**Pure visual seeing and acting (built).** Each step:
 
-1. A Playwright screenshot of a fixed 1280x800 page at `device_scale_factor=1` (Q10). The Browser
-   cell refuses to start if the screenshot is any other size.
-2. RapidOCR reads it. It returns text, boxes, and scores. The CPU-bound decode/OCR/draw work runs
-   in one `asyncio.to_thread` call (`cua.vision.screenshot.take_look`), so it never blocks the
-   event loop that drives the page.
-3. Every text box gets a number, drawn as a red box on the image (OpenCV).
-4. The agent sees the numbered image plus a text list like `[7] 'Transfer'`. It picks one tool.
-5. The tool acts with `page.mouse` / `page.keyboard` at a point.
+1. Screenshot a fixed 1280x800 page (Q10). RapidOCR reads it in `asyncio.to_thread`.
+2. Every text box gets a red number; the agent sees the image plus `[7] 'Transfer'`.
+3. The agent picks one tool, which acts with `page.mouse` / `page.keyboard` at a point.
+4. A second screenshot checks it worked.
 
-There are no DOM reads, no `page.fill`, and no accessibility tree. Things with no text (empty
-boxes, icons) get no number. The agent points at them by x,y (Q7). A second screenshot checks
-that the action worked: the typed text is read back, a secret shows as dots, a click changed the
-screen.
+No DOM reads, no accessibility tree. Things with no text are pointed at by x,y (Q7).
 
-**The one non-visual exception: native `<select>` dropdowns (built).** On macOS the OS draws the
-open option list outside the page. No screenshot shows it, and no key sent to the page moves it.
-For the `<select>` under the point only, `SELECT_AT_JS` reads its options and sets one. OCR of the
-closed box still confirms the choice. We rejected whole-screen OCR plus a real OS mouse (it needs
-OS permissions and a big build).
+**One exception: native `<select>` (built).** macOS draws its list outside the page, so
+`SELECT_AT_JS` sets the option under the point; OCR confirms it.
 
-**The agent (built).** A LangChain deep agent (`create_deep_agent`) with 12 tools: `observe`,
-`click`, `type_text`, `type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`,
-`extract_table`, `finish_business_outcome`, `request_missing_values`, `ask_human`
-(`cua.discovery.tools.build_tools`). It runs with a `MemorySaver`
-checkpointer. The model is Sonnet through the Iliad gateway (`cua.llm.make_chat_model`). Two small middlewares: one turns off prompt
-caching (the gateway rejects it), one sends the model only the latest screenshot (old numbers
-are stale). An optional third layer, TypeSafe tool/model routing (`cua.discovery.agent.routing`),
-is off unless `TYPESAFE_API_KEY` is set. The rule that matters most: the agent picks the tool,
-but the tool's own code decides whether the action may happen. The host check, the lock, and the
-send gates all run inside our code, whatever the model asked for.
+**The agent (built).** A LangChain deep agent with 12 tools (`observe`, `click`, `type_text`,
+`type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`, `extract_table`,
+`finish_business_outcome`, `request_missing_values`, `ask_human`).
 
-**Replay (built)** shares discovery's vision, browser, safety and handoff code directly
-(`cua.vision`, `cua.browser`, `cua.safety`, `cua.handoff`) rather than a copy — one `SendGuard`
-class serves both sides, parameterised by `DISCOVERY_OPTIONS`/`REPLAY_OPTIONS` (R4, R9). It has
-no model import at all (R1); `cua.discovery` and `cua.replay` never import each other.
+- Model: Sonnet via direct Anthropic (`ANTHROPIC_API_KEY`) by default (`cua.llm.make_chat_model`).
+  An optional Anthropic-compatible gateway is opt-in via env vars `ILIAD_BASE_URL` + `ILIAD_API_KEY`.
+- Middleware: prompt caching off; latest screenshot only; `RecordWhy` (see evidence). TypeSafe
+  routing is opt-in (`TYPESAFE_API_KEY`).
+- Run deadline (built): `DiscoveryConfig.run_timeout_s` (900). Past it the run ends `STUCK`
+  ("discovery timed out after N s"); cleanup and evidence still run.
+- Key rule: the agent picks the tool; our code decides if the action may happen.
+
+**Replay (built)** shares vision, browser, safety and handoff code with discovery, and has no model
+import (R1).
 
 ## Artifact schema
 
-**Discovery writes the artifact directly (built, R10/R11).** The artifact is `schema_version: 2`
-YAML plus `crops/<name>/s<i>.png`, written to the top-level `artifacts/<name>.yaml` +
-`artifacts/crops/<name>/` folder by `cua.discovery.recorder.save.save_artifact` (the notebook's
-`## Save artifact` cell, or `cua discover`, call it). Replay only loads it. It never edits or
-recompiles it. The artifact is a hybrid of two sources:
+**Discovery writes the artifact directly (built, R10/R11).** `save_artifact` writes
+`artifacts/<name>.yaml` + `artifacts/crops/<name>/`. Replay only loads it. Two sources:
 
-- **Steps come from the event log**, the ground truth of what actually ran:
-  - `build_capability` drops failed or refused tool calls.
-  - It keeps only the last success per field.
-  - It trims the trailing logout.
-  - It maps each event to a step.
-- **Meaning comes from the model.** `describe()` uses structured output (`CapabilityMeta`) for
-  the name, the description, the input descriptions, and the success text. The model cannot add
-  a step or an input. Input names it makes up are ignored, and a bad name is slugged, so the
-  model's text can never fail the build.
-- `save_artifact` writes the file, then re-validates it with the same Pydantic model replay uses.
-  `tests/integration/test_discovery_to_replay.py` proves it: build, save, then replay's
-  `load_capability`, with no changes.
+- **Steps come from the event log**, the ground truth. `build_capability` drops failed or refused
+  calls, keeps the last success per field, and trims the trailing logout.
+- **Meaning comes from the model.** `describe()` writes only the name, descriptions and success
+  text. It cannot add a step or an input.
+- **Typed inputs (built).** Each typed value's *shape* is logged, never the value. The recorder
+  infers the input type from it: `email`, `phone`, `date`, `currency`, `number`, `integer`, `id`,
+  else `string`.
+- The saved file is re-validated with replay's own model (integration-tested).
 
-**Shape** (`Capability`, strict, `extra="forbid"`): `name`, `version`, `description`, `base_url`,
-`viewport`, `device_scale_factor`, `inputs`, `outputs`, `secrets` (names only), `steps`, and
-`checkpoint` (text that proves success on the final screen). Each step is one of six types:
-`navigate | click | type | select | scroll | extract`. A `type` value is always `{{input}}` or
-`{{secret:name}}`, never a literal.
+**Shape** (`Capability`, strict): `name`, `version`, `description`, `base_url`, `viewport`,
+`device_scale_factor`, `inputs`, `outputs`, `secrets` (names only), `steps`, `checkpoint`.
+Step types: `navigate | click | type | select | scroll | extract | extract_table`. A `type` value
+is always `{{input}}` or `{{secret:name}}`, never a literal.
 
-**Targeting: three rungs, never raw x,y (built, R2/R13).** A `Target` holds any of these:
+**Targeting: three rungs, never raw x,y (built, R2/R13).**
 
 | Rung | Field | Finds it by | Breaks when |
 |---|---|---|---|
-| 1 | `ocr_text` (+ `ordinal`) | its own OCR text; exact for anything with a digit (P3) | the text changes |
-| 2 | `anchor` (label, `ordinal`, `offset`) | a nearby label + a saved pixel offset | the layout moves |
+| 1 | `ocr_text` (+ `ordinal`) | its own OCR text | the text changes |
+| 2 | `anchor` | a nearby label + a saved offset | the layout moves |
 | 3 | `template` | `cv2.matchTemplate` of a tight crop; two near-equal peaks = a miss | the look changes |
-| - | `table_cell` (row key, column) | extracts in look-alike table rows (Q8) | the columns are renamed |
+| - | `table_cell` | row key + column, for look-alike rows (Q8) | the columns are renamed |
 
-A target must have at least an anchor, a template, or a table cell. Crops are cut tight, and any
-other text inside them is blanked, so no customer data is saved (Q14).
+Crops are tight and other text in them is blanked, so no customer data is saved (Q14).
 
 ## Determinism & error handling
 
-**Replay is deterministic code (built).** The run goes in this order:
+**Replay is deterministic code (built).**
 
-1. Load and validate the YAML. The run refuses when:
-   - the viewport or scale is wrong;
-   - the host is not allowed;
-   - an `{{input}}` is undeclared;
-   - a secret is missing from `.env`;
-   - a crop file is missing.
+1. Load and validate (viewport, host, inputs, secrets, crops).
 2. Log out first if the capability types a secret before its first click (P8).
-3. Open `base_url` and check the screenshot size.
-4. Show one control-tab form asking every input.
-5. Walk the steps. For each step:
-   - Try rung 1, then 2, then 3 (or the table cell).
-   - If all miss, scroll once and retry (`CFG.scroll_retries`).
-   - Act through discovery's `act` / `into_box` / `choose_option`.
-   - Check by OCR on a bounded poll.
-   - A failed check is retried once. It is **never** retried for a send or a secret (R15). A slow page can never fire a payment twice.
-6. Check the `checkpoint` text and the declared outputs.
+3. Ask every missing input in one form. Check given inputs: an unknown key or a value not of its
+   declared type stops the run before the site opens (name and type only, never the value).
+4. Walk the steps: rung 1, 2, 3; one scroll and retry; act; check by OCR on a bounded poll.
+   A failed check is retried once, **never** for a send or a secret (R15).
+5. A step whose action is not in `allowed_actions` fails before acting.
+6. Check the `checkpoint` and the outputs.
 
-**Statuses (R17).** `ReplayResult(status, outputs, drift, reason, human, failure)`:
+**Statuses (built, R17).** `ReplayResult(status, outputs, drift, reason, human, failure)`:
 
-| Status | When | In code |
-|---|---|---|
-| `SUCCESS` | all steps done, checkpoint seen, outputs read | built |
-| `DECLINED` | a human said no at Gate 2; nothing sent | built |
-| `STUCK` | a human stopped it, rejected Gate 1, or left an input blank | built |
-| `FAILED` | bad YAML, wrong screen size, host blocked, checkpoint or output missing | built |
-| `BUSINESS_OUTCOME` | a known answer appears, e.g. "not found", "insufficient funds" | built |
+| Status | When |
+|---|---|
+| `SUCCESS` | all steps done, checkpoint seen, outputs read |
+| `DECLINED` | a human said no at Gate 2; nothing sent |
+| `STUCK` | a human stopped it, rejected Gate 1, or an input was blank or wrong |
+| `FAILED` | bad YAML, wrong screen size, host blocked, action not allowed, checkpoint or output missing |
+| `BUSINESS_OUTCOME` | a known answer, e.g. "not found", "insufficient funds" |
 
-- Every non-success result carries `failure = {step, action, expected, observed}`. `observed` is
-  masked.
-- `NEEDS_APPROVAL` from the old engine is retired. Approval now happens live in the control tab,
-  and a closed tab fails closed.
+Every non-success carries a masked `failure = {step, action, expected, observed}`.
 
-**Error taxonomy (built, R17).** After every step, replay compares the new OCR text on the screen
-with what was there before. Only newly appeared text counts, matched as whole words, so help text
-already on the page never triggers. The rules come from the capability's optional `outcomes:`
-list, else generic defaults in config. There are no site words in code. Each match falls into one
-of three classes:
+**Error taxonomy (built).** Newly appeared OCR text is matched against `outcomes:` or config
+defaults.
 
-- **Business outcome:** e.g. "not found", "insufficient funds". The run stops as
-  `BUSINESS_OUTCOME` with the rule's meaning. It is a legitimate answer, not a crash.
-- **Recoverable:** "session expired", or the login form reappearing mid-run. Replay re-runs the
-  capability's own login steps once, then retries the step. It never does this after a send, and
-  only once per run. `result.recoveries` counts it. Slow pages are handled by bounded waits.
-- **Hard failure:** "error", "access denied", or a second expiry. The run stops as `FAILED`, with
-  the step, what was expected, and the first 200 characters of what was on screen.
+- **Business outcome:** stop as `BUSINESS_OUTCOME`. A legitimate answer.
+- **Recoverable:** "session expired" or the login form returns. Re-run the login steps once, never
+  after a send.
+- **Hard failure:** "error", "access denied", a second expiry. Stop as `FAILED`.
 
-**Caller inputs (built).** `replay(ctx, path, inputs={...})` (`cua replay <yaml> --input k=v ...`
-at the CLI):
-- Keys match declared inputs by exact name, ignoring case.
-- An unknown key stops the run before the site opens: "not a permissible input".
-- Anything not given goes to one upfront form. So an AI agent can run it unattended, and a human
-  can still fill the gaps.
+**Rescue (built).** A step that still misses opens the help panel: take over or stop (P2).
 
-**Rescue (built).** A step that still misses opens the help panel, with two choices: take over or
-stop. Replay has no LLM to read a free-text answer (P2).
-
-**Drift log and evidence (built, R18/P11).**
-- The drift log records, per step: the rung used, the point, the attempt, and whether the check
-  passed. It holds no values. A step that keeps falling to rung 2 or 3 is the signal to
-  re-discover.
-- `save_evidence` writes `evidence/replay/<UTC>-<name>/`: `summary.json`, `drift.jsonl`,
-  `failure.json`, `final.png`, take-over before/after shots, a copy of the capability, and
-  `run.json` (model/config/git-sha bookkeeping, never a run value). All of it is masked.
+**Drift log and evidence (built, R18/P11).** Per step: rung, point, attempt, check result, no
+values. Each run's masked evidence
+folder (layout in `evidence/README.md`) includes `run.json`: prompt version, model, config hash,
+git sha. Discovery events also carry a `why`: the model's text before the call, masked (run values
+and value shapes blanked), max 200 chars.
 
 ## Heterogeneity & multi-tenant
 
-This is **designed, not built**, as the brief allows. Pure visual already covers the hardest part
-of heterogeneity. The engine never assumes a clean DOM, `id`s, `<label>`s, or even HTML. Anything
-that draws text on a screen can be targeted. The rungs describe *what a control looks like and
-where it sits relative to its label*. They never store an app-specific ID or a raw pixel.
+**Designed, not built.** Pure visual needs no clean DOM, `id`s or `<label>`s. Rungs store what a
+control looks like and where it sits, never an app ID or raw pixel.
 
-The design, carried over from the earlier DOM stack's reasoning:
-
-- **One base capability per vendor product, plus small per-tenant overrides.** Not one artifact
-  per tenant. An override patches only what differs, e.g. rung 1 text "Sign In" instead of
-  "Log In", or a new crop for a rebranded button. A vendor UI update then fixes the base once.
-- **Per-tenant deployment config**, kept outside the artifact: the `base_url`, the secret env-var
-  names, the allowed hosts, and `safe`/`login`/`deny` words. This is now built, one layer further
-  than when this section was first designed: every site value lives in one file,
-  `configs/parabank.yaml`, loaded into a frozen `SiteProfile` (`cua.config.load_site`) and never
-  in tool code (R9). A second tenant is one more `configs/<name>.yaml`, not a code change.
-- **Drift detection from data we already log.** The per-step rung is in the drift log. A tenant
-  whose runs keep falling from rung 1 to rung 3 has drifted from the base.
-- **Theme and scale.** The fixed viewport and scale factor are saved per capability. A tenant with
-  a different theme would need its own crops (rung 3) but could share rungs 1 and 2.
-
-This was not built because the brief says tenant plumbing is not rewarded. Nothing in `Target`,
-`Step`, or the step loop would change to add it.
+- **One base capability per vendor product, plus small per-tenant overrides** (e.g. "Sign In"
+  instead of "Log In"). A vendor update fixes the base once.
+- **Per-tenant config (built).** Every site value lives in `configs/<site>.yaml`, loaded into a
+  frozen `SiteProfile`: base URL, secret env-var names, allowed hosts, words, and
+  `allowed_actions`. A second tenant is one more file, not a code change.
+- **Drift detection** from the per-step rung in the drift log.
 
 ## Escalation & handoff
 
-**The control tab (built, Q16/Q21).** A second tab in the same browser, "Agent control", is our
-own page (`set_content`, nothing injected into the site). It comes to the front when a human is
-needed. It always shows who is in control.
-
-**The site lock (built).** `SiteLock` sends CDP `Input.setIgnoreInputEvents` to the site tab for
-the whole run. It lifts only for the instant of our own mouse or keyboard call (unlock, act,
-relock, in `finally`), or during a take-over. A human cannot click or type on the site outside a
-take-over.
+**Control tab and site lock (built, Q16/Q21).** Our own "Agent control" tab shows who is in
+control. CDP `Input.setIgnoreInputEvents` blocks human input on the site except during a take-over.
 
 **When the human is asked (built):**
-- Missing values: `request_missing_values` opens one form per page. Each row shows the field's
-  crop and a box, masked if sensitive. Our code types the values in and reads them back.
-- Unsure: `ask_human`, or the tool results trigger it. The panel opens by itself after:
-  - 3 failed tool results in a row (`unsure_limit`);
-  - the same call repeated 3 times;
-  - 40 steps (`step_budget`);
-  - login hitting its limit or a failure text.
-  The panel has three choices: **answer** (text back to the agent), **take over**, **stop**.
+
+- Missing values: `request_missing_values`, one form per page. Our code types and reads back.
+- Unsure: `ask_human`, or automatically after 3 failed results in a row, the same call 3 times,
+  40 steps, or a login failure. Choices: answer, take over, stop.
 - Sends: the two gates (see Safety).
 
 **Take over (built).**
-- The site unlocks and the human works in the same live session, then clicks Done. The lock comes
-  back *first*, then a new look.
-- What we record is evidence, not steps: the page paths visited (a `framenavigated` listener,
-  attached only while the human holds control), the send paths (from `guard_send`; no query, no
-  body), and screenshots at start and hand-back. We record pages, sends and screenshots rather
-  than each keystroke, because keystrokes would mean storing typed values.
-- **Hand-back (built).** The human hands back with a browser-extension toolbar button (badge
-  YOU / AI; no content scripts, no host permissions, so it never touches any site), or Done in
-  the control tab. Nothing prompts them while they work: an idle "are you done?" reminder was
-  tried and removed as an interruption.
-- The human's own sends during a take-over still go through both gates.
-- `build_capability` **refuses to save a run that had a take-over**, because a human did steps we
-  cannot see.
-- In replay, the take-over is recorded on `result.human` (`{step, reason, actions}`), and
-  `result.summary` reads e.g. `SUCCESS (human intervened at step 5)`. A calling agent must check
-  `human`, not just `status`.
+
+- The human works in the live session, then hands back (toolbar button or Done).
+- We record pages, send paths and screenshots, never keystrokes. Sends still hit both gates.
+- `build_capability` refuses to save a run with a take-over.
+- In replay it shows on `result.human`, e.g. `SUCCESS (human intervened at step 5)`.
 
 ## Safety
 
-- **Every send is held at the network layer (built).** `SendGuard` (`cua.safety.send_guard`) is
-  the `page.route` handler, one class for both sides (`DISCOVERY_OPTIONS`/`REPLAY_OPTIONS` carry
-  what differs). Every request except GET/HEAD/OPTIONS is held, however it was triggered: a
-  click, Enter, or the page's own script. No button names are involved. The login click is the
-  only exemption (`login_words`). Then, in order:
-  1. **Mismatch check.** Every number the request carries is compared with every number the human
-     gave (the goal, the answers, the form values; the caller's inputs at replay). Any number the
-     human never gave, e.g. account 1450 when they said 1400, opens a form for just those fields,
-     prefilled. The corrected value is what gets sent. Skipping the form blocks the send.
-  2. **Gate 1: Approve / Edit** the details being sent.
-  3. **Gate 2: send it?** A no at Gate 2 means `DECLINED`, and nothing is sent.
+- **Every send is held at the network layer (built).** `SendGuard` (`page.route`) holds every
+  non-GET request, however triggered; login is exempt. Then:
+  1. **Mismatch check.** Any number the human never gave opens a prefilled form for those fields.
+  2. **Gate 1:** approve or edit the details.
+  3. **Gate 2:** send it? No means `DECLINED`, nothing sent.
 
-  The agent never approves a send. Replay never auto-approves one (R15). An earlier click-level
-  gate was tried and failed live: a form left on its dropdown defaults went through ungated.
-- **Nothing is stored (built, R7).**
-  - Typed, selected, and human-given values never enter the event log (labels and positions
-    only), the YAML, or the drift log.
-  - Working values are wiped in `finally` when a run ends.
-  - `flag_leaks` marks any label that equals a run value, and the save then refuses.
-  - `save_evidence` refuses to copy an artifact that holds a run value.
-  - Evidence is masked: `***` in text, and black boxes over any OCR text in a PNG that matches a
-    run value or a secret.
-- **Secrets (built).** `type_secret(name)` types the value from `.env` by keyboard. The model
-  sees only the name, and `hide_secrets` strips values from any OCR text shown to it. At replay,
-  a secret visible as plain text on screen stops the run.
-- **Host lock (built).** `host_allowed` allows only `parabank.parasoft.com`, on every
-  `open_path`, on `base_url` at load, and after a take-over (replay fails, discovery navigates
-  back).
-- **Deny words (built).** Clicks on `register`, `lookup`, and `admin` are refused outright.
-  Per-click Approve was removed on 2026-09-29: the human is asked only about sends, take-overs,
-  and doubt.
+  The agent never approves a send. Replay never auto-approves one (R15).
+- **Confirmation saved (built).** The prompt tells the agent to `extract_value` the confirmation or
+  reference number (`id`), else the message (`string`), before `finish_business_outcome`. Never
+  invented.
+- **Allowed actions (built).** `allowed_actions` in the site config (ParaBank: `navigate`, `click`,
+  `type`, `select`, `scroll`, `extract`, `extract_table`). Discovery refuses any other (`REFUSED`,
+  logged). Replay fails that step before acting.
+- **Nothing is stored (built, R7).** Values never enter logs or YAML and are wiped at run end.
+- **Secrets (built).** `type_secret(name)`: the model sees only the name.
+- **Host lock (built).** Only `parabank.parasoft.com`.
+- **Deny words (built).** Clicks on `register`, `lookup`, `admin` are refused.
 
 ## Cuts
 
 0. **`cua eval --runs N` (planned next, deferred 2026-10-01).** Replay a capability N times and
-   report a stability score: status counts + which rung found each step. The assignment's
-   "multi-run stability" stretch goal. Design in `docs/PRODUCTIONIZE_PLAN.md` step 12.
-
-1. **Per-keystroke take-over capture.** We record pages, sends, and screenshots, not what the
-   human typed. The design is a report-only listener that logs *which labelled field* got input,
-   never the value. So a take-over is still not replayable, and the save refuses it.
-2. **Desktop surfaces.** Browser only. The vision and act layers use only screenshots and
-   mouse/keyboard, so a desktop backend would reuse them. The `<select>` exception and the CDP
-   lock are browser-specific.
-3. **Whole-screen OCR for OS-drawn menus.** This would replace `SELECT_AT_JS` and cover
-   streamed or remote-desktop targets. It needs OS screen and input permissions.
-4. **Multi-tenant plumbing.** Designed above, not built.
-5. **Input `pattern`s and discovery-written outcome rules.** Replay classifies outcomes from an
-   optional `outcomes:` list or config defaults. Discovery does not yet write that list from what
-   it saw, and a malformed input is only caught by the page (open question P1b).
-6. **Per-step `expect` text.** Replay checks each step by OCR itself, plus the final checkpoint.
-   It does not check for the specific next page (R14 leftover).
-7. **Sitemap hint (Q15).** Decided, not in the current notebook (ParaBank has no sitemap anyway).
-8. **A hostile legacy test page (Q18).** Deferred. Proven live on ParaBank only, so framesets and
-   nested tables are unproven.
-9. **~~One shared module.~~ Done.** `src/cua/` is the single port: discovery and replay both
-   import `cua.vision`, `cua.browser`, `cua.safety`, `cua.handoff`, and share one `SendGuard`
-   class. They still never import each other directly (checked by a test).
-10. **Assisted-LLM replay fallback, parked/resumable approvals across processes, live end-to-end
-    tests in CI.** Not built. The offline suites (`tests/unit`, `tests/integration`) drive the
-    package against fake pages instead.
+   report a stability score (status counts + rung per step). Design in
+   `docs/PRODUCTIONIZE_PLAN.md` step 12.
+1. **Per-keystroke take-over capture (cut).** A take-over stays unreplayable; the save refuses it.
+2. **Desktop surfaces (cut).** Browser only.
+3. **Whole-screen OCR for OS-drawn menus (cut).** Needs OS permissions.
+4. **Multi-tenant plumbing (designed).** See above.
+5. **Discovery-written outcome rules (cut).** Discovery does not write `outcomes:` yet.
+6. **Per-step `expect` text (cut, R14).**
+7. **Sitemap hint (designed, Q15).** Not built; ParaBank has no sitemap.
+8. **A hostile legacy test page (cut, Q18).** Proven live on ParaBank only.
+9. **One shared module (built).** `src/cua/` is the single port, one `SendGuard` for both sides.
+10. **Assisted-LLM replay fallback, cross-process approvals, live CI tests (cut).** Offline suites
+    use fake pages.

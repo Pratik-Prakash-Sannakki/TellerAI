@@ -1,9 +1,0 @@
-{"step": 0, "action": "type", "rung": "rung2", "point": [364, 310], "attempt": 1, "checked": true}
-{"step": 1, "action": "type", "rung": "rung2", "point": [364, 358], "attempt": 1, "checked": true}
-{"step": 2, "action": "click", "rung": "rung1", "point": [324, 391], "attempt": 1, "checked": true}
-{"step": 3, "action": "scroll", "rung": "-", "point": null, "attempt": 1, "checked": true}
-{"step": 4, "action": "scroll", "rung": "-", "point": null, "attempt": 1, "checked": true}
-{"step": 5, "action": "extract", "rung": "rung2", "point": [510, 357], "attempt": 1, "checked": true}
-{"step": 6, "action": "extract", "rung": "rung2", "point": [635, 357], "attempt": 1, "checked": true}
-{"step": 7, "action": "extract", "rung": "rung2", "point": [759, 357], "attempt": 1, "checked": true}
-{"step": 8, "action": "click", "rung": "rung1", "point": [322, 485], "attempt": 1, "checked": true, "cleanup": true}

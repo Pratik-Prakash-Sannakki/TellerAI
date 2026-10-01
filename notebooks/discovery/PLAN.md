@@ -1,3 +1,5 @@
+> **Historical.** Superseded by the `src/cua/` package; kept for the record only.
+
 # Pure-Visual Discovery Notebook: Build Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to build this task by task. Steps use checkboxes (`- [ ]`).

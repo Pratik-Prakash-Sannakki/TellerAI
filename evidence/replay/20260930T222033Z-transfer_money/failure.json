@@ -1,6 +1,0 @@
-{
-  "step": 6,
-  "action": "select",
-  "expected": "",
-  "observed": "the step's check failed"
-}

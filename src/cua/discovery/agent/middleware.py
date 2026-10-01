@@ -26,7 +26,7 @@ VALUE_SHAPED = re.compile(
 
 
 class NoopAnthropicPromptCachingMiddleware(AgentMiddleware):
-    """Disable prompt caching on the Iliad gateway; it rejects Anthropic cache markers."""
+    """Disable prompt caching: some Anthropic-compatible gateways reject cache markers."""
 
     name = "AnthropicPromptCachingMiddleware"
 

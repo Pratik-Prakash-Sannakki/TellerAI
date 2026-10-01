@@ -18,17 +18,26 @@ SRC = SNAP_DISCOVERY
 PROMPT = " ".join(VISUAL_SYSTEM_PROMPT.split())
 DESCRIBE = " ".join(inspect.getsource(save.describe).split())
 # A prompt edit changes this hash: bump PROMPT_VERSION, then record the new hash here.
-PROMPT_SHA256 = "fcf04f08a3b4f877bbff91a784431fa913f32e122b4c9d69a7c2c5778b4a14ba"
-RECORDED_VERSION = "visual-2026-10-01"
+PROMPT_SHA256 = "f50a929fa6493be1dd7916950a91b981cf1ee8951c581685114c051d5bc08346"
+RECORDED_VERSION = "visual-2026-10-01b"
+# The one rule added after the port (2026-10-01): save the send's confirmation before finishing.
+CONFIRMATION_RULE = (
+    "- After a send is approved and the confirmation page shows, call extract_value on the"
+    " confirmation or reference number (value_type 'id') if the page shows one, else on the"
+    " confirmation message (value_type 'string'), with save_as e.g. confirmation, BEFORE"
+    " finish_business_outcome. NEVER invent one.\n"
+)
 
 
-def test_the_prompt_is_the_notebooks_verbatim() -> None:
+def test_the_prompt_is_the_notebooks_verbatim_plus_the_confirmation_rule() -> None:
     node = next(
         n
         for n in ast.parse(SRC.read_text()).body
         if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "VISUAL_SYSTEM_PROMPT"
     )
-    assert node.value.value == VISUAL_SYSTEM_PROMPT  # type: ignore[attr-defined]
+    assert CONFIRMATION_RULE in VISUAL_SYSTEM_PROMPT
+    ported = VISUAL_SYSTEM_PROMPT.replace(CONFIRMATION_RULE, "")
+    assert node.value.value == ported  # type: ignore[attr-defined]
 
 
 def test_a_prompt_edit_forces_a_version_bump() -> None:
@@ -57,6 +66,17 @@ def test_the_prompt_keeps_the_must_rules() -> None:
         "exactly 3 calls",
         "save_as name_1, name_2",
         "MUST log out last",
+    ):
+        assert rule in PROMPT, rule
+
+
+def test_the_prompt_saves_the_send_confirmation() -> None:
+    for rule in (
+        "After a send is approved and the confirmation page shows",
+        "confirmation or reference number (value_type 'id')",
+        "else on the confirmation message (value_type 'string')",
+        "save_as e.g. confirmation, BEFORE finish_business_outcome",
+        "NEVER invent one",
     ):
         assert rule in PROMPT, rule
 

@@ -1,6 +1,0 @@
-{
-  "step": 3,
-  "action": "navigate",
-  "expected": "step 4 without 'not found'",
-  "observed": "Pretty-print \u25a1 {\"title\":\"Not Found\",\"status\":404,\"detail\":\"No endpoint GET /parabank/parabank/contact.htm.\",\"instance\":\"/parabank/parabank/contact.htm\"}"
-}

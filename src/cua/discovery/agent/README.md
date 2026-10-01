@@ -3,11 +3,14 @@
 The discovery deep agent: what the model is told, what wraps each model call, and how it is built.
 
 ## Read order
-1. `prompt.py` - `VISUAL_SYSTEM_PROMPT` (the notebook's, verbatim) and `PROMPT_VERSION` (written to
+1. `prompt.py` - `VISUAL_SYSTEM_PROMPT` (the notebook's, verbatim, plus one later rule: save the
+   send's confirmation before finishing) and `PROMPT_VERSION` (written to
    each run's `run.json`, never the artifact). A test pins the prompt's sha256: an edit forces a
    version bump.
-2. `middleware.py` - `NoopAnthropicPromptCachingMiddleware` (the gateway rejects cache markers),
-   `LatestScreenshotOnly` (only the newest screenshot reaches the model).
+2. `middleware.py` - `NoopAnthropicPromptCachingMiddleware` (prompt caching off; some
+   Anthropic-compatible gateways reject cache markers), `LatestScreenshotOnly` (only the newest
+   screenshot reaches the model), `RecordWhy` (the model's reason for each call, masked, max 200
+   chars, put on each event as `why`).
 3. `routing.py` - optional TypeSafe tool router + Haiku/Sonnet model router. Off unless
    `TYPESAFE_API_KEY` is set (`build_routing_middleware(page_path) -> []`). Fails open: low
    confidence or any error keeps every tool. When on it sends the page path + last result text

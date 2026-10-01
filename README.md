@@ -29,8 +29,9 @@ cp .env.example .env                     # then fill in the keys below
 | Key | Needed for | Notes |
 |---|---|---|
 | `PARABANK_USERNAME` / `PARABANK_PASSWORD` | discovery and replay | a ParaBank demo user (fake data only). Typed by `type_secret`; the model sees the name, never the value |
-| `ILIAD_API_KEY` | discovery only | every LLM call goes through the Iliad gateway (`src/cua/llm.py`). If unset, falls back to `ANTHROPIC_API_KEY` |
-| `ILIAD_BASE_URL`, `ILIAD_SONNET_MODEL`, `ILIAD_HAIKU_MODEL`, `SSL_CERT_FILE` | optional | gateway overrides / corporate CA bundle |
+| `ANTHROPIC_API_KEY` | discovery only | the default: every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
+| `ILIAD_BASE_URL` + `ILIAD_API_KEY` | optional | an optional Anthropic-compatible gateway via env vars. Only when `ILIAD_BASE_URL` is set do calls go through it; a URL with no key is an error |
+| `ILIAD_SONNET_MODEL`, `ILIAD_HAIKU_MODEL`, `SSL_CERT_FILE` | optional | model-name overrides / a CA bundle for the gateway |
 | `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool-selection + model routing for discovery (off by default) |
 
 Replay needs no LLM key at all.
@@ -40,7 +41,7 @@ Replay needs no LLM key at all.
 The test suite needs no key, no browser and no network:
 
 ```bash
-.venv/bin/python -m pytest -q tests     # 720 passed (2026-10-01)
+.venv/bin/python -m pytest -q tests     # 772 passed (2026-10-01)
 ```
 
 It covers the send gates and mismatch check, the "nothing stored" rule, evidence masking,
@@ -48,6 +49,25 @@ artifact save/load, the targeting rungs, replay's step engine, take-over evidenc
 rules between packages, the `cua` CLI (argument parsing + wiring, monkeypatched), and a round
 trip (discovery's `build_capability` -> `save_artifact` -> replay's `load_capability`,
 unchanged). `tests/unit/test_llm.py` covers the model factory.
+
+- Lint: `uvx ruff check src tests`.
+- mypy --strict: TBD (Wave 3)
+
+### Guard rails worth knowing
+
+- **Allowed actions.** `allowed_actions` in `configs/<site>.yaml` lists the step actions a site
+  permits (ParaBank: `navigate, click, type, select, scroll, extract, extract_table`; omit the key
+  to allow all). Discovery refuses any other with `REFUSED` (logged). Replay fails that step
+  (`FAILED`) before acting.
+- **Run timeout.** `DiscoveryConfig.run_timeout_s` (default 900). Past it the run ends `STUCK`:
+  "discovery timed out after N s". Cleanup and evidence still run.
+- **Typed inputs.** The recorder types each input from the *shape* of what was typed (`email`,
+  `phone`, `date`, `currency`, `number`, `integer`, `id`, else `string`), never the value. Replay
+  checks each given input against its type and stops (`STUCK`, name and type only) on a mismatch.
+- **`why` on events.** Each discovery event carries the model's reason for the call: masked (run
+  values and value shapes blanked), max 200 chars.
+- **Confirmation.** After an approved send, the agent saves the confirmation or reference number
+  (`id`), else the confirmation message (`string`), before `finish_business_outcome`.
 
 ## Demo path
 
@@ -74,8 +94,7 @@ are thin demos over the `cua` package — the real logic lives in `src/cua/`.
 5. `## Evidence` writes a masked `evidence/discovery/<UTC>-<goal>/` folder.
 
 Saved examples from earlier runs: `artifacts/` (`transfer_money.yaml`, `pay_bill.yaml`,
-`pay_bill_to_payee.yaml`, `get_all_account_balances.yaml`,
-`get_para_bank_phone_number.yaml`).
+`pay_bill_to_payee.yaml`, `get_all_account_balances.yaml`).
 
 **2. Replay the artifact (no LLM).**
 
@@ -106,7 +125,7 @@ The same two flows as one command each, once `uv sync` installs `cua` as a scrip
 ```
 src/cua/               the package (see src/cua/README.md for read order and import rules)
   config.py            SiteProfile (from configs/<site>.yaml), BrowserConfig/DiscoveryConfig/
-                       ReplayConfig, resolve_secret/secret_values, host_allowed, Iliad gateway env
+                       ReplayConfig, resolve_secret/secret_values, host_allowed, model env
   llm.py               make_chat_model
   schema/              the contract: Capability, value types, results, events
   vision/              pixels -> text: screenshots, OCR, canvas math, crops, table reader
@@ -116,7 +135,8 @@ src/cua/               the package (see src/cua/README.md for read order and imp
   discovery/           the agent: tools, prompt/middleware, recorder (events -> Capability), evidence
   replay/              the engine: loader, locate (rungs), steps, run, rescue, evidence
   cli.py               `cua discover` / `cua replay`
-configs/parabank.yaml  start_url, allowed hosts, secret env names, deny/login words, outcomes.
+configs/parabank.yaml  start_url, allowed hosts, secret env names, deny/login words, outcomes,
+                       allowed_actions.
                        The ONLY place ParaBank lives.
 artifacts/<name>.yaml  saved capabilities; artifacts/crops/<name>/ their template crops
 notebooks/discovery/   discovery.py/.ipynb (thin demo), decisions.md, discovery_architecture.md

@@ -48,7 +48,7 @@ src/cua/
   __init__.py          version only
   config.py            env + typed config: SiteProfile (loaded from configs/<site>.yaml),
                        BrowserConfig, DiscoveryConfig, ReplayConfig (frozen dataclasses)
-  llm.py               make_chat_model (today's models.py; models.py kept as a 1-line re-export)
+  llm.py               make_chat_model (was models.py; the re-export shim was later removed)
   schema/              THE CONTRACT. Pure Pydantic / dataclasses, no I/O
     capability.py      Strict, Target (OcrText/Anchor/TableCell), steps, Input/Output, Capability,
                        CapabilityMeta; SCHEMA_VERSION = 2

@@ -1,6 +1,0 @@
-{
-  "step": 2,
-  "action": "click",
-  "expected": "step 3 without 'could not be verified'",
-  "observed": "PARA BANK Experience the difference Solutions About Us Services Products Welcome to ParaBank Locations Admin Page Customer Login Error! Username Password The username and password could not be verifie"
-}

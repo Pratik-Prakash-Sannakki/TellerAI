@@ -5,11 +5,12 @@ step (see `docs/PRODUCTIONIZE_PLAN.md`); later steps append their folders here.
 
 ## Read order
 1. `config.py` - site profile (`load_site` -> frozen `SiteProfile` from `configs/<site>.yaml`),
-   `BrowserConfig` / `DiscoveryConfig` / `ReplayConfig`, Iliad gateway settings, `resolve_secret`,
+   `BrowserConfig` / `DiscoveryConfig` / `ReplayConfig`, model env settings, `resolve_secret`,
    `host_allowed`. Loads `.env` at import.
 2. `schema/` - the contract between discovery and replay (capability, value types, results,
    events). Pure, no I/O.
-3. `llm.py` - `make_chat_model`, the one place a chat model is built (Iliad gateway).
+3. `llm.py` - `make_chat_model`, the one place a chat model is built (direct Anthropic; an optional
+   Anthropic-compatible gateway via env vars).
 
 ## Rules
 - No site value (host, URL, words, env-var names) in `src/`: they live in `configs/<site>.yaml`

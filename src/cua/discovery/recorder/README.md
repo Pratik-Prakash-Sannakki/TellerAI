@@ -14,6 +14,9 @@ caller passes in.
    take-overs, leaked values, blind dropdowns and runs that read or sent nothing).
 4. `save.py` - `crops_for`, `save_artifact` (default `artifacts/<name>.yaml` +
    `artifacts/crops/<name>/`), `describe(goal, log, model)` (the model writes only metadata).
+5. `types.py` - typed inputs: `shapes_of(value)` (logged, never the value) and the input type
+   inferred from those shapes (`email`/`phone`/`date`/`currency`/`number`/`integer`/`id`, else
+   `string`).
 
 ## What may NOT go here
 - No browser, no Playwright, no I/O other than `save_artifact`'s file writes.

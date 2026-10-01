@@ -1,9 +1,0 @@
-{
-  "status": "STUCK",
-  "reason": "inputs not given: ['from_account', 'to_account']",
-  "summary": "STUCK",
-  "outputs": {},
-  "human": [],
-  "failing_step": null,
-  "cleanup": ""
-}

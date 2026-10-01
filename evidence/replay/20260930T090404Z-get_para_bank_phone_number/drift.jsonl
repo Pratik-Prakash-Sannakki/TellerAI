@@ -1,6 +1,0 @@
-{"step": 0, "action": "type", "rung": "rung2", "point": [365, 313], "attempt": 1, "checked": true}
-{"step": 1, "action": "type", "rung": "rung2", "point": [365, 361], "attempt": 1, "checked": true}
-{"step": 2, "action": "click", "rung": "rung1", "point": [328, 110], "attempt": 1, "checked": true}
-{"step": 3, "action": "extract", "rung": "human", "actions": {"pages": ["/parabank/about.htm"], "sends": []}, "shots": {"before": "take_over_0_before.png", "after": "take_over_0_after.png"}}
-{"step": 4, "action": "click", "rung": "miss", "point": null, "attempt": 1, "checked": false, "cleanup": true}
-{"step": 4, "action": "click", "rung": "miss", "point": null, "attempt": 2, "checked": false, "cleanup": true}
