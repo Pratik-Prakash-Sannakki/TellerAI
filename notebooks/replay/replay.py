@@ -32,10 +32,10 @@
 from pathlib import Path
 
 from cua.browser import open_session
-from cua.config import BrowserConfig, ReplayConfig, load_site
+from cua.config import BrowserConfig, ReplayConfig, load_site, secret_values
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence
-from cua.replay.wiring import attach, secret_values
+from cua.replay.wiring import attach
 
 ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "pyproject.toml").exists())
 site = load_site("parabank")

@@ -33,14 +33,13 @@
 from pathlib import Path
 
 from cua.browser import check_viewport, open_session
-from cua.config import BrowserConfig, DiscoveryConfig, load_site
+from cua.config import BrowserConfig, DiscoveryConfig, load_site, secret_values
 from cua.discovery.agent.build import build_agent
 from cua.discovery.evidence import save_evidence
 from cua.discovery.goal import run_goal
 from cua.discovery.recorder import build_capability, crops_for, describe, save_artifact
 from cua.discovery.wiring import attach
 from cua.llm import make_chat_model
-from cua.replay.wiring import secret_values
 
 ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "pyproject.toml").exists())
 site = load_site("parabank")

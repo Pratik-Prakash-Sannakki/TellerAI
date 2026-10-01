@@ -124,7 +124,8 @@ Status key: **DECIDED** = settled by an existing doc or a user rule (source give
 - User rule: "the artifact discovery generates should be directly consumed by replay, no edits
   should be made."
 - `build_capability(log, meta)` (pure Python, R12 + R16) → `save_artifact(cap, crops, out_dir)`
-  writes `artifacts/visual/<name>.yaml` + `crops/<name>/s<i>.png`, then reloads it into the model.
+  writes `artifacts/<name>.yaml` + `artifacts/crops/<name>/s<i>.png` (top-level `artifacts/`,
+  Decision 6), then reloads it into the model.
 - The schema v2 Pydantic models (R13) live in that section: the single source. Replay imports
   or copies them verbatim.
 - Saving is a separate one-line call in the `## Run` cell; `run_goal` never auto-saves.

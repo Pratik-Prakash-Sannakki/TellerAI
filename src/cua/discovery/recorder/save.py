@@ -3,8 +3,7 @@
 Moved from notebooks/discovery/discovery.py (``crops_for``, ``save_artifact``, ``describe``).
 Two changes the migration asked for, no logic change: ``describe`` takes the model as a parameter
 (it used the notebook's global ``MODEL``), and ``save_artifact`` defaults to the top-level
-``artifacts/`` folder (``artifacts/<name>.yaml`` + ``artifacts/crops/<name>/``), not
-``artifacts/visual``.
+``artifacts/`` folder (``artifacts/<name>.yaml`` + ``artifacts/crops/<name>/``).
 """
 
 from __future__ import annotations

@@ -221,6 +221,9 @@ tests + folder README, run `uv run pytest`, `mypy`, `ruff`, `graphify update .`,
 | 12 | **DEFERRED (user, 2026-10-01): do after the migration.** `cua eval` | cli.py, src/cua/eval.py |
 The user runs the browser cells after step 10 (live check of both notebooks) before step 11.
 
+**Status (2026-10-01): steps 0-11 done, committed.** Step 12 (`cua eval`) stays deferred, per the
+decision above.
+
 ## 9. Risks
 | Risk | Guard |
 |---|---|

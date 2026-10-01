@@ -17,6 +17,7 @@ from cua.config import (
     host_allowed,
     load_site,
     resolve_secret,
+    secret_values,
 )
 
 HOST = "parabank.parasoft.com"
@@ -107,6 +108,14 @@ def test_resolve_secret(site: SiteProfile, monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(RuntimeError, match="PARABANK_PASSWORD") as exc:
         resolve_secret("password", site)
     assert "u-fake" not in str(exc.value)
+
+
+def test_secret_values_maps_name_to_env_value(
+    site: SiteProfile, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PARABANK_USERNAME", "u-fake")
+    monkeypatch.delenv("PARABANK_PASSWORD", raising=False)
+    assert secret_values(site) == {"username": "u-fake", "password": ""}
 
 
 def test_browser_defaults() -> None:

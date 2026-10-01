@@ -18,7 +18,7 @@ from typing import Protocol
 from cua.browser import input as browser_input
 from cua.browser.dropdown import DROPDOWNS_JS, read_dropdowns
 from cua.browser.session import Session
-from cua.config import ReplayConfig, SiteProfile, resolve_secret
+from cua.config import ReplayConfig, SiteProfile, secret_values  # noqa: F401  re-export (D config)
 from cua.handoff.control_window import replay_control
 from cua.replay.context import Ctx
 from cua.replay.run import url_path
@@ -47,17 +47,6 @@ class Response(Protocol):
 
     @property
     def url(self) -> str: ...
-
-
-def secret_values(site: SiteProfile) -> dict[str, str]:
-    """Secret name -> value from `.env` ("" when unset), as the notebook's SECRETS."""
-    out: dict[str, str] = {}
-    for name in site.secrets:
-        try:
-            out[name] = resolve_secret(name, site)
-        except (KeyError, RuntimeError):
-            out[name] = ""
-    return out
 
 
 async def attach(session: Session, site: SiteProfile, cfg: ReplayConfig) -> Ctx:

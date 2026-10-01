@@ -15,6 +15,22 @@ Follow these in order for every request, no exceptions:
 - `notebooks/discovery/decisions.md` (Q*) and `notebooks/replay/DECISIONS.md` (R*) — every decision.
 - `notebooks/discovery/discovery_architecture.md`, `notebooks/replay/replay_architecture.md`.
 
+## Package layout (2026-10-01 migration)
+The notebook logic was ported into a real package. Start at `src/cua/README.md` (read order +
+import rules), then the subpackage it points you to.
+- `src/cua/{schema,vision,browser,safety,handoff,discovery,replay}` — the package. `cli.py` is
+  the `cua discover` / `cua replay` entry point.
+- `configs/parabank.yaml` — the only place ParaBank-specific values live.
+- `artifacts/<name>.yaml` + `artifacts/crops/<name>/` — saved capabilities (top-level, not under
+  `src/`).
+- `notebooks/discovery/discovery.py`/`.ipynb`, `notebooks/replay/replay.py`/`.ipynb` — thin demo
+  notebooks over the package; the real logic lives in `src/cua/`.
+- Tests: `.venv/bin/python -m pytest -q tests` (`tests/unit/` mirrors `src/cua/`;
+  `tests/integration/` covers notebook parity and the discovery→replay round trip).
+- The old numbered-phase/DOM-based stack (`agent.py`, `recorder.py`, `live.py`, D1-D102,
+  `PHASE*.md`) was removed; it's in git history before 2026-10-01. Statements below describing
+  "phases" or those files are historical, not current.
+
 ## How we work
 - One task at a time. No parallel work.
 - **The user runs the BROWSER cells.** A sub-agent never launches a browser; it verifies with the
@@ -55,17 +71,20 @@ Follow these in order for every request, no exceptions:
 - Don't touch the old repo `~/Documents/interface-ai-computer-use`.
 
 ## The system (pure visual)
-- `notebooks/discovery/` — `discovery.py`/`.ipynb`: a deep agent learns a task from screenshots
-  (OCR, site lock, control tab, send gates, take-over) and writes a capability:
-  `artifacts/visual/<name>.yaml` + `crops/<name>/s<i>.png`. Also `decisions.md`, `PLAN.md`.
-- `notebooks/replay/` — `replay.py`/`.ipynb`: runs a capability with plain code, no LLM
-  (rungs: table cell / OCR text / anchor / template), same gates. Also `DECISIONS.md`, `PLAN.md`.
+- `src/cua/` — the package: a deep agent learns a task from screenshots (OCR, site lock, control
+  tab, send gates, take-over) and writes a capability (`cua.discovery`); a plain-code engine, no
+  LLM, replays it (rungs: table cell / OCR text / anchor / template; `cua.replay`); shared
+  `schema`, `vision`, `browser`, `safety`, `handoff`, `config`, `llm`. `cli.py` wires both as
+  `cua discover` / `cua replay`.
+- `notebooks/discovery/discovery.py`/`.ipynb`, `notebooks/replay/replay.py`/`.ipynb` — thin demo
+  notebooks over the package (also `decisions.md`/`DECISIONS.md`, `PLAN.md` per side).
+- `configs/parabank.yaml` — the only place ParaBank values live.
+- `artifacts/<name>.yaml` + `artifacts/crops/<name>/` — saved capabilities (top-level).
 - `extensions/handback/` — Chrome toolbar extension for handing control back after a take-over.
-- `src/cua/` — only `config.py` (site, secret names, host gate, gateway settings) and
-  `models.py` (chat-model factory). Imported by the notebooks.
-- `tests/discovery/`, `tests/replay/` — offline suites; `tests/test_models.py` — model factory.
+- `tests/unit/` mirrors `src/cua/`; `tests/integration/` — notebook parity + discovery→replay
+  round trip.
 - `evidence/` — masked discovery/replay run folders (layout in `evidence/README.md`).
-- The earlier DOM-based stack (numbered notebooks, `cua discover`/`cua replay`, D1-D102,
+- The earlier numbered-phase, DOM-based stack (`agent.py`, `recorder.py`, `live.py`, D1-D102,
   `PHASE*.md`) was removed on 2026-10-01; it is in git history before that date.
 
 ## graphify

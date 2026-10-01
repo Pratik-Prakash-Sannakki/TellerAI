@@ -13,7 +13,14 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from cua.browser import Session, check_viewport, open_session
-from cua.config import BrowserConfig, DiscoveryConfig, ReplayConfig, _repo_root, load_site
+from cua.config import (
+    BrowserConfig,
+    DiscoveryConfig,
+    ReplayConfig,
+    _repo_root,
+    load_site,
+    secret_values,
+)
 from cua.discovery.agent.build import build_agent
 from cua.discovery.evidence import save_evidence as save_discovery_evidence
 from cua.discovery.goal import run_goal
@@ -23,7 +30,6 @@ from cua.llm import make_chat_model
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence as save_replay_evidence
 from cua.replay.wiring import attach as replay_attach
-from cua.replay.wiring import secret_values
 from cua.schema import ReplayResult
 
 EVIDENCE = Path("evidence")

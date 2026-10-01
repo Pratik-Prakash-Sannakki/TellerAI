@@ -2,12 +2,13 @@
 
 A computer-use system for a real banking web app (ParaBank). It has three parts. A discovery
 agent learns a task from screenshots. The capability artifact records what it learned. A replay
-engine runs the artifact again with plain code and no LLM. Both engines are notebooks, written as
-the production design: `notebooks/discovery/discovery.py` and `notebooks/replay/replay.py`
-(jupytext pairs of the `.ipynb` files). Decision IDs: `Q*` are in
-`notebooks/discovery/decisions.md`, `R*` and `P*` are in `notebooks/replay/DECISIONS.md` /
-`PLAN.md`. An earlier DOM-based stack was removed (2026-10-01). Only its model factory and config
-remain, in `src/cua/models.py` and `src/cua/config.py`.
+engine runs the artifact again with plain code and no LLM. Both engines are a real, installable
+package, `src/cua/` (see `src/cua/README.md` for the full package map), demoed by two thin
+notebooks (`notebooks/discovery/discovery.py`, `notebooks/replay/replay.py`, jupytext pairs of the
+`.ipynb` files) and by a `cua` CLI (`cua discover`, `cua replay`; `src/cua/cli.py`). Decision IDs:
+`Q*` are in `notebooks/discovery/decisions.md`, `R*` and `P*` are in
+`notebooks/replay/DECISIONS.md` / `PLAN.md`. An earlier DOM-based stack was removed before this
+package existed; its model factory and config survived as `src/cua/llm.py` and `src/cua/config.py`.
 
 Status words used below: **built** (in the code and tested), **designed** (decided, not in the
 code), **in progress** (being added now), **cut**.
@@ -18,7 +19,9 @@ code), **in progress** (being added now), **cut**.
 
 1. A Playwright screenshot of a fixed 1280x800 page at `device_scale_factor=1` (Q10). The Browser
    cell refuses to start if the screenshot is any other size.
-2. RapidOCR reads it. It returns text, boxes, and scores.
+2. RapidOCR reads it. It returns text, boxes, and scores. The CPU-bound decode/OCR/draw work runs
+   in one `asyncio.to_thread` call (`cua.vision.screenshot.take_look`), so it never blocks the
+   event loop that drives the page.
 3. Every text box gets a number, drawn as a red box on the image (OpenCV).
 4. The agent sees the numbered image plus a text list like `[7] 'Transfer'`. It picks one tool.
 5. The tool acts with `page.mouse` / `page.keyboard` at a point.
@@ -34,23 +37,30 @@ For the `<select>` under the point only, `SELECT_AT_JS` reads its options and se
 closed box still confirms the choice. We rejected whole-screen OCR plus a real OS mouse (it needs
 OS permissions and a big build).
 
-**The agent (built).** A LangChain deep agent (`create_deep_agent`) with 11 tools: `observe`,
+**The agent (built).** A LangChain deep agent (`create_deep_agent`) with 12 tools: `observe`,
 `click`, `type_text`, `type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`,
-`finish_business_outcome`, `request_missing_values`, `ask_human`. It runs with a `MemorySaver`
-checkpointer. The model is Sonnet through the Iliad gateway (`cua.models.make_chat_model`). Two
-small middlewares: one turns off prompt caching (the gateway rejects it), one sends the model
-only the latest screenshot (old numbers are stale). The rule that matters most: the agent picks
-the tool, but the tool's own code decides whether the action may happen. The host check, the
-lock, and the send gates all run inside our code, whatever the model asked for.
+`extract_table`, `finish_business_outcome`, `request_missing_values`, `ask_human`
+(`cua.discovery.tools.build_tools`). It runs with a `MemorySaver`
+checkpointer. The model is Sonnet through the Iliad gateway (`cua.llm.make_chat_model`;
+`cua.models` is kept as a one-line re-export). Two small middlewares: one turns off prompt
+caching (the gateway rejects it), one sends the model only the latest screenshot (old numbers
+are stale). An optional third layer, TypeSafe tool/model routing (`cua.discovery.agent.routing`),
+is off unless `TYPESAFE_API_KEY` is set. The rule that matters most: the agent picks the tool,
+but the tool's own code decides whether the action may happen. The host check, the lock, and the
+send gates all run inside our code, whatever the model asked for.
 
-**Replay (built)** reuses discovery's own vision, lock, control tab, and send guard, copied
-verbatim for now (R4). It has no model import at all (R1).
+**Replay (built)** shares discovery's vision, browser, safety and handoff code directly
+(`cua.vision`, `cua.browser`, `cua.safety`, `cua.handoff`) rather than a copy — one `SendGuard`
+class serves both sides, parameterised by `DISCOVERY_OPTIONS`/`REPLAY_OPTIONS` (R4, R9). It has
+no model import at all (R1); `cua.discovery` and `cua.replay` never import each other.
 
 ## Artifact schema
 
 **Discovery writes the artifact directly (built, R10/R11).** The artifact is `schema_version: 2`
-YAML plus `crops/<name>/s<i>.png`, written by discovery's `## Save artifact` section. Replay only
-loads it. It never edits or recompiles it. The artifact is a hybrid of two sources:
+YAML plus `crops/<name>/s<i>.png`, written to the top-level `artifacts/<name>.yaml` +
+`artifacts/crops/<name>/` folder by `cua.discovery.recorder.save.save_artifact` (the notebook's
+`## Save artifact` cell, or `cua discover`, call it). Replay only loads it. It never edits or
+recompiles it. The artifact is a hybrid of two sources:
 
 - **Steps come from the event log**, the ground truth of what actually ran:
   - `build_capability` drops failed or refused tool calls.
@@ -62,8 +72,8 @@ loads it. It never edits or recompiles it. The artifact is a hybrid of two sourc
   a step or an input. Input names it makes up are ignored, and a bad name is slugged, so the
   model's text can never fail the build.
 - `save_artifact` writes the file, then re-validates it with the same Pydantic model replay uses.
-  `tests/replay/test_round_trip.py` proves it: build, save, then replay's `load_capability`, with
-  no changes.
+  `tests/integration/test_discovery_to_replay.py` proves it: build, save, then replay's
+  `load_capability`, with no changes.
 
 **Shape** (`Capability`, strict, `extra="forbid"`): `name`, `version`, `description`, `base_url`,
 `viewport`, `device_scale_factor`, `inputs`, `outputs`, `secrets` (names only), `steps`, and
@@ -133,7 +143,8 @@ of three classes:
 - **Hard failure:** "error", "access denied", or a second expiry. The run stops as `FAILED`, with
   the step, what was expected, and the first 200 characters of what was on screen.
 
-**Caller inputs (built).** `replay(path, inputs={...})`:
+**Caller inputs (built).** `replay(ctx, path, inputs={...})` (`cua replay <yaml> --input k=v ...`
+at the CLI):
 - Keys match declared inputs by exact name, ignoring case.
 - An unknown key stops the run before the site opens: "not a permissible input".
 - Anything not given goes to one upfront form. So an AI agent can run it unattended, and a human
@@ -147,8 +158,8 @@ stop. Replay has no LLM to read a free-text answer (P2).
   passed. It holds no values. A step that keeps falling to rung 2 or 3 is the signal to
   re-discover.
 - `save_evidence` writes `evidence/replay/<UTC>-<name>/`: `summary.json`, `drift.jsonl`,
-  `failure.json`, `final.png`, take-over before/after shots, and a copy of the capability. All of
-  it is masked.
+  `failure.json`, `final.png`, take-over before/after shots, a copy of the capability, and
+  `run.json` (model/config/git-sha bookkeeping, never a run value). All of it is masked.
 
 ## Heterogeneity & multi-tenant
 
@@ -163,9 +174,10 @@ The design, carried over from the earlier DOM stack's reasoning:
   per tenant. An override patches only what differs, e.g. rung 1 text "Sign In" instead of
   "Log In", or a new crop for a rebranded button. A vendor UI update then fixes the base once.
 - **Per-tenant deployment config**, kept outside the artifact: the `base_url`, the secret env-var
-  names, the allowed hosts, and `safe`/`login`/`deny` words. The engine already keeps site values
-  in `Config` and the capability, not in tool code (R9). Moving them into a per-tenant file is
-  config work, not a redesign.
+  names, the allowed hosts, and `safe`/`login`/`deny` words. This is now built, one layer further
+  than when this section was first designed: every site value lives in one file,
+  `configs/parabank.yaml`, loaded into a frozen `SiteProfile` (`cua.config.load_site`) and never
+  in tool code (R9). A second tenant is one more `configs/<name>.yaml`, not a code change.
 - **Drift detection from data we already log.** The per-step rung is in the drift log. A tenant
   whose runs keep falling from rung 1 to rung 3 has drifted from the base.
 - **Theme and scale.** The fixed viewport and scale factor are saved per capability. A tenant with
@@ -216,10 +228,11 @@ take-over.
 
 ## Safety
 
-- **Every send is held at the network layer (built).** `guard_send` is a `page.route` handler.
-  Every request except GET/HEAD/OPTIONS is held, however it was triggered: a click, Enter, or the
-  page's own script. No button names are involved. The login click is the only exemption
-  (`login_words`). Then, in order:
+- **Every send is held at the network layer (built).** `SendGuard` (`cua.safety.send_guard`) is
+  the `page.route` handler, one class for both sides (`DISCOVERY_OPTIONS`/`REPLAY_OPTIONS` carry
+  what differs). Every request except GET/HEAD/OPTIONS is held, however it was triggered: a
+  click, Enter, or the page's own script. No button names are involved. The login click is the
+  only exemption (`login_words`). Then, in order:
   1. **Mismatch check.** Every number the request carries is compared with every number the human
      gave (the goal, the answers, the form values; the caller's inputs at replay). Any number the
      human never gave, e.g. account 1450 when they said 1400, opens a form for just those fields,
@@ -270,8 +283,9 @@ take-over.
 7. **Sitemap hint (Q15).** Decided, not in the current notebook (ParaBank has no sitemap anyway).
 8. **A hostile legacy test page (Q18).** Deferred. Proven live on ParaBank only, so framesets and
    nested tables are unproven.
-9. **One shared module.** Replay copies discovery's vision, lock, and gate cells verbatim. The
-   `src/cua/` port that merges them is not done.
+9. **~~One shared module.~~ Done.** `src/cua/` is the single port: discovery and replay both
+   import `cua.vision`, `cua.browser`, `cua.safety`, `cua.handoff`, and share one `SendGuard`
+   class. They still never import each other directly (checked by a test).
 10. **Assisted-LLM replay fallback, parked/resumable approvals across processes, live end-to-end
-    tests in CI.** Not built. The offline suites (`tests/discovery`, `tests/replay`) drive the
-    notebook cells against fake pages instead.
+    tests in CI.** Not built. The offline suites (`tests/unit`, `tests/integration`) drive the
+    package against fake pages instead.

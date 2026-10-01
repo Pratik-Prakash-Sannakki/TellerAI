@@ -161,4 +161,15 @@ def resolve_secret(name: str, site: SiteProfile) -> str:
     return value
 
 
+def secret_values(site: SiteProfile) -> dict[str, str]:
+    """Secret name -> value from `.env` ("" when unset), as the notebook's SECRETS."""
+    out: dict[str, str] = {}
+    for name in site.secrets:
+        try:
+            out[name] = resolve_secret(name, site)
+        except (KeyError, RuntimeError):
+            out[name] = ""
+    return out
+
+
 from cua.safety.hosts import host_allowed  # noqa: E402, F401  re-export (moved in step 6)
