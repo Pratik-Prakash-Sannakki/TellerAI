@@ -1,0 +1,694 @@
+# Frozen snapshot of the top-level definitions the parity tests read from
+# notebooks/discovery/discovery.py as of step 9 (commit fb1dcf7), before step 10 replaced the
+# notebook with a thin demo. Verbatim source; never edit (a test pins its sha256).
+
+def hide_secrets(text: str) -> str:
+    for name, value in SECRETS.items():
+        if value:
+            text = text.replace(value, f"<{name}>")
+    return text
+
+
+NUMBER = re.compile(r"\$?\d[\d,]*(?:\.\d+)?")
+
+
+def _num(text: str) -> str:
+    n = text.lstrip("$").replace(",", "")
+    return n.rstrip("0").rstrip(".") if "." in n else n
+
+
+def redactor(values: set[str], mask: str = "***"):
+    """text -> text with every value masked. Numbers match however they are written
+    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill')."""
+    nums = {_num(v) for v in values if NUMBER.fullmatch(v.strip())}
+    words = sorted((v for v in values if len(v.strip()) > 1 and not NUMBER.fullmatch(v.strip())),
+                   key=len, reverse=True)
+    word_re = re.compile("|".join(rf"(?<!\w){re.escape(w.strip())}(?!\w)" for w in words), re.I) if words else None
+
+    def redact(text: str) -> str:
+        text = NUMBER.sub(lambda m: mask if _num(m.group()) in nums else m.group(), text)
+        return word_re.sub(mask, text) if word_re else text
+    return redact
+
+
+def norm(text: str | None) -> str:
+    return " ".join((text or "").casefold().split()).rstrip(".:!?").strip()
+
+
+def is_sensitive(label: str) -> bool:
+    return any(w in label.casefold() for w in CFG.sensitive_words)
+
+
+async def dropdown_options(fields: dict[str, str], keys: list[str]) -> list[list[str]]:
+    """For each key: the options of the page dropdown whose CURRENT value is exactly this value,
+    else [] (a plain box). Each dropdown is used once, so '1' in five fields never grabs one twice.
+    From the pre-action read: guard_send never touches the page while it holds a request."""
+    free = list(HANDOFF.dropdowns)
+    out = []
+    for k in keys:
+        hit = next((d for d in free if fields[k] and fields[k] in (d["value"], d["text"])), None)
+        if hit:
+            free.remove(hit)
+        out.append([hide_secrets(o) for o in hit["options"]] if hit and len(hit["options"]) > 1 else [])
+    return out
+
+
+def mismatches(sent: dict[str, str]) -> list[str]:
+    """Numbers being sent that the human never gave (goal or answers), e.g. account 1450 vs 1400.
+    Only digit groups are compared: they are what a wrong transfer is made of, on any site."""
+    given = set(re.findall(r"\d+(?:\.\d+)?", " ".join([HANDOFF.goal, *HANDOFF.given])))
+    norm_num = lambda n: n.rstrip("0").rstrip(".") if "." in n else n   # noqa: E731  10.00 == 10
+    wanted = {norm_num(n) for n in given}
+    return [k for k, v in sent.items() if not is_sensitive(k)
+            and any(norm_num(n) not in wanted for n in re.findall(r"\d+(?:\.\d+)?", v))]
+
+
+def _flat(obj: dict, pre: str = "") -> dict[str, str]:
+    out: dict[str, str] = {}
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out |= _flat(v, f"{pre}{k}.")
+        elif not isinstance(v, list):
+            out[f"{pre}{k}"] = "" if v is None else str(v)
+    return out
+
+
+def _json(body: str | None) -> dict | None:
+    try:
+        data = json.loads(body or "")
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def sent_fields(req) -> dict[str, str]:
+    """Every value a request sends, from its query, a form body, or a JSON body (nested keys dotted)."""
+    data = _json(req.post_data)
+    body = _flat(data) if data is not None else dict(parse_qsl(req.post_data or ""))
+    return dict(parse_qsl(urlparse(req.url).query)) | body
+
+
+def rebuilt(req, fields: dict[str, str]) -> tuple[str, str | None]:
+    """The request's url and body with these values put back in, in the same format."""
+    u = urlparse(req.url)
+    query = {k: fields.get(k, v) for k, v in parse_qsl(u.query)}
+    url = u._replace(query=urlencode(query)).geturl() if query else req.url
+    data = _json(req.post_data)
+    if data is not None:
+        for key in _flat(data):
+            *path, last = key.split(".")
+            node = functools.reduce(lambda d, p: d[p], path, data)
+            old, new = node.get(last), fields.get(key, "")
+            is_num = isinstance(old, (int, float)) and not isinstance(old, bool)
+            node[last] = type(old)(new) if is_num and new else new
+        return url, json.dumps(data)
+    form = dict(parse_qsl(req.post_data or ""))
+    return url, (urlencode({k: fields.get(k, v) for k, v in form.items()}) if form else req.post_data)
+
+
+def pretty(key: str) -> str:
+    """'address.zipCode' -> 'Address zip code' (for the human; the key itself is kept)."""
+    words = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", key.replace(".", " ").replace("_", " ")).split()
+    return " ".join(words).capitalize()
+
+
+async def guard_send(route) -> None:
+    """Every request that sends data (not GET) is held for two human gates, however it was
+    triggered: a click, Enter, or the page's own script. Generic: no button names needed."""
+    req = route.request
+    if req.method in ("GET", "HEAD", "OPTIONS") or HANDOFF.allow_send:
+        return await route.continue_()
+    async with SEND_GATE:
+        # Nothing in here touches the page (no evaluate, screenshot or locator): while this request
+        # is held, a form POST (a navigation) keeps any page call from ever returning.
+        human = HANDOFF.takeover is not None      # the human's own send during a take-over
+        fields = sent_fields(req)
+        original = dict(fields)
+        if not human and (bad := mismatches(fields)):   # a human's own values: nothing to compare
+            # e.g. a dropdown left on its default: the human never gave that value. Ask them now,
+            # with the page's value filled in, and send what they confirm. The send is only held.
+            opts = await dropdown_options(fields, bad)
+            fixed = await CONTROL.form("You never gave these. Check or correct them:",
+                                       [(pretty(k), False) for k in bad], [fields[k] for k in bad], opts)
+            if not fixed or not all(fixed):
+                HANDOFF.verdict = f"STUCK: No value confirmed for {', '.join(bad)}. Nothing was sent."
+                return await route.abort()
+            fields.update(zip(bad, fixed))
+            HANDOFF.given.extend(fixed)
+        # The last look is the page as filled (the agent's own send); a human's send during a
+        # take-over has none that is current, so no image.
+        look = None if human else HANDOFF.look
+        shot = look.png if look else None  # dropped once values are edited
+        while True:     # Gate 1: Approve, or Edit = back to the form with every value, then again
+            sent = hide_secrets("\n".join(f"{pretty(k)}: {'******' if is_sensitive(k) else v}"
+                                           for k, v in fields.items())[:1200])
+            what = f"Sending to {urlparse(req.url).path}:\n{sent or '(no fields)'}"
+            choice = await CONTROL.ask("Gate 1 of 2: confirm the details", what, "confirm",
+                                       image=shot if fields == original else None)
+            if choice == "approve":
+                break
+            if choice != "edit":             # control tab closed: fail closed
+                HANDOFF.verdict = "STUCK: the details were not confirmed. Nothing was sent."
+                return await route.abort()
+            editable = [k for k in fields if not is_sensitive(k)]
+            opts = [[] for _ in editable] if human else await dropdown_options(fields, editable)
+            new = await CONTROL.form("Edit the details, then Submit:",
+                                     [(pretty(k), False) for k in editable],
+                                     [fields[k] for k in editable], opts)
+            if new:
+                fields.update(zip(editable, new))
+                HANDOFF.given.extend(v for v in new if v)
+        url, body = rebuilt(req, fields) if fields != original else (req.url, req.post_data)
+        if await CONTROL.ask("Gate 2 of 2: confirm sending", f"{what}\nThis cannot be undone.",
+                             "approve", image=shot if fields == original else None) != "approve":
+            HANDOFF.verdict = DECLINED
+            return await route.abort()
+        # e.g. a human's $100000: masked in evidence, and never part of a label
+        HANDOFF.redact |= {v for v in (*original.values(), *fields.values()) if v}
+        if look:                                   # the page's dropdowns hold what was on screen
+            await log_sent_dropdowns(look, original)
+        HANDOFF.entered = {}
+        HANDOFF.verdict = "SENT: a human approved both gates."
+        log("send", {"path": urlparse(req.url).path}, "approved by human",
+            corrected=[k for k in fields if fields[k] != original[k]])
+        if human and HANDOFF.takeover is not None:
+            HANDOFF.takeover.append({"kind": "send", "path": urlparse(req.url).path})
+        await route.continue_(url=url, post_data=body)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def observe() -> list:
+    """Take a new screenshot and number every piece of text on it. Old numbers stop working."""
+    return blocks("Current page.", await take_look())
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def click(ref: int | None = None, x: int | None = None, y: int | None = None) -> list:
+    """Click a numbered box, or a spot with no number by x,y. Risky clicks ask a human first.
+
+    Args:
+        ref: Number of the box in the latest look.
+        x: Pixel x of a spot with no number.
+        y: Pixel y of a spot with no number.
+    """
+    point = resolve_point(ref, x, y)
+    if isinstance(point, str):
+        return await reply(point)
+    before = HANDOFF.look
+    el = element_at(before, point)
+    text, crop, args = (el.text if el else None), cut_crop(before, point, el), {"ref": ref, "x": x, "y": y}
+    if text and any(norm(v) and norm(v) in norm(text) for v in (*SECRETS.values(), *HANDOFF.typed_texts)):
+        msg = "REFUSED: that number is text inside a box you already filled. It is done; move on."
+        log("click", args, msg, point, crop)
+        return blocks(msg, before)
+    spots = where(before, point, own=el)
+    if refusal := await gate_click(text, crop):
+        log("click", args, refusal, point, crop, text=text, **spots)
+        return blocks(refusal, before)
+    HANDOFF.allow_send, navs = norm(text) in CFG.login_words, NAVS["main"]
+    try:
+        after = await act(lambda: page.mouse.click(*to_page(point)))
+    finally:
+        HANDOFF.allow_send = False
+    msg, sent = f"Clicked {text or point!r}.", HANDOFF.verdict.startswith("SENT")
+    if page.url != before.url:
+        HANDOFF.entered = {}
+    if not host_allowed(page.url):
+        await page.go_back()
+        after, msg = await take_look(), "BLOCKED: left the allowed site. Went back."
+    elif screens_same(before.png, after.png) and not sent:      # a send that went out is a real step
+        msg = f"NO CHANGE after clicking {point}. Look again and retry."
+    if norm(text) in CFG.login_words:
+        HANDOFF.typed_secrets.clear()
+        msg = after_login_click(after.text) or msg
+    log("click", args, msg, point, crop, text=text, **spots, login=norm(text) in CFG.login_words,
+        from_texts=page_texts(before),
+        from_url=before.url, loaded=page.url != before.url, navigated=NAVS["main"] != navs,
+        new_texts=bool({norm(e.text) for e in after.elements} - {norm(e.text) for e in before.elements}),
+        **({"landed": landed(before, after)} if sent else {}))
+    return blocks(msg, after)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def type_text(text: str, ref: int | None = None, x: int | None = None,
+                    y: int | None = None) -> list:
+    """Click a box (by number or x,y) and type text. Only values from the user's goal.
+
+    Args:
+        text: The text to type. It must come from the goal.
+        ref: Number of a box, or leave empty and give x and y.
+        x: Pixel x of an empty input box.
+        y: Pixel y of an empty input box.
+    """
+    point = resolve_point(ref, x, y)
+    if isinstance(point, str):
+        return await reply(point)
+    label = label_near(HANDOFF.look, point)
+    hint = label.text if label else "value"
+    if needs_human_value(text, hint):
+        return await reply(await human_fills([(point, hint)]))
+    crop, spots = cut_crop(HANDOFF.look, point, None), where(HANDOFF.look, point)
+    after = await act(*into_box(point, text))
+    HANDOFF.typed_texts.add(text)
+    shown = read_near(after, point)
+    msg = (f"Typed at {point}. Box shows {shown!r}." if norm(text) in norm(shown)
+           else f"TYPED at {point} but the box shows {shown!r}. Look again.")
+    HANDOFF.entered[hint] = text
+    log("type_text", {"ref": ref, "x": x, "y": y}, msg.split(" Box shows")[0], point, crop,
+        **spots)
+    return blocks(msg, after)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def type_secret(name: str, ref: int | None = None, x: int | None = None,
+                      y: int | None = None) -> list | str:
+    """Click a box and type a stored secret. You give only its name and never see the value.
+
+    Args:
+        name: The secret's name.
+        ref: Number of a box, or leave empty and give x and y.
+        x: Pixel x of an empty input box.
+        y: Pixel y of an empty input box.
+    """
+    if not SECRETS.get(name):
+        return await reply(f"UNKNOWN SECRET '{name}'. Use one of: {sorted(SECRETS)}")
+    if not host_allowed(page.url):
+        return await reply("REFUSED: this site is not on the allowlist.")
+    point = resolve_point(ref, x, y)
+    if isinstance(point, str):
+        return await reply(point)
+    before = HANDOFF.look
+    crop, spots = cut_crop(before, point, None), where(before, point)
+    after = await act(*into_box(point, SECRETS[name]))
+    if is_sensitive(name) and SECRETS[name] in read_near(after, point):
+        HANDOFF.look = None
+        log("type_secret", {"secret_name": name}, "STOP: secret visible", point, crop, **spots)
+        return "STOP: the box shows the secret as plain text. Call ask_human; do not observe."
+    if typed := spot_changed(before, after, point):
+        HANDOFF.typed_secrets.add(name)
+    msg = (f"Typed secret '{name}' at {point}." if typed
+           else f"NOTHING TYPED at {point}: that point is not an input box. Point at the empty "
+                "box itself (usually right of or below its label) and try once more.")
+    log("type_secret", {"secret_name": name}, msg, point, crop, **spots)
+    return blocks(msg, after)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def select_option(option: str, ref: int | None = None, x: int | None = None,
+                        y: int | None = None) -> list:
+    """Pick the dropdown option that matches. Nothing is typed. Give option="" if the goal does not name it.
+
+    Args:
+        option: Visible option text from the goal, or "" to let a human choose.
+        ref: Number of the dropdown, or leave empty and give x and y.
+        x: Pixel x of the dropdown.
+        y: Pixel y of the dropdown.
+    """
+    point = resolve_point(ref, x, y)
+    if isinstance(point, str):
+        return await reply(point)
+    label = label_near(HANDOFF.look, point)
+    hint = label.text if label else "option"
+    if needs_human_value(option, hint):
+        return await reply(await human_fills([(point, hint)], dropdown=True))
+    own = element_at(HANDOFF.look, point)
+    crop, spots = cut_crop(HANDOFF.look, point, own), where(HANDOFF.look, point)
+    if (index := await choose_option(point, option, hint)) is None:
+        return await reply(mark_stuck(f"'{option}' is not an option in '{hint}'"))
+    msg = f"Selected '{option}' at {point}."
+    HANDOFF.entered[hint] = option
+    log("select_option", {"ref": ref, "x": x, "y": y}, "Selected.", point, crop, index=index, **spots)
+    return await reply(msg)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def scroll(direction: str, x: int | None = None, y: int | None = None) -> list:
+    """Scroll up or down, then take a new look. Old numbers stop working.
+
+    Args:
+        direction: 'up' or 'down'.
+        x: Optional pixel x inside a small scrolling panel.
+        y: Optional pixel y inside a small scrolling panel.
+    """
+    before = HANDOFF.look or await take_look()
+    w, h = canvas()
+    at = (x, y) if x is not None and y is not None else (w // 2, h // 2)
+    dy = CFG.scroll_px if direction == "down" else -CFG.scroll_px
+    after = await act(lambda: page.mouse.move(*to_page(at)), lambda: page.mouse.wheel(0, dy))
+    msg = f"Scrolled {direction}."
+    if screens_same(before.png, after.png):
+        msg = "BOTTOM OF PAGE reached." if dy > 0 else "TOP OF PAGE reached."
+    log("scroll", {"direction": direction, "x": x, "y": y}, msg)
+    return blocks(msg, after)
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def open_path(path: str) -> list:
+    """Open a page on the allowed site by its path (a menu link or a sitemap path).
+
+    Args:
+        path: A path you SAW on this site (a link's target or the current URL). Never guess one.
+    """
+    url = urljoin(BASE_URL + "/", path.lstrip("/"))
+    refusal = None
+    if not host_allowed(url):
+        refusal = "REFUSED: that host is not allowed."
+    elif any(w in norm(path) for w in CFG.deny_words):
+        refusal = f"REFUSED: '{path}' is not allowed."
+    elif any(norm(v) not in norm(HANDOFF.goal) for _, v in parse_qsl(urlparse(url).query)):
+        refusal = "REFUSED: query values must come from the goal."
+    if refusal:
+        log("open_path", {"path": path}, refusal)
+        return await reply(refusal)
+    left = page_texts(HANDOFF.look) if HANDOFF.look else []
+    response = await page.goto(url)                  # network metadata only, never the DOM
+    status = response.status if response else 0
+    msg = f"HTTP ERROR {status}: {path} does not exist." if status >= 400 else f"Opened {path}."
+    log("open_path", {"path": path}, msg, status=status, path=urlparse(url).path, from_texts=left)
+    return blocks(msg, await take_look())
+
+
+TABLE_GAP = 40     # px: a bigger vertical gap between two lines ends a table block
+
+
+def same_line(a: Box, b: Box) -> bool:
+    return a.y1 < b.y2 and b.y1 < a.y2
+
+
+def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
+    """Each header's x-range: out to the midpoint with its neighbours on the header line; an
+    outer header reaches one own width further (a cell may be wider than its header)."""
+    line = sorted(line, key=lambda e: e.box.x1)
+    out = []
+    for i, e in enumerate(line):
+        w = e.box.x2 - e.box.x1
+        lo = (line[i - 1].box.x2 + e.box.x1) / 2 if i else e.box.x1 - w
+        hi = (e.box.x2 + line[i + 1].box.x1) / 2 if i + 1 < len(line) else e.box.x2 + w
+        out.append((e, lo, hi))
+    return out
+
+
+def table_columns(look: Look, head: Element, columns: list[str],
+                  match) -> tuple[list[tuple[str | None, float, float]], int] | None:
+    """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
+    None when an asked column is not on head's line. Unasked columns stay: they bound the others."""
+    spans = column_spans([e for e in look.elements if same_line(e.box, head.box)])
+    names = {id(e): next((c for c in columns if match(e.text, c)), None) for e, _, _ in spans}
+    if set(columns) - set(names.values()):
+        return None
+    below = max(e.box.y2 for e, _, _ in spans)
+    return [(names[id(e)], lo, hi) for e, lo, hi in spans], below
+
+
+def col_of(box: Box, cols: list[tuple[str | None, float, float]]) -> int | None:
+    """The column the box overlaps most, or None when it overlaps none (outside the table)."""
+    lap = [min(box.x2, hi) - max(box.x1, lo) for _, lo, hi in cols]
+    best = max(range(len(cols)), key=lap.__getitem__, default=None)
+    return best if best is not None and lap[best] > 0 else None
+
+
+def text_lines(els: list[Element]) -> list[list[Element]]:
+    """Texts grouped into lines, top to bottom."""
+    lines: list[list[Element]] = []
+    for e in sorted(els, key=lambda e: e.box.y1):
+        if lines and same_line(lines[-1][0].box, e.box):
+            lines[-1].append(e)
+        else:
+            lines.append([e])
+    return lines
+
+
+def row_of(line: list[Element], cols: list[tuple[str | None, float, float]]) -> dict[str, str]:
+    """A line's texts in the asked columns, left to right; two texts in one column are joined."""
+    row: dict[str, str] = {}
+    for e in sorted(line, key=lambda e: e.box.x1):
+        if (name := cols[col_of(e.box, cols)][0]) is not None:
+            row[name] = f"{row[name]} {e.text}" if name in row else e.text
+    return row
+
+
+def read_rows(look: Look, cols: list[tuple[str | None, float, float]], below: int | None,
+              limit: int) -> tuple[list[dict[str, str]], bool]:
+    """(rows under the header, whether the table may continue past the look's bottom). Rows end at
+    a vertical gap >= TABLE_GAP, a line with no text in any asked column, or `limit`. below=None:
+    a scrolled table with its header gone, read from the look's top."""
+    inside = [e for e in look.elements if col_of(e.box, cols) is not None
+              and (below is None or e.box.y1 >= below)]
+    rows: list[dict[str, str]] = []
+    prev, height = below, None
+    for line in text_lines(inside):
+        row = row_of(line, cols)
+        top = min(e.box.y1 for e in line)
+        gap = prev is not None and top - prev >= max(TABLE_GAP, 2 * (height or 0))
+        if gap or not row or len(rows) >= limit or not like_rows(row, rows):
+            return rows, False
+        rows.append(row)
+        height = height or max(e.box.y2 for e in line) - top
+        prev = max(e.box.y2 for e in line)
+    return rows, len(rows) < limit
+
+
+def like_rows(row: dict[str, str], rows: list[dict[str, str]]) -> bool:
+    """A table's end: a line that no longer looks like its rows (a footer, a menu, a copyright). Each
+    column's cells keep one shape (a date stays a date, an amount an amount); a line breaking the
+    shape of a column the rows so far all agree on is not a row. Links joined by '|' never are."""
+    if any("|" in v or len(v) > 60 for v in row.values()):
+        return False
+    for name, v in row.items():
+        seen = {cell_shape(r[name]) for r in rows if name in r}
+        if len(seen) == 1 and cell_shape(v) not in seen:
+            return False
+    return True
+
+
+def cell_shape(text: str) -> str:
+    """'date', 'amount', or 'text': enough to tell a row cell from a footer line in its column."""
+    t = text.strip()
+    if re.fullmatch(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}", t):
+        return "date"
+    if re.fullmatch(r"[-−]?\$?[-−]?[\d,]+(\.\d{2})?", t):
+        return "amount"
+    return "text"
+
+
+def append_rows(old: list[dict[str, str]], new: list[dict[str, str]]) -> list[dict[str, str]]:
+    """A scrolled second read repeats the rows still on screen: drop only that overlap."""
+    k = next((k for k in range(min(len(old), len(new)), 0, -1) if old[-k:] == new[:k]), 0)
+    return [*old, *new[k:]]
+
+
+SHAPES = {     # a value's shape inside a longer box: generic, never a site's own format
+    "phone": r"\+?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}",
+    "currency": r"-?\$-?[\d,]*\d(?:\.\d{2})?|-?[\d,]*\d\.\d{2}",
+    "date": r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}",
+    "integer": r"-?\d+",
+    "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+    "id": r"[A-Za-z]*\d[\w-]*",
+}
+
+
+TYPES = {"string": r"\S.*", "number": r"-?[\d,]*\.?\d+", "boolean": r"true|false|yes|no", **SHAPES}
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def extract_value(ref: int, save_as: str, value_type: str, description: str) -> str:
+    """Save a value the goal asked for, read from a numbered box.
+
+    Args:
+        ref: Number of the box holding the value, not its header.
+        save_as: Name to save it under, e.g. 'savings_balance'.
+        value_type: Expected type: 'string', 'integer', 'number', 'currency', 'date', 'phone', 'email' or 'id'.
+        description: What the value is, in plain words.
+    """
+    look = HANDOFF.look
+    el = look.get(ref) if look else None
+    if el is None:
+        return f"STALE: [{ref}] is not in the latest look. Call observe."
+    found = value_in_box(el.text, value_type)
+    if found is None:
+        return f"REFUSED: {el.text!r} holds no {value_type}. Pick the value box, not a header."
+    value, pattern = found
+    HANDOFF.saved[save_as] = value
+    args = {"ref": ref, "save_as": save_as, "value_type": value_type, "description": description}
+    log("extract_value", args, "saved", el.box.center, cut_crop(look, el.box.center, el),
+        page_texts=page_texts(look, el), headings=headings(look, el), pattern=pattern,
+        **read_target(look, el))
+    return f"Saved {save_as} = {value!r}."
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def extract_table(header_ref: int, save_as: str, columns: list[str], description: str,
+                        row_limit: int = 50) -> str:
+    """Save a table or list the goal asked for: our code reads its rows under the header.
+
+    Args:
+        header_ref: Number of one header cell of the table (e.g. its 'Date' header).
+        save_as: Name to save the rows under, e.g. 'transactions_1'.
+        columns: The header texts of the columns you want, exactly as shown.
+        description: What the table is, in plain words.
+        row_limit: Most rows to read.
+    """
+    look, values = HANDOFF.look, run_values()
+    head = look.get(header_ref) if look else None
+    if head is None:
+        return f"STALE: [{header_ref}] is not in the latest look. Call observe."
+    if bad := [c for c in columns if not is_word(c, values)]:
+        return f"REFUSED: {bad} are not header texts (a header never holds a value)."
+    if save_as in HANDOFF.tables and not any(is_header(head.text, c) for c in columns):
+        cols, below = HANDOFF.tables[save_as], None          # scrolled on: the header is gone
+    elif found := table_columns(look, head, columns, is_header):
+        cols, below = found
+    else:
+        return f"REFUSED: not every one of {columns} is a header on the line of [{header_ref}]."
+    old = HANDOFF.saved.get(save_as, [])
+    rows, more = read_rows(look, cols, below, row_limit)
+    HANDOFF.tables[save_as], HANDOFF.saved[save_as] = cols, append_rows(old, rows)[:row_limit]
+    first = next((e for e in look.elements if same_line(e.box, head.box) and is_header(e.text, columns[0])), None)
+    rest = off_table(look, HANDOFF.saved[save_as])
+    args = {"header_ref": header_ref, "save_as": save_as, "columns": columns,
+            "description": description, "row_limit": row_limit}
+    log("extract_table", args, "saved", label=columns[0], continued=below is None,
+        header=spot(look, first) if first else None, page_texts=page_texts(rest), headings=headings(rest),
+        columns_x=[[lo, hi] for name, lo, hi in cols if name])
+    total = len(HANDOFF.saved[save_as])
+    tail = " The table may continue below: scroll and call extract_table again with the same save_as." \
+        if more and total < row_limit else ""
+    return f"Saved {total - len(old)} rows to {save_as} ({total} in all).{tail}"
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def finish_business_outcome(outcome: str, proof_text: str) -> str:
+    """Report the business result, with text on the screen that proves it.
+
+    Args:
+        outcome: The result in plain words.
+        proof_text: Exact text visible on the screen that proves it.
+    """
+    if norm(proof_text) not in norm(HANDOFF.look.text if HANDOFF.look else ""):
+        return "REFUSED: that proof text is not on the screen. Observe and copy it exactly."
+    log("finish_business_outcome", {"outcome": outcome, "proof_text": proof_text}, "OK")
+    return "OK"
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def request_missing_values(fields: list[dict[str, int | str]]) -> list:
+    """Hand a human every field on this page the goal gives no value for (boxes and dropdowns).
+
+    Args:
+        fields: One entry per field: {"x": int, "y": int, "hint": "label you read",
+            "dropdown": true if it is a dropdown (a box with a small arrow)}. For a dropdown,
+            give x,y of the box itself, not its label.
+    """
+    if refusal := start_page_refusal():
+        return await reply(refusal)
+    points = [(resolve_point(None, int(f["x"]), int(f["y"])), str(f["hint"])) for f in fields]
+    if bad := next((p for p, _ in points if isinstance(p, str)), None):
+        return await reply(bad)
+    flags = [bool(f.get("dropdown")) for f in fields]
+    return await reply(await human_fills(points, dropdowns=flags) if points else "No fields given.")
+
+
+@tool(parse_docstring=True)
+@one_at_a_time
+async def ask_human(question: str) -> str:
+    """Ask a human whenever you are unsure: what to do, which option, what the goal means.
+
+    Args:
+        question: What you are unsure about, and what you see.
+    """
+    return await human_help("The agent asks", question)
+
+
+TOOLS = [observe, click, type_text, type_secret, select_option, scroll, open_path, extract_value,
+         extract_table, finish_business_outcome, request_missing_values, ask_human]
+
+
+VISUAL_SYSTEM_PROMPT = """You are an expert browser operator. You drive a real browser on a bank website. You see it only as a screenshot.
+
+## Your job
+Do the goal ONCE, by the shortest path, so it can be recorded and replayed without you. Every step you take is recorded. Wandering, retries and detours make a bad recording.
+
+## What you see
+Every look shows a screenshot with red numbered boxes, plus a text list like [7] 'Transfer'. Only text gets a number. Empty input boxes and icons have none: point at them by x,y on the screenshot. Numbers change after every look; use ONLY the latest ones.
+
+## What gets recorded, and what you MUST do so it is correct
+- You MUST save every value the goal asks for with extract_value, and you MUST save every list or table with extract_table (not extract_value). Only saved values reach the caller; text in your final message is NOT returned.
+- You MUST read values BEFORE logging out.
+- Login is exactly 3 calls, no observe in between: type_secret('username', x, y) -> type_secret('password', x, y) -> click the 'Log In' number. Aim at the empty box that belongs to each label. On a side-panel form the box is BELOW its label (x = label's left edge + 60, y = label bottom + 15); on a wide form it is to the RIGHT (x = label right edge + 100, same y). If a tool says NOTHING TYPED, try the other placement once.
+- save_as MUST use the goal's own words, in snake_case (e.g. savings_balance). For one table per item, call extract_table on each item's page with save_as name_1, name_2 … If it says the table may continue below, scroll and call it again with the same save_as.
+- For every dropdown the task uses, call select_option: with the goal's option, or option="" if the goal names none, so a human picks.
+- Fill every field the goal needs BEFORE you click the final button. Anything the page sends (a transfer, a payment, a form) is held for a human's two gates: details, then send.
+- You MUST log out last, after everything else.
+- Make ONE tool call at a time. Do not click into a field before typing; the typing tools click it.
+
+## NEVER (these leak data or break replay)
+- NEVER put a value you see on screen (account numbers, balances, names, addresses, amounts) into a typed text, in save_as, a hint or a question, unless the goal itself gave it.
+- NEVER copy a value by hand instead of extracting it.
+- NEVER invent, guess or substitute a value, and never pick one yourself. A dropdown's default option is NOT a choice: NEVER accept a dropdown default silently.
+- NEVER approve a send yourself.
+- NEVER ask a human for credentials; the stored ones are correct.
+- NEVER use ls, read_file, write_file, edit_file, glob, grep or task.
+- NEVER click the same thing twice to "make sure", and NEVER open pages you do not need.
+- NEVER leave this site. NEVER retry or work around anything that says DECLINED.
+- NEVER type again a value a human entered.
+- NEVER save anything that is not part of what the goal asked for: no menus, navigation links, headers, footers, banners, copyright lines, page titles or ads. With extract_table, name only the columns of the one table the goal is about, and point header_ref at that table's own header row, never at a menu or a page title.
+
+## When unsure
+- Unsure about ANYTHING (a value, which option, which page, what the goal means)? Call ask_human at once. A human can answer, take over, or stop.
+- Values missing from the goal? FIRST open the page where the task is done, THEN call request_missing_values ONCE, listing every box AND every dropdown the goal gives no value for, even a dropdown that already shows something.
+- If the human answers, follow it. If a human took over, call observe and carry on from what you see. If a result says STOPPED, or the page says the login failed, stop. If you keep failing or a tool says STUCK, the system asks a human by itself.
+
+## Tools
+- observe(): take a new look. Call it first.
+- click(ref), or click(x, y) for something with no number.
+- type_text(text, ref or x,y): type text from the goal into a box.
+- type_secret(name, ref or x,y): type a stored secret ('username' or 'password'). You never see the value.
+- select_option(option, ref or x,y): pick the dropdown option whose visible text matches; option="" lets a human choose.
+- scroll(direction): 'up' or 'down'; give x,y to scroll a small panel.
+- open_path(path): open a path you SAW on this site. Never guess one.
+- extract_value(ref, save_as, value_type, description): save one value. ref is the box holding the value, not its header. value_type is one of 'string', 'integer', 'number', 'currency', 'date', 'phone', 'email', 'id'. description says what it is in plain words.
+- extract_table(header_ref, save_as, columns, description): save a table or list. header_ref is one header cell; columns are the header texts you want, exactly as shown. Our code reads the rows.
+- finish_business_outcome(outcome, proof_text): report the business result; proof_text is exact text on screen that proves it.
+- request_missing_values(fields): every field the goal gives no value for on this page, in ONE go, as [{"x":..,"y":..,"hint":..,"dropdown":true|false}]. Point at the box itself; hint is the label you read. A human answers; our code types them in; then you click submit.
+- ask_human(question): what you are unsure about, and what you see.
+
+## Final message
+A short plain summary of what happened. Start it with 'STUCK:' or 'DECLINED:' when that is what happened. Values in it are for the human only; they are NOT saved.
+"""
+
+
+def mask_png(png: bytes, redact) -> bytes:
+    """Black out every OCR box whose text holds a run value. A clean image is written as is."""
+    img = decode(png)
+    hits = [box for text, box in ocr(img) if redact(text) != text]
+    for b in hits:
+        img[b.y1:b.y2, b.x1:b.x2] = 0
+    return encode(img) if hits else png
+
+
+def _clean(obj, redact):
+    if isinstance(obj, str):
+        return redact(obj)
+    if isinstance(obj, dict):
+        return {k: _clean(v, redact) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_clean(v, redact) for v in obj]
+    return obj
+
+
+def _png(path: Path, png: bytes | None, redact) -> str | None:
+    if not png:
+        return None
+    path.write_bytes(mask_png(png, redact))
+    return path.name

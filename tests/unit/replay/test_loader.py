@@ -17,7 +17,7 @@ from cua.config import BrowserConfig, load_site
 from cua.replay import fill, given_inputs, load_capability, load_outcomes, secret_name, seen_outcome
 from cua.schema import Anchor, Capability, Input, Stop, Target, Type
 
-VISUAL = Path(__file__).parents[3] / "notebooks/discovery/artifacts/visual"
+VISUAL = Path(__file__).parents[3] / "artifacts"
 ARTIFACTS = sorted(VISUAL.glob("*.yaml"))
 
 SITE = load_site("parabank")

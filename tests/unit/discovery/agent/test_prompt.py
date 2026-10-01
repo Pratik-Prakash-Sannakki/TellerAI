@@ -7,14 +7,14 @@ from __future__ import annotations
 import ast
 import hashlib
 import inspect
-from pathlib import Path
 
 from cua.discovery.agent.prompt import PROMPT_VERSION, VISUAL_SYSTEM_PROMPT
 from cua.discovery.recorder import save
 from cua.discovery.tools import build_tools
 from tests.fakes import make_ctx
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
 
-SRC = Path(__file__).parents[4] / "notebooks/discovery/discovery.py"
+SRC = SNAP_DISCOVERY
 PROMPT = " ".join(VISUAL_SYSTEM_PROMPT.split())
 DESCRIBE = " ".join(inspect.getsource(save.describe).split())
 # A prompt edit changes this hash: bump PROMPT_VERSION, then record the new hash here.

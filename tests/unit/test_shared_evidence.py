@@ -12,9 +12,11 @@ import pytest
 from cua import evidence
 from cua.config import BrowserConfig, ReplayConfig, load_site
 from cua.evidence import _clean, _png, config_hash, git_sha, run_info
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
+from tests.unit._snapshots import REPLAY as SNAP_REPLAY
 
 ROOT = Path(__file__).parents[2]
-NOTEBOOKS = [ROOT / "notebooks/discovery/discovery.py", ROOT / "notebooks/replay/replay.py"]
+NOTEBOOKS = [SNAP_DISCOVERY, SNAP_REPLAY]
 SITE = load_site("parabank")
 
 

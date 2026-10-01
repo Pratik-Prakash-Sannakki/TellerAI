@@ -9,9 +9,12 @@ import re
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse
 
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
+from tests.unit._snapshots import REPLAY as SNAP_REPLAY
+
 ROOT = Path(__file__).parents[3]
-DISCOVERY = ROOT / "notebooks/discovery/discovery.py"
-REPLAY = ROOT / "notebooks/replay/replay.py"
+DISCOVERY = SNAP_DISCOVERY
+REPLAY = SNAP_REPLAY
 BASE = {
     "re": re,
     "json": json,

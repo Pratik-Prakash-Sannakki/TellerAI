@@ -12,11 +12,13 @@ from cua.replay import engine, steps
 from cua.replay.context import Ctx
 from cua.schema import Capability, ReplayResult
 from cua.vision import Look
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
+from tests.unit._snapshots import REPLAY as SNAP_REPLAY
 from tests.unit.replay.helpers import cap, make_replay_ctx, mk_look
 
 ROOT = Path(__file__).parents[3]
-DISCOVERY = ROOT / "notebooks/discovery/discovery.py"
-REPLAY = ROOT / "notebooks/replay/replay.py"
+DISCOVERY = SNAP_DISCOVERY
+REPLAY = SNAP_REPLAY
 SHARED = {
     "col_of",
     "same_line",

@@ -13,6 +13,8 @@ from cua.replay import engine, steps
 from cua.replay.context import Ctx
 from cua.replay.locate import locate
 from cua.schema import TYPES, Capability, Stop
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
+from tests.unit._snapshots import REPLAY as SNAP_REPLAY
 from tests.unit.replay.helpers import (
     cap,
     extract,
@@ -183,8 +185,8 @@ def test_new_types_accept_and_reject(kind: str, good: list[str], bad: list[str])
     assert not any(steps.is_type(b, kind) for b in bad), kind
 
 
-def _notebook_assign(name: str, notebook: str) -> object:
-    src = (Path(__file__).parents[3] / notebook).read_text()
+def _notebook_assign(name: str, notebook: Path) -> object:
+    src = notebook.read_text()
     node = next(
         n
         for n in ast.parse(src).body
@@ -194,7 +196,7 @@ def _notebook_assign(name: str, notebook: str) -> object:
 
 
 def test_shapes_are_identical_to_both_notebooks() -> None:
-    for nb in ("notebooks/discovery/discovery.py", "notebooks/replay/replay.py"):
+    for nb in (SNAP_DISCOVERY, SNAP_REPLAY):
         shapes = _notebook_assign("SHAPES", nb)
         assert {k: TYPES[k] for k in shapes} == shapes  # type: ignore[attr-defined]
 

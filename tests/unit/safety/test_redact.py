@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
 
 from cua.safety.redact import NUMBER, norm, redactor
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
 
-SRC = Path(__file__).parents[3] / "notebooks/discovery/discovery.py"
+SRC = SNAP_DISCOVERY
 
 
 def _notebook() -> dict[str, object]:

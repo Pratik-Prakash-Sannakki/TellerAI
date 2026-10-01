@@ -20,9 +20,10 @@ import cua.vision.table as table_mod
 from cua.vision.look import Box, Element, Look
 from cua.vision.table import TABLE_GAP, append_rows, read_rows, table_columns
 from tests.fakes import COLS, FOOTER, HEADER, ROWS
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
 from tests.unit.replay.test_replay_table import SHARED as REPLAY_SHARED
 
-DISCOVERY = Path(__file__).parents[3] / "notebooks/discovery/discovery.py"
+DISCOVERY = SNAP_DISCOVERY
 NO_GLOBALS = {
     "same_line",
     "column_spans",

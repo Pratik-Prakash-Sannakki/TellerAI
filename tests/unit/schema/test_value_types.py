@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from cua.schema import SHAPES, TYPES, value_matches_type
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
+from tests.unit._snapshots import REPLAY as SNAP_REPLAY
 
 ROOT = Path(__file__).parents[3]
-NOTEBOOKS = [ROOT / "notebooks/discovery/discovery.py", ROOT / "notebooks/replay/replay.py"]
+NOTEBOOKS = [SNAP_DISCOVERY, SNAP_REPLAY]
 
 
 def _tables(path: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -25,7 +27,7 @@ def _tables(path: Path) -> tuple[dict[str, str], dict[str, str]]:
     return ns["SHAPES"], ns["TYPES"]
 
 
-@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name.split("_")[0])
 def test_tables_equal_the_notebooks(path: Path) -> None:
     shapes, types = _tables(path)
     assert shapes == SHAPES

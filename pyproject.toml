@@ -6,11 +6,17 @@ dependencies = [
     "deepagents>=0.7.15",
     "langchain>=1.4.2",
     "langchain-anthropic>=1.7.2",
+    "numpy>=2",
+    "onnxruntime>=1.30.0",
     "playwright>=1.63.0",
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
+    "rapidocr>=3.9.2",
 ]
+
+[project.scripts]
+cua = "cua.cli:main"
 
 [project.optional-dependencies]
 # TypeSafe tool selection + model routing for discovery (cua.discovery.agent.routing). Off unless
@@ -36,12 +42,10 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "types-PyYAML>=6.0.12",
 ]
-# OCR + image deps for the pure-visual discovery and replay notebooks.
-discovery = [
-    "rapidocr>=3.9.2",
-    "onnxruntime>=1.30.0",
-    "numpy>=2",
-]
+# Kept empty for back-compat (`uv sync --group discovery` still works): the OCR + image deps
+# (rapidocr, onnxruntime, numpy) moved to the main dependencies in step 10, so `uv pip install .`
+# gets a working package.
+discovery = []
 
 [tool.pytest.ini_options]
 # Scope collection to tests/ (git-ignored notebooks/scratch/ files may launch a browser on import).

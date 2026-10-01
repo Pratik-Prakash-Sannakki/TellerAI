@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import ast
 import inspect
-from pathlib import Path
 
 import pytest
 
 from cua.discovery.tools import build_tools
 from cua.discovery.wiring import new_run
 from tests.fakes import make_ctx
+from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
 
-SRC = Path(__file__).parents[4] / "notebooks/discovery/discovery.py"
+SRC = SNAP_DISCOVERY
 TREE = ast.parse(SRC.read_text())
 NAMES = [
     "observe",

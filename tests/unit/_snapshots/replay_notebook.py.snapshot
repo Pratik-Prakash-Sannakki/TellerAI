@@ -1,0 +1,307 @@
+# Frozen snapshot of the top-level definitions the parity tests read from
+# notebooks/replay/replay.py as of step 9 (commit fb1dcf7), before step 10 replaced the
+# notebook with a thin demo. Verbatim source; never edit (a test pins its sha256).
+
+def hide_secrets(text: str) -> str:
+    for name, value in SECRETS.items():
+        if value:
+            text = text.replace(value, f"<{name}>")
+    return text
+
+
+def is_sensitive(label: str) -> bool:
+    return any(w in label.casefold() for w in CFG.sensitive_words)
+
+
+def dropdown_options(fields: dict[str, str], keys: list[str]) -> list[list[str]]:
+    free = [dict(d) for d in STATE.dropdowns]
+    out = []
+    for k in keys:
+        hit = next((d for d in free if fields[k] and fields[k] in (d["value"], d["text"])), None)
+        if hit:
+            free.remove(hit)
+        out.append([hide_secrets(o) for o in hit["options"]] if hit and len(hit["options"]) > 1 else [])
+    return out
+
+
+def mismatches(sent: dict[str, str]) -> list[str]:
+    """Numbers being sent that the caller never gave (inputs or human edits)."""
+    given = set(re.findall(r"\d+(?:\.\d+)?", " ".join(STATE.given)))
+    norm_num = lambda n: n.rstrip("0").rstrip(".") if "." in n else n   # noqa: E731  10.00 == 10
+    wanted = {norm_num(n) for n in given}
+    return [k for k, v in sent.items() if not is_sensitive(k)
+            and any(norm_num(n) not in wanted for n in re.findall(r"\d+(?:\.\d+)?", v))]
+
+
+def _flat(obj: dict, pre: str = "") -> dict[str, str]:
+    out: dict[str, str] = {}
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out |= _flat(v, f"{pre}{k}.")
+        elif not isinstance(v, list):
+            out[f"{pre}{k}"] = "" if v is None else str(v)
+    return out
+
+
+def _json(body: str | None) -> dict | None:
+    try:
+        data = json.loads(body or "")
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def sent_fields(req) -> dict[str, str]:
+    data = _json(req.post_data)
+    body = _flat(data) if data is not None else dict(parse_qsl(req.post_data or ""))
+    return dict(parse_qsl(urlparse(req.url).query)) | body
+
+
+def rebuilt(req, fields: dict[str, str]) -> tuple[str, str | None]:
+    u = urlparse(req.url)
+    query = {k: fields.get(k, v) for k, v in parse_qsl(u.query)}
+    url = u._replace(query=urlencode(query)).geturl() if query else req.url
+    data = _json(req.post_data)
+    if data is not None:
+        for key in _flat(data):
+            *path, last = key.split(".")
+            node = functools.reduce(lambda d, p: d[p], path, data)
+            old, new = node.get(last), fields.get(key, "")
+            is_num = isinstance(old, (int, float)) and not isinstance(old, bool)
+            node[last] = type(old)(new) if is_num and new else new
+        return url, json.dumps(data)
+    form = dict(parse_qsl(req.post_data or ""))
+    return url, (urlencode({k: fields.get(k, v) for k, v in form.items()}) if form else req.post_data)
+
+
+def pretty(key: str) -> str:
+    words = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", key.replace(".", " ").replace("_", " ")).split()
+    return " ".join(words).capitalize()
+
+
+def note_takeover_send(url: str) -> None:
+    if STATE.takeover is not None:
+        STATE.takeover["sends"].append(url_path(url))
+
+
+async def guard_send(route) -> None:
+    """Every request that sends data (not GET) is held for two human gates (R6, R15)."""
+    req = route.request
+    if req.method in ("GET", "HEAD", "OPTIONS"):
+        return await route.continue_()
+    STATE.sent = True
+    note_takeover_send(req.url)
+    if STATE.allow_send:
+        return await route.continue_()
+    STATE.gated = True
+    human = STATE.takeover is not None     # the human's own send: they chose every value
+    async with SEND_GATE:                  # never touch the page in here: a held request blocks it
+        fields = sent_fields(req)
+        original = dict(fields)
+        if not human and (bad := mismatches(fields)):
+            opts = dropdown_options(fields, bad)
+            fixed = await CONTROL.form("You never gave these. Check or correct them:",
+                                       [(pretty(k), False) for k in bad], [fields[k] for k in bad], opts)
+            if not fixed or not all(fixed):
+                STATE.verdict = f"STUCK: No value confirmed for {', '.join(bad)}. Nothing was sent."
+                return await route.abort()
+            fields.update(zip(bad, fixed))
+            STATE.given.extend(fixed)
+        shot = STATE.look.png if STATE.look else None    # never screenshot while a send is held
+        while True:     # Gate 1: Approve, or Edit = back to the form with every value, then again
+            sent = hide_secrets("\n".join(f"{pretty(k)}: {'******' if is_sensitive(k) else v}"
+                                           for k, v in fields.items())[:1200])
+            what = f"Sending to {urlparse(req.url).path}:\n{sent or '(no fields)'}"
+            choice = await CONTROL.ask("Gate 1 of 2: confirm the details", what, "confirm",
+                                       image=shot if fields == original else None)
+            if choice == "approve":
+                break
+            if choice != "edit":
+                STATE.verdict = "STUCK: the details were not confirmed. Nothing was sent."
+                return await route.abort()
+            editable = [k for k in fields if not is_sensitive(k)]
+            opts = None if human else dropdown_options(fields, editable)
+            new = await CONTROL.form("Edit the details, then Submit:",
+                                     [(pretty(k), False) for k in editable],
+                                     [fields[k] for k in editable], opts)
+            if new:
+                fields.update(zip(editable, new))
+                STATE.given.extend(v for v in new if v)
+        url, body = rebuilt(req, fields) if fields != original else (req.url, req.post_data)
+        if await CONTROL.ask("Gate 2 of 2: confirm sending", f"{what}\nThis cannot be undone.",
+                             "approve", image=shot if fields == original else None) != "approve":
+            STATE.verdict = "DECLINED: a human said no at Gate 2. Nothing was sent."
+            return await route.abort()
+        STATE.verdict = "SENT: a human approved both gates."
+        await route.continue_(url=url, post_data=body)
+
+
+SHAPES = {
+    "phone": r"\+?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}",
+    "currency": r"-?\$-?[\d,]*\d(?:\.\d{2})?|-?[\d,]*\d\.\d{2}",      # a `$`, or exactly 2 decimals
+    "date": r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}",
+    "integer": r"-?\d+",
+    "email": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+    "id": r"[A-Za-z]*\d[\w-]*",
+}
+
+
+TYPES = {"string": r"\S.*", "number": r"-?[\d,]*\.?\d+", "boolean": r"true|false|yes|no", **SHAPES}
+
+
+TABLE_GAP = 40     # px: same as discovery's; a bigger vertical gap between two lines ends a table
+
+
+def same_line(a: Box, b: Box) -> bool:
+    return a.y1 < b.y2 and b.y1 < a.y2
+
+
+def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
+    """Each header's x-range: out to the midpoint with its neighbours on the header line; an
+    outer header reaches one own width further (a cell may be wider than its header)."""
+    line = sorted(line, key=lambda e: e.box.x1)
+    out = []
+    for i, e in enumerate(line):
+        w = e.box.x2 - e.box.x1
+        lo = (line[i - 1].box.x2 + e.box.x1) / 2 if i else e.box.x1 - w
+        hi = (e.box.x2 + line[i + 1].box.x1) / 2 if i + 1 < len(line) else e.box.x2 + w
+        out.append((e, lo, hi))
+    return out
+
+
+def table_columns(look: Look, head: Element, columns: list[str],
+                  match) -> tuple[list[tuple[str | None, float, float]], int] | None:
+    """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
+    None when an asked column is not on head's line. Unasked columns stay: they bound the others."""
+    spans = column_spans([e for e in look.elements if same_line(e.box, head.box)])
+    names = {id(e): next((c for c in columns if match(e.text, c)), None) for e, _, _ in spans}
+    if set(columns) - set(names.values()):
+        return None
+    below = max(e.box.y2 for e, _, _ in spans)
+    return [(names[id(e)], lo, hi) for e, lo, hi in spans], below
+
+
+def col_of(box: Box, cols: list[tuple[str | None, float, float]]) -> int | None:
+    """The column the box overlaps most, or None when it overlaps none (outside the table)."""
+    lap = [min(box.x2, hi) - max(box.x1, lo) for _, lo, hi in cols]
+    best = max(range(len(cols)), key=lap.__getitem__, default=None)
+    return best if best is not None and lap[best] > 0 else None
+
+
+def text_lines(els: list[Element]) -> list[list[Element]]:
+    """Texts grouped into lines, top to bottom."""
+    lines: list[list[Element]] = []
+    for e in sorted(els, key=lambda e: e.box.y1):
+        if lines and same_line(lines[-1][0].box, e.box):
+            lines[-1].append(e)
+        else:
+            lines.append([e])
+    return lines
+
+
+def row_of(line: list[Element], cols: list[tuple[str | None, float, float]]) -> dict[str, str]:
+    """A line's texts in the asked columns, left to right; two texts in one column are joined."""
+    row: dict[str, str] = {}
+    for e in sorted(line, key=lambda e: e.box.x1):
+        if (name := cols[col_of(e.box, cols)][0]) is not None:
+            row[name] = f"{row[name]} {e.text}" if name in row else e.text
+    return row
+
+
+def read_rows(look: Look, cols: list[tuple[str | None, float, float]], below: int | None,
+              limit: int) -> tuple[list[dict[str, str]], bool]:
+    """(rows under the header, whether the table may continue past the look's bottom). Rows end at
+    a vertical gap >= TABLE_GAP, a line with no text in any asked column, or `limit`. below=None:
+    a scrolled table with its header gone, read from the look's top."""
+    inside = [e for e in look.elements if col_of(e.box, cols) is not None
+              and (below is None or e.box.y1 >= below)]
+    rows: list[dict[str, str]] = []
+    prev, height = below, None
+    for line in text_lines(inside):
+        row = row_of(line, cols)
+        top = min(e.box.y1 for e in line)
+        gap = prev is not None and top - prev >= max(TABLE_GAP, 2 * (height or 0))
+        if gap or not row or len(rows) >= limit or not like_rows(row, rows):
+            return rows, False
+        rows.append(row)
+        height = height or max(e.box.y2 for e in line) - top
+        prev = max(e.box.y2 for e in line)
+    return rows, len(rows) < limit
+
+
+def like_rows(row: dict[str, str], rows: list[dict[str, str]]) -> bool:
+    """A table's end: a line that no longer looks like its rows (a footer, a menu, a copyright). Each
+    column's cells keep one shape (a date stays a date, an amount an amount); a line breaking the
+    shape of a column the rows so far all agree on is not a row. Links joined by '|' never are."""
+    if any("|" in v or len(v) > 60 for v in row.values()):
+        return False
+    for name, v in row.items():
+        seen = {cell_shape(r[name]) for r in rows if name in r}
+        if len(seen) == 1 and cell_shape(v) not in seen:
+            return False
+    return True
+
+
+def cell_shape(text: str) -> str:
+    """'date', 'amount', or 'text': enough to tell a row cell from a footer line in its column."""
+    t = text.strip()
+    if re.fullmatch(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}", t):
+        return "date"
+    if re.fullmatch(r"[-−]?\$?[-−]?[\d,]+(\.\d{2})?", t):
+        return "amount"
+    return "text"
+
+
+def append_rows(old: list[dict[str, str]], new: list[dict[str, str]]) -> list[dict[str, str]]:
+    """A scrolled second read repeats the rows still on screen: drop only that overlap."""
+    k = next((k for k in range(min(len(old), len(new)), 0, -1) if old[-k:] == new[:k]), 0)
+    return [*old, *new[k:]]
+
+
+NUMBER = re.compile(r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)?(?!\w)")   # whole numbers only: never 'rung1'
+
+
+def _num(text: str) -> str:
+    n = text.lstrip("$").replace(",", "")
+    return n.rstrip("0").rstrip(".") if "." in n else n
+
+
+def redactor(values: set[str]):
+    """text -> text with every value masked. Numbers match however they are written
+    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill')."""
+    nums = {_num(v) for v in values if NUMBER.fullmatch(v.strip())}
+    words = sorted((v for v in values if len(v.strip()) > 1 and not NUMBER.fullmatch(v.strip())),
+                   key=len, reverse=True)
+    alts = "|".join(rf"(?<!\w){re.escape(w.strip())}(?!\w)" for w in words)
+    word_re = re.compile(alts, re.I) if words else None
+
+    def redact(text: str) -> str:
+        text = NUMBER.sub(lambda m: "***" if _num(m.group()) in nums else m.group(), text)
+        return word_re.sub("***", text) if word_re else text
+    return redact
+
+
+def mask_png(png: bytes, redact) -> bytes:
+    """Black out every OCR box whose text holds a run value. A clean image is written as is."""
+    img = decode(png)
+    hits = [box for text, box in ocr(img) if redact(text) != text]
+    for b in hits:
+        img[b.y1:b.y2, b.x1:b.x2] = 0
+    return encode(img) if hits else png
+
+
+def _clean(obj, redact):
+    if isinstance(obj, str):
+        return redact(obj)
+    if isinstance(obj, dict):
+        return {k: _clean(v, redact) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_clean(v, redact) for v in obj]
+    return obj
+
+
+def _png(path: Path, png: bytes | None, redact) -> str | None:
+    if not png:
+        return None
+    path.write_bytes(mask_png(png, redact))
+    return path.name

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from cua.schema import SCHEMA_VERSION, Capability, CapabilityMeta, Target
 
-VISUAL = Path(__file__).parents[3] / "notebooks/discovery/artifacts/visual"
+VISUAL = Path(__file__).parents[3] / "artifacts"
 ARTIFACTS = sorted(VISUAL.glob("*.yaml"))
 
 
