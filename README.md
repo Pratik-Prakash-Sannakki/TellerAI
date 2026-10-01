@@ -51,7 +51,7 @@ trip (discovery's `build_capability` -> `save_artifact` -> replay's `load_capabi
 unchanged). `tests/unit/test_llm.py` covers the model factory.
 
 - Lint: `uvx ruff check src tests`.
-- mypy --strict: TBD (Wave 3)
+- `mypy --strict src`: 0 errors (70 files). Only override: `ignore_missing_imports` for `cv2`/`rapidocr` (see `pyproject.toml`).
 
 ### Guard rails worth knowing
 

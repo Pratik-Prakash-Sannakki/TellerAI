@@ -12,7 +12,7 @@ from __future__ import annotations
 import functools
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import cv2
 import numpy as np
@@ -22,6 +22,7 @@ from cua.vision.look import Box, Element
 
 if TYPE_CHECKING:
     from rapidocr import RapidOCR
+    from rapidocr.utils.output import RapidOCROutput
 
 
 @functools.cache
@@ -52,8 +53,10 @@ class RefCounter:
 
 
 def ocr(img: NDArray[np.uint8], min_score: float) -> list[tuple[str, Box]]:
-    out = ocr_engine()(img)
-    if out.boxes is None:
+    # The full det+cls+rec pipeline (our only use) always returns a RapidOCROutput; the library's
+    # return type is the union over every partial-pipeline mode.
+    out = cast("RapidOCROutput", ocr_engine()(img))
+    if out.boxes is None or out.txts is None or out.scores is None:
         return []
     items = []
     for quad, txt, score in zip(out.boxes, out.txts, out.scores):

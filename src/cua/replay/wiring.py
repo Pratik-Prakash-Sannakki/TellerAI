@@ -13,7 +13,7 @@ working", and the site tab back to front. The site lock is already set by ``open
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from cua.browser import input as browser_input
 from cua.browser.dropdown import DROPDOWNS_JS, read_dropdowns
@@ -26,6 +26,9 @@ from cua.replay.run import url_path
 from cua.vision import Look, canvas_size
 from cua.vision import to_page as page_point
 from cua.vision.screenshot import snap_look, take_look
+
+if TYPE_CHECKING:
+    from cua.handoff.binding import ControlTab
 
 Step = Callable[[], Awaitable[None]]
 
@@ -60,12 +63,13 @@ async def attach(session: Session, site: SiteProfile, cfg: ReplayConfig) -> Ctx:
 
     ctx = Ctx(session, cfg, control, secret_values(site), shoot)
     await page.unroute("**/*")
-    await page.route("**/*", ctx.guard)  # type: ignore[arg-type]
+    await page.route("**/*", ctx.guard)
     page._cua_ctx = ctx  # type: ignore[attr-defined]  # the one listener reads the latest ctx
     if not getattr(page, "_cua_responses", False):  # once per page, even on a re-run
-        page.on("response", lambda r: _note_latest(page, r))  # type: ignore[arg-type]
+        page.on("response", lambda r: _note_latest(page, r))
         page._cua_responses = True  # type: ignore[attr-defined]
-    await bind_control(session.control_page, control)
+    # cast: Playwright's overloaded Page.on / wider expose_function can't match ControlTab
+    await bind_control(cast("ControlTab", session.control_page), control)
     await control.show("Replay is working")
     if not page.is_closed():
         await page.bring_to_front()

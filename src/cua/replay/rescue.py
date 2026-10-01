@@ -59,10 +59,10 @@ async def _taken_over(ctx: Ctx, acts: dict[str, list[str]]) -> None:
             acts["pages"].append(url_path(frame.url))
 
     ctx.run.takeover = acts
-    page.on("framenavigated", visited)  # type: ignore[arg-type]
+    page.on("framenavigated", visited)
     try:
         async with ctx.session.lock.open(), handback_button(ctx.session.ext, ctx.bcfg) as button:
             await hand_back(ctx.control, button, takeover_text())
     finally:
-        page.remove_listener("framenavigated", visited)  # type: ignore[arg-type]
+        page.remove_listener("framenavigated", visited)
         ctx.run.takeover = None

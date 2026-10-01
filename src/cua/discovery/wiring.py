@@ -14,6 +14,7 @@ returned ctx is the one passed in; callers may use either.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from cua.browser.session import Session
@@ -27,6 +28,9 @@ from cua.handoff.binding import bind_control
 from cua.safety import DISCOVERY_OPTIONS, Request, SendGuard, SendHooks
 from cua.safety.send_guard import LookLike
 from cua.vision.look import Look
+
+if TYPE_CHECKING:
+    from cua.handoff.binding import ControlTab
 
 
 def _hooks(holder: list[Ctx]) -> SendHooks:
@@ -90,7 +94,8 @@ async def attach(session: Session, cfg: DiscoveryConfig, secrets: Mapping[str, s
     if not getattr(page, "_cua_navs", False):  # once per page, even on a re-run
         page.on("framenavigated", lambda f: _count_nav(page, f))
         page._cua_navs = True  # type: ignore[attr-defined]
-    await bind_control(control_page, ctx.control)
+    # cast: Playwright's overloaded Page.on / wider expose_function can't match ControlTab
+    await bind_control(cast("ControlTab", control_page), ctx.control)
     await ctx.control.show("Agent is working")
     await page.bring_to_front()
     print("site locked | control window open")

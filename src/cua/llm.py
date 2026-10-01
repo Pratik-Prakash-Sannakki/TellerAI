@@ -43,6 +43,17 @@ def _pass_through_ca_bundle() -> None:
         os.environ["SSL_CERT_FILE"] = bundle
 
 
+def _build(conn: dict[str, object], name: str, overrides: dict[str, object]) -> ChatAnthropic:
+    """``ChatAnthropic(**conn, model_name=name, **overrides)``, built through ``model_validate``.
+
+    ``model_validate`` runs the exact validator ``__init__`` runs, but takes a plain dict, so free
+    ``overrides`` such as ``max_tokens`` (a field whose pydantic alias is ``max_tokens_to_sample``)
+    type-check without mypy's alias-only ``__init__`` signature rejecting them.
+    """
+    # dict(**...) raises TypeError on a repeated key, exactly as a repeated keyword argument did.
+    return ChatAnthropic.model_validate(dict(**conn, model_name=name, **overrides))
+
+
 def make_chat_model(kind: ModelKind = "sonnet", **overrides: object) -> BaseChatModel:
     """Build the Sonnet or Haiku chat model: direct Anthropic, or the opt-in gateway.
 
@@ -55,9 +66,7 @@ def make_chat_model(kind: ModelKind = "sonnet", **overrides: object) -> BaseChat
         gateway_key = os.environ.get("ILIAD_API_KEY", "")
         if not gateway_key:
             raise RuntimeError("ILIAD_BASE_URL is set but ILIAD_API_KEY is not set in .env")
-        return ChatAnthropic(
-            anthropic_api_url=gateway_url, api_key=gateway_key, model_name=name, **overrides
-        )
+        return _build({"anthropic_api_url": gateway_url, "api_key": gateway_key}, name, overrides)
     if os.environ.get("ANTHROPIC_API_KEY", ""):
-        return ChatAnthropic(model_name=name, **overrides)  # key read from env by the library
+        return _build({}, name, overrides)  # key read from env by the library
     raise RuntimeError("ANTHROPIC_API_KEY is not set in .env")

@@ -68,12 +68,9 @@ select = ["E", "F", "I", "B", "UP", "SIM", "PL", "PT"]
 "tests/integration/test_discovery_to_replay.py" = ["E501", "PT018"]
 # The system prompt is the notebook's text verbatim (its long lines are what the model reads).
 "src/cua/discovery/agent/prompt.py" = ["E501"]
-# Ported verbatim from tests/test_models.py (step 1); its local imports and checks are unchanged.
-"tests/unit/test_llm.py" = ["PLC0415", "PLR2004", "PT011"]
-# src/cua is out of scope for step 0 (owned by later migration steps); the single pre-existing
-# PLW0603 (an intentional process-wide "print the fallback notice once" flag) predates this lint
-# config and is not edited here.
-"src/cua/llm.py" = ["PLW0603"]
+# test_llm.py's overrides check (`max_tokens == 123`) and its bare `pytest.raises(ValueError)`
+# (the key-not-in-message check reads exc.value directly) are deliberate.
+"tests/unit/test_llm.py" = ["PLR2004", "PT011"]
 # ocr_engine()'s rapidocr import is deliberately local (step-2 brief): importing cua.vision must
 # never load the model, so the import happens only inside the cached builder. ocr()'s zip() is
 # moved verbatim from discovery.py (discovery.py:200-209); adding strict= would be a behavior
@@ -93,6 +90,8 @@ python_version = "3.12"
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
+# Third-party boundaries without (complete) type information; cv2 and rapidocr ship stubs/py.typed
+# today, kept here so an environment with an older build still type-checks.
 module = ["cv2.*", "rapidocr.*", "onnxruntime.*", "deepagents.*", "langchain_typesafe.*"]
 ignore_missing_imports = true
 

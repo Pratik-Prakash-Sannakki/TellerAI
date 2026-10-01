@@ -14,6 +14,7 @@ scope (they stay with discovery's own port).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 from cua.vision.look import Box, Element, Look
 
@@ -38,7 +39,7 @@ def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
 
 
 def table_columns(
-    look: Look, head: Element, columns: list[str], match
+    look: Look, head: Element, columns: list[str], match: Callable[[str, str], bool]
 ) -> tuple[list[tuple[str | None, float, float]], int] | None:
     """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
     None when an asked column is not on head's line. Unasked columns stay: they bound the others."""

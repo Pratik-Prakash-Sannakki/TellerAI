@@ -1,7 +1,7 @@
 {
   "pyproject.toml": {
-    "mtime": 1790891018.8486662,
-    "ast_hash": "e97b084dc9e4e09a53da45a9900933cc",
+    "mtime": 1790898225.927865,
+    "ast_hash": "7baccbfd9c182bdf7adb078818651e45",
     "semantic_hash": ""
   },
   "src/cua/__init__.py": {
@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1790897594.6970413,
-    "ast_hash": "9644a49e679abe7ced43079ee6511161",
+    "mtime": 1790898358.6947064,
+    "ast_hash": "15a4facb1ab28d5740f47a29b26046b3",
     "semantic_hash": ""
   },
   "REPORT.md": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "src/cua/llm.py": {
-    "mtime": 1790897126.8146985,
-    "ast_hash": "ae460c02f2e57e2a9795a59b092845ec",
+    "mtime": 1790898124.0404885,
+    "ast_hash": "012ec09badd28558bb7d7b14ca08a6f1",
     "semantic_hash": ""
   },
   "src/cua/schema/__init__.py": {
@@ -425,8 +425,8 @@
     "semantic_hash": ""
   },
   "src/cua/vision/canvas.py": {
-    "mtime": 1790878653.558782,
-    "ast_hash": "bd70a749fa5c119a2fb40ffc9b383b13",
+    "mtime": 1790898183.6841645,
+    "ast_hash": "c32b6e8776d1059b5ec5a3c72c5ad042",
     "semantic_hash": ""
   },
   "src/cua/vision/crops.py": {
@@ -435,18 +435,18 @@
     "semantic_hash": ""
   },
   "src/cua/vision/look.py": {
-    "mtime": 1790878555.0032985,
-    "ast_hash": "9b860a6b659cec1e8ea9cac2b8f32a43",
+    "mtime": 1790898183.6837335,
+    "ast_hash": "9b9e03f78a04b390f1a8445337402ea2",
     "semantic_hash": ""
   },
   "src/cua/vision/ocr.py": {
-    "mtime": 1790893484.082009,
-    "ast_hash": "051ee888050dff309ef6cdd456d54e43",
+    "mtime": 1790898183.6832623,
+    "ast_hash": "20c674cc87c73c2a811842e48470d04b",
     "semantic_hash": ""
   },
   "src/cua/vision/table.py": {
-    "mtime": 1790878839.496186,
-    "ast_hash": "1e7207d6c722638b419df94db1079577",
+    "mtime": 1790898183.6847546,
+    "ast_hash": "99271bd519531e2386444edce23314ee",
     "semantic_hash": ""
   },
   "tests/unit/vision/test_canvas.py": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "tests/unit/vision/test_table.py": {
-    "mtime": 1790890530.3794355,
-    "ast_hash": "15cbdefb98fba57ee9308c745bf92f49",
+    "mtime": 1790898272.181806,
+    "ast_hash": "40e374943954a800d3122187600f3960",
     "semantic_hash": ""
   },
   "src/cua/vision/README.md": {
@@ -505,8 +505,8 @@
     "semantic_hash": ""
   },
   "src/cua/browser/site_lock.py": {
-    "mtime": 1790881769.966052,
-    "ast_hash": "0b8cb2c84b61291e88f667db6be2f21e",
+    "mtime": 1790898200.2431986,
+    "ast_hash": "90cff45b0cf0dab39862da07a3654907",
     "semantic_hash": ""
   },
   "src/cua/discovery/__init__.py": {
@@ -770,8 +770,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/wiring.py": {
-    "mtime": 1790893546.0859017,
-    "ast_hash": "21549734fbbac9df67ac7d23ab828d0d",
+    "mtime": 1790898050.2483091,
+    "ast_hash": "9d941d60b30e7501de8ba057c11d7b54",
     "semantic_hash": ""
   },
   "src/cua/evidence.py": {
@@ -785,18 +785,18 @@
     "semantic_hash": ""
   },
   "src/cua/replay/engine.py": {
-    "mtime": 1790896254.5700543,
-    "ast_hash": "ebb5da751dea0e47674ef2564f8a8ba3",
+    "mtime": 1790898076.6582232,
+    "ast_hash": "037f73425e851670e526f84a888f6430",
     "semantic_hash": ""
   },
   "src/cua/replay/evidence.py": {
-    "mtime": 1790886566.8595216,
-    "ast_hash": "7512efc136e86305df99fd3281551106",
+    "mtime": 1790898031.1017346,
+    "ast_hash": "98518f0e875fdcf1b1982a89f23b09d9",
     "semantic_hash": ""
   },
   "src/cua/replay/rescue.py": {
-    "mtime": 1790886581.9819396,
-    "ast_hash": "bd719e24cf0da5638030284a2e753313",
+    "mtime": 1790898031.1027772,
+    "ast_hash": "8894a215706a95f54ec2110925477ca6",
     "semantic_hash": ""
   },
   "src/cua/replay/run.py": {
@@ -810,8 +810,8 @@
     "semantic_hash": ""
   },
   "src/cua/replay/wiring.py": {
-    "mtime": 1790893546.0860977,
-    "ast_hash": "31be8fe7aca4e04aedb813eda924d70e",
+    "mtime": 1790898050.247577,
+    "ast_hash": "28df94f485d1dc29c3620cb8c86c2ad2",
     "semantic_hash": ""
   },
   "tests/unit/discovery/recorder/test_recorder_runs.py": {

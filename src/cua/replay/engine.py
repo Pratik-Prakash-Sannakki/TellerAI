@@ -222,8 +222,8 @@ async def _cleanup_step(  # noqa: PLR0913 (constraints allow 6)
             {
                 "step": i,
                 "action": step.action,
-                "rung": hit[1] if hit else "miss",  # type: ignore[dict-item]
-                "point": hit[0] if hit else None,
+                "rung": hit[1] if hit else "miss",
+                "point": hit[0] if hit else None,  # type: ignore[dict-item]  # tuple->JSON
                 "attempt": attempt,
                 "checked": ok,
                 "cleanup": True,

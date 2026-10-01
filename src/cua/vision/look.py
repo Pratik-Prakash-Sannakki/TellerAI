@@ -7,6 +7,7 @@ Moved verbatim from the discovery notebook (``Box``/``Element``/``Look`` at disc
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import cv2
 import numpy as np
@@ -55,7 +56,8 @@ class Look:
 
 
 def decode(png: bytes) -> NDArray[np.uint8]:
-    return cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
+    # cv2's stub types the result as any-dtype MatLike | None; IMREAD_COLOR always yields uint8.
+    return cast("NDArray[np.uint8]", cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR))
 
 
 def encode(img: NDArray[np.uint8]) -> bytes:

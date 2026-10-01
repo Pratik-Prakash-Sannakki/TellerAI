@@ -110,6 +110,11 @@ def _defs(path: Path, names: set[str]) -> dict[str, ast.AST]:
                     and isinstance(s.value.value, str)
                 )
             ]
+            # Annotations are typing only (mypy --strict adds them to the moved code), not
+            # behaviour, so the pin compares the untyped function.
+            n.returns = None
+            for a in (*n.args.posonlyargs, *n.args.args, *n.args.kwonlyargs):
+                a.annotation = None
             out[n.name] = ast.dump(n, annotate_fields=False)
     return out
 

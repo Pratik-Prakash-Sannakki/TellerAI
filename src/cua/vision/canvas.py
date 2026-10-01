@@ -8,6 +8,8 @@ stays in ``screenshot.py`` (step 5) -- it touches the page.
 
 from __future__ import annotations
 
+from typing import cast
+
 import cv2
 import numpy as np
 from numpy.typing import NDArray
@@ -26,7 +28,8 @@ def to_canvas(
         (round(img.shape[1] * f), round(img.shape[0] * f)),
         interpolation=cv2.INTER_AREA if f < 1 else cv2.INTER_CUBIC,
     )
-    return out, points_w / out.shape[1]
+    # cv2.resize keeps the input dtype (uint8); its stub returns any-dtype MatLike.
+    return cast("NDArray[np.uint8]", out), points_w / out.shape[1]
 
 
 def canvas_size(look: Look | None, viewport: tuple[int, int]) -> tuple[int, int]:

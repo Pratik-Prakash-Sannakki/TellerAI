@@ -7,14 +7,15 @@ path, and it always re-locks, even when the body raises.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator
 from typing import Protocol
 
 
 class CdpSender(Protocol):
-    """The one method of a Playwright ``CDPSession`` the lock uses."""
+    """The one method of a Playwright ``CDPSession`` the lock uses. ``params`` is a ``dict`` (not
+    ``Mapping``) because ``CDPSession.send`` accepts only ``dict``."""
 
-    async def send(self, method: str, params: Mapping[str, bool]) -> object: ...
+    async def send(self, method: str, params: dict[str, bool]) -> object: ...
 
 
 class SiteLock:

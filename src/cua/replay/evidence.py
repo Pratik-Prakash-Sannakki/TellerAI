@@ -27,7 +27,7 @@ from cua.vision import ocr
 def masked_outputs(outputs: dict[str, str | list[dict[str, str]]]) -> dict[str, JsonValue]:
     """Names and shape only: a value is ***, a table keeps its rows and columns, every cell ***."""
     return {
-        k: [dict.fromkeys(r, "***") for r in v] if isinstance(v, list) else "***"  # type: ignore[misc]
+        k: [dict.fromkeys(r, "***") for r in v] if isinstance(v, list) else "***"
         for k, v in outputs.items()
     }
 
