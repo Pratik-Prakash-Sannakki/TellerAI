@@ -315,8 +315,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_box_overlaps",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": ".overlaps()"
     },
     {
@@ -532,8 +532,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_num",
-      "community": 65,
-      "community_name": "Look",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "_num()"
     },
     {
@@ -568,8 +568,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_element_at",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "element_at()"
     },
     {
@@ -616,8 +616,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_where",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "where()"
     },
     {
@@ -652,8 +652,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_read_near",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "read_near()"
     },
     {
@@ -749,8 +749,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_is_sensitive",
-      "community": 73,
-      "community_name": "guard_send",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "is_sensitive()"
     },
     {
@@ -785,8 +785,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_mark_stuck",
-      "community": 38,
-      "community_name": "click",
+      "community": 77,
+      "community_name": "run_goal",
       "norm_label": "mark_stuck()"
     },
     {
@@ -869,8 +869,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_note_call",
-      "community": 29,
-      "community_name": "discovery.py",
+      "community": 77,
+      "community_name": "run_goal",
       "norm_label": "note_call()"
     },
     {
@@ -905,8 +905,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_read_dropdowns",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "read_dropdowns()"
     },
     {
@@ -1243,8 +1243,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_act",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "act()"
     },
     {
@@ -1267,8 +1267,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_list_options",
-      "community": 38,
-      "community_name": "click",
+      "community": 73,
+      "community_name": "guard_send",
       "norm_label": "list_options()"
     },
     {
@@ -1413,8 +1413,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_scroll",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "scroll()"
     },
     {
@@ -1437,8 +1437,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_same_line",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "same_line()"
     },
     {
@@ -1449,8 +1449,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_column_spans",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "column_spans()"
     },
     {
@@ -1461,8 +1461,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_table_columns",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "table_columns()"
     },
     {
@@ -1485,8 +1485,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_text_lines",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "text_lines()"
     },
     {
@@ -1545,8 +1545,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_append_rows",
-      "community": 29,
-      "community_name": "discovery.py",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "append_rows()"
     },
     {
@@ -1677,8 +1677,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_is_header",
-      "community": 38,
-      "community_name": "click",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "is_header()"
     },
     {
@@ -1689,8 +1689,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_off_table",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "off_table()"
     },
     {
@@ -1713,8 +1713,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_extract_table",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "extract_table()"
     },
     {
@@ -1761,8 +1761,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_ask_human",
-      "community": 77,
-      "community_name": "run_goal",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "ask_human()"
     },
     {
@@ -2243,8 +2243,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_checkpoint",
-      "community": 38,
-      "community_name": "click",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "checkpoint()"
     },
     {
@@ -2542,8 +2542,8 @@
       "source_location": "L361",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_361",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "r14: anchor label + offset (rung 2) and the clicked element (rung 1). the text..."
     },
     {
@@ -2674,8 +2674,8 @@
       "source_location": "L607",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_607",
-      "community": 29,
-      "community_name": "discovery.py",
+      "community": 77,
+      "community_name": "run_goal",
       "norm_label": "the same call n times in a row means stuck."
     },
     {
@@ -2707,8 +2707,8 @@
       "source_location": "L651",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_651",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "the page's dropdowns, read before an action (never while guard_send holds a..."
     },
     {
@@ -2905,8 +2905,8 @@
       "source_location": "L974",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_974",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "unlock the site tab, run our own input steps, relock, settle, take a new look."
     },
     {
@@ -2927,8 +2927,8 @@
       "source_location": "L1021",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1021",
-      "community": 38,
-      "community_name": "click",
+      "community": 73,
+      "community_name": "guard_send",
       "norm_label": "every option of the dropdown at this point ([] if it is not a dropdown)."
     },
     {
@@ -3026,8 +3026,8 @@
       "source_location": "L1300",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1300",
-      "community": 48,
-      "community_name": "take_look",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "scroll up or down, then take a new look. old numbers stop working. args:..."
     },
     {
@@ -3048,8 +3048,8 @@
       "source_location": "L1356",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1356",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "each header's x-range: out to the midpoint with its neighbours on the header..."
     },
     {
@@ -3059,8 +3059,8 @@
       "source_location": "L1370",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1370",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "(every header-line column as (asked name or none, lo, hi), the header line's..."
     },
     {
@@ -3081,8 +3081,8 @@
       "source_location": "L1388",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1388",
-      "community": 135,
-      "community_name": "read_rows",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "texts grouped into lines, top to bottom."
     },
     {
@@ -3136,8 +3136,8 @@
       "source_location": "L1452",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1452",
-      "community": 29,
-      "community_name": "discovery.py",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "a scrolled second read repeats the rows still on screen: drop only that overlap."
     },
     {
@@ -3257,8 +3257,8 @@
       "source_location": "L1599",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1599",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "the look without the table's cells: its page texts and headings pick the..."
     },
     {
@@ -3279,8 +3279,8 @@
       "source_location": "L1616",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1616",
-      "community": 38,
-      "community_name": "click",
+      "community": 65,
+      "community_name": "Look",
       "norm_label": "save a table or list the goal asked for: our code reads its rows under the..."
     },
     {
@@ -3323,8 +3323,8 @@
       "source_location": "L1698",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_1698",
-      "community": 77,
-      "community_name": "run_goal",
+      "community": 38,
+      "community_name": "click",
       "norm_label": "ask a human whenever you are unsure: what to do, which option, what the goal..."
     },
     {
@@ -3455,8 +3455,8 @@
       "source_location": "L2099",
       "_origin": "ast",
       "id": "notebooks_discovery_discovery_rationale_2099",
-      "community": 38,
-      "community_name": "click",
+      "community": 29,
+      "community_name": "discovery.py",
       "norm_label": "c: after a send, the page's own response proves success (the agent's proof only..."
     },
     {
@@ -3544,8 +3544,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_host_allowed",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "host_allowed()"
     },
     {
@@ -3571,7 +3571,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_box",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "box"
     },
     {
@@ -3583,7 +3583,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_box_center",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": ".center()"
     },
     {
@@ -3595,7 +3595,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_box_contains",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": ".contains()"
     },
     {
@@ -3607,7 +3607,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_box_overlaps",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": ".overlaps()"
     },
     {
@@ -3619,8 +3619,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_element",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "element"
     },
     {
@@ -3644,8 +3644,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_look_get",
-      "community": 127,
-      "community_name": "Look",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": ".get()"
     },
     {
@@ -3716,7 +3716,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_number",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "number()"
     },
     {
@@ -3776,7 +3776,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_canvas",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "canvas()"
     },
     {
@@ -3811,8 +3811,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_element_at",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "element_at()"
     },
     {
@@ -3824,7 +3824,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_crop_box",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "crop_box()"
     },
     {
@@ -3836,7 +3836,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_read_near",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "read_near()"
     },
     {
@@ -3847,8 +3847,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_spot_changed",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "spot_changed()"
     },
     {
@@ -3859,8 +3859,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_screens_same",
-      "community": 43,
-      "community_name": "take_look",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "screens_same()"
     },
     {
@@ -3873,7 +3873,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_replaystate",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "replaystate"
     },
     {
@@ -3896,8 +3896,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_norm",
-      "community": 32,
-      "community_name": "Capability",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "norm()"
     },
     {
@@ -3920,8 +3920,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_stash_dropdowns",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "stash_dropdowns()"
     },
     {
@@ -4028,8 +4028,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_error_page",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "error_page()"
     },
     {
@@ -4222,8 +4222,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_act",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "act()"
     },
     {
@@ -4247,7 +4247,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_field_box",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "field_box()"
     },
     {
@@ -4258,8 +4258,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_read_field",
-      "community": 35,
-      "community_name": "Box",
+      "community": 139,
+      "community_name": "do_type",
       "norm_label": "read_field()"
     },
     {
@@ -4307,8 +4307,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_stop",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "stop"
     },
     {
@@ -4318,8 +4318,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "exception",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "exception"
     },
     {
@@ -4330,8 +4330,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_stop_init",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": ".__init__()"
     },
     {
@@ -4342,8 +4342,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_load_capability",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "load_capability()"
     },
     {
@@ -4366,7 +4366,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_load_outcomes",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "load_outcomes()"
     },
     {
@@ -4390,7 +4390,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_given_inputs",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "given_inputs()"
     },
     {
@@ -4425,8 +4425,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_step_inputs",
-      "community": 2,
-      "community_name": "ask_inputs",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": "step_inputs()"
     },
     {
@@ -4437,8 +4437,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_ask_inputs",
-      "community": 2,
-      "community_name": "ask_inputs",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": "ask_inputs()"
     },
     {
@@ -4449,8 +4449,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_ask_option",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 139,
+      "community_name": "do_type",
       "norm_label": "ask_option()"
     },
     {
@@ -4473,8 +4473,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_typed_ok",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "typed_ok()"
     },
     {
@@ -4581,8 +4581,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_shows",
-      "community": 32,
-      "community_name": "Capability",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "shows()"
     },
     {
@@ -4593,8 +4593,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_site_url",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "site_url()"
     },
     {
@@ -4605,8 +4605,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_do_navigate",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "do_navigate()"
     },
     {
@@ -4616,8 +4616,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "notebooks_replay_replay_py_step",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "step"
     },
     {
@@ -4628,8 +4628,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_do_click",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "do_click()"
     },
     {
@@ -4640,8 +4640,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_changed",
-      "community": 43,
-      "community_name": "take_look",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "changed()"
     },
     {
@@ -4652,8 +4652,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_settled_change",
-      "community": 43,
-      "community_name": "take_look",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "settled_change()"
     },
     {
@@ -4688,8 +4688,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_do_scroll",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "do_scroll()"
     },
     {
@@ -4712,8 +4712,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_next_rung",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "next_rung()"
     },
     {
@@ -4736,8 +4736,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_do_extract",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "do_extract()"
     },
     {
@@ -4748,8 +4748,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_same_line",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "same_line()"
     },
     {
@@ -4760,8 +4760,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_column_spans",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "column_spans()"
     },
     {
@@ -4772,8 +4772,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_table_columns",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "table_columns()"
     },
     {
@@ -4784,8 +4784,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_col_of",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "col_of()"
     },
     {
@@ -4796,8 +4796,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_text_lines",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "text_lines()"
     },
     {
@@ -4808,8 +4808,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_row_of",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "row_of()"
     },
     {
@@ -4820,8 +4820,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_read_rows",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "read_rows()"
     },
     {
@@ -4856,8 +4856,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_append_rows",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "append_rows()"
     },
     {
@@ -4882,7 +4882,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_replayresult",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "replayresult"
     },
     {
@@ -4894,7 +4894,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_replayresult_outputs_line",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": ".outputs_line()"
     },
     {
@@ -4906,7 +4906,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_replayresult_summary",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": ".summary()"
     },
     {
@@ -4917,8 +4917,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_snap",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 43,
+      "community_name": "take_look",
       "norm_label": "snap()"
     },
     {
@@ -4929,8 +4929,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_takeover_text",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 42,
+      "community_name": "replay.py",
       "norm_label": "takeover_text()"
     },
     {
@@ -4942,7 +4942,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_ext_call",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "ext_call()"
     },
     {
@@ -4954,7 +4954,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_button_clicked",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "button_clicked()"
     },
     {
@@ -4966,7 +4966,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_handback_button",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "handback_button()"
     },
     {
@@ -4977,8 +4977,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_hand_back",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 42,
+      "community_name": "replay.py",
       "norm_label": "hand_back()"
     },
     {
@@ -4988,8 +4988,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "future",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 42,
+      "community_name": "replay.py",
       "norm_label": "future"
     },
     {
@@ -5000,8 +5000,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_rescue",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "rescue()"
     },
     {
@@ -5121,7 +5121,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_stopped",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "stopped()"
     },
     {
@@ -5132,8 +5132,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "notebooks_replay_replay_finish",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "finish()"
     },
     {
@@ -5169,7 +5169,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_replay",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "replay()"
     },
     {
@@ -5264,7 +5264,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_210",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "reading order (rows top to bottom, then left to right), fresh refs."
     },
     {
@@ -5274,8 +5274,8 @@
       "source_location": "L296",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_296",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "pixels around the point changed. catches password dots that ocr cannot read."
     },
     {
@@ -5286,7 +5286,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_314",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "working values for one run. wiped in `replay`'s `finally` (r7)."
     },
     {
@@ -5307,8 +5307,8 @@
       "source_location": "L360",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_360",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "before a click: a held send blocks `page.evaluate`, so guard_send only reads..."
     },
     {
@@ -5340,8 +5340,8 @@
       "source_location": "L444",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_444",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "r17 failed before any outcome rule: an http error status, or a raw json error..."
     },
     {
@@ -5384,8 +5384,8 @@
       "source_location": "L633",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_633",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "unlock the site tab, run our own input steps, relock, settle, take a new look."
     },
     {
@@ -5407,7 +5407,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_675",
       "community": 35,
-      "community_name": "Box",
+      "community_name": "Element",
       "norm_label": "the smallest drawn rectangle around the point (the input's own border), else..."
     },
     {
@@ -5417,8 +5417,8 @@
       "source_location": "L686",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_686",
-      "community": 35,
-      "community_name": "Box",
+      "community": 139,
+      "community_name": "do_type",
       "norm_label": "text inside the whole field: short values sit at its left edge, not near the..."
     },
     {
@@ -5461,8 +5461,8 @@
       "source_location": "L760",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_760",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "ends the run with a status (r17). the reason never holds a value; `observed` is..."
     },
     {
@@ -5472,8 +5472,8 @@
       "source_location": "L771",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_771",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "the capability and the folder its crop paths are relative to."
     },
     {
@@ -5484,7 +5484,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_793",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "the capability's own `outcomes:` [{text, status, meaning}], else the generic..."
     },
     {
@@ -5506,7 +5506,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_810",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "the caller's values, by the capability's own input names (any case). any other..."
     },
     {
@@ -5527,8 +5527,8 @@
       "source_location": "L829",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_829",
-      "community": 2,
-      "community_name": "ask_inputs",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": "every `{{input}}` the steps use, in step order, once each."
     },
     {
@@ -5538,8 +5538,8 @@
       "source_location": "L835",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_835",
-      "community": 2,
-      "community_name": "ask_inputs",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": "r8: one form before step 1 for every input the caller did not give. nothing is..."
     },
     {
@@ -5549,8 +5549,8 @@
       "source_location": "L851",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_851",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 139,
+      "community_name": "do_type",
       "norm_label": "the one mid-run prompt: the given value is not a live option. choose one, blank..."
     },
     {
@@ -5571,8 +5571,8 @@
       "source_location": "L874",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_874",
-      "community": 139,
-      "community_name": "do_type",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "bug b: the value is one of the ocr words. digits exact ($10.00 is 10.00); words..."
     },
     {
@@ -5659,8 +5659,8 @@
       "source_location": "L969",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_969",
-      "community": 32,
-      "community_name": "Capability",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "r5: bounded ocr poll until the text is on screen."
     },
     {
@@ -5670,8 +5670,8 @@
       "source_location": "L980",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_980",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "like a browser: '/parabank/x.htm' is from the site root, 'x.htm' is under..."
     },
     {
@@ -5681,8 +5681,8 @@
       "source_location": "L1011",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1011",
-      "community": 43,
-      "community_name": "take_look",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "the pixels moved, or new text is on screen: a small answer ('transfer..."
     },
     {
@@ -5692,8 +5692,8 @@
       "source_location": "L1017",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1017",
-      "community": 43,
-      "community_name": "take_look",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "bug d: a send can land after the settle. poll until the screen changes, then..."
     },
     {
@@ -5703,8 +5703,8 @@
       "source_location": "L1084",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1084",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "where the rungs after `rung` point (e.g. the anchor after a wrong table cell),..."
     },
     {
@@ -5725,8 +5725,8 @@
       "source_location": "L1101",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1101",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "read the value at the point. a wrong value tries the next rung once, then..."
     },
     {
@@ -5736,8 +5736,8 @@
       "source_location": "L1124",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1124",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "each header's x-range: out to the midpoint with its neighbours on the header..."
     },
     {
@@ -5747,8 +5747,8 @@
       "source_location": "L1138",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1138",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "(every header-line column as (asked name or none, lo, hi), the header line's..."
     },
     {
@@ -5758,8 +5758,8 @@
       "source_location": "L1149",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1149",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "the column the box overlaps most, or none when it overlaps none (outside the..."
     },
     {
@@ -5769,8 +5769,8 @@
       "source_location": "L1156",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1156",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "texts grouped into lines, top to bottom."
     },
     {
@@ -5780,8 +5780,8 @@
       "source_location": "L1167",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1167",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "a line's texts in the asked columns, left to right; two texts in one column are..."
     },
     {
@@ -5791,8 +5791,8 @@
       "source_location": "L1177",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1177",
-      "community": 127,
-      "community_name": "Look",
+      "community": 35,
+      "community_name": "Element",
       "norm_label": "(rows under the header, whether the table may continue past the look's bottom)...."
     },
     {
@@ -5824,8 +5824,8 @@
       "source_location": "L1220",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1220",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 127,
+      "community_name": "Look",
       "norm_label": "a scrolled second read repeats the rows still on screen: drop only that overlap."
     },
     {
@@ -5846,8 +5846,8 @@
       "source_location": "L1278",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1278",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 43,
+      "community_name": "take_look",
       "norm_label": "evidence screenshot. a held form post blocks `page.screenshot()`: give up,..."
     },
     {
@@ -5858,7 +5858,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1291",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "r19: one bounded call into the hand-back extension's service worker, never the..."
     },
     {
@@ -5869,7 +5869,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1302",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "returns once the toolbar button's click count rises above where it was at the..."
     },
     {
@@ -5880,7 +5880,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1315",
       "community": 44,
-      "community_name": "rescue",
+      "community_name": "handback_button",
       "norm_label": "badge you while the human is in control; yields the task a toolbar click..."
     },
     {
@@ -5890,8 +5890,8 @@
       "source_location": "L1328",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1328",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 42,
+      "community_name": "replay.py",
       "norm_label": "done on the toolbar button or in the take-over panel hands back. no reminders..."
     },
     {
@@ -5901,8 +5901,8 @@
       "source_location": "L1339",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1339",
-      "community": 44,
-      "community_name": "rescue",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "r8: the help panel. take over (the human does this step) or stop. returns the..."
     },
     {
@@ -5990,7 +5990,7 @@
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1504",
       "community": 40,
-      "community_name": "Stop",
+      "community_name": "replay",
       "norm_label": "a run that stopped: its status, the failure detail (r17) and the final screen..."
     },
     {
@@ -6000,8 +6000,8 @@
       "source_location": "L1513",
       "_origin": "ast",
       "id": "notebooks_replay_replay_rationale_1513",
-      "community": 40,
-      "community_name": "Stop",
+      "community": 32,
+      "community_name": "Capability",
       "norm_label": "main steps -> checkpoint -> outputs, then the cleanup steps, always (the run is..."
     },
     {
@@ -6374,8 +6374,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_canvas_ns",
-      "community": 152,
-      "community_name": "SimpleNamespace",
+      "community": 149,
+      "community_name": "pathlib",
       "norm_label": "_ns()"
     },
     {
@@ -6385,8 +6385,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "tests_discovery_test_canvas_py_parametrize",
-      "community": 152,
-      "community_name": "SimpleNamespace",
+      "community": 149,
+      "community_name": "pathlib",
       "norm_label": "parametrize"
     },
     {
@@ -6397,8 +6397,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_canvas_test_fits_canvas_and_maps_clicks_back_to_the_same_spot",
-      "community": 152,
-      "community_name": "SimpleNamespace",
+      "community": 149,
+      "community_name": "pathlib",
       "norm_label": "test_fits_canvas_and_maps_clicks_back_to_the_same_spot()"
     },
     {
@@ -6938,8 +6938,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_extension_manifest",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "test_extension_manifest.py"
     },
     {
@@ -6950,8 +6950,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_extension_manifest_test_manifest_has_no_site_access",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "test_manifest_has_no_site_access()"
     },
     {
@@ -6961,8 +6961,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_extension_manifest_rationale_1",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "the hand-back extension never touches any site: no content scripts, no host..."
     },
     {
@@ -7307,8 +7307,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_win",
-      "community": 6,
-      "community_name": "Win",
+      "community": 134,
+      "community_name": "Site",
       "norm_label": "win"
     },
     {
@@ -7319,8 +7319,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_win_init",
-      "community": 6,
-      "community_name": "Win",
+      "community": 134,
+      "community_name": "Site",
       "norm_label": ".__init__()"
     },
     {
@@ -7331,8 +7331,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_win_set_content",
-      "community": 6,
-      "community_name": "Win",
+      "community": 134,
+      "community_name": "Site",
       "norm_label": ".set_content()"
     },
     {
@@ -7343,8 +7343,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_win_is_closed",
-      "community": 6,
-      "community_name": "Win",
+      "community": 134,
+      "community_name": "Site",
       "norm_label": ".is_closed()"
     },
     {
@@ -7355,8 +7355,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_win_bring_to_front",
-      "community": 6,
-      "community_name": "Win",
+      "community": 134,
+      "community_name": "Site",
       "norm_label": ".bring_to_front()"
     },
     {
@@ -7380,8 +7380,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_site_init",
-      "community": 134,
-      "community_name": "Site",
+      "community": 27,
+      "community_name": "Ext",
       "norm_label": ".__init__()"
     },
     {
@@ -7453,8 +7453,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_ext",
-      "community": 134,
-      "community_name": "Site",
+      "community": 27,
+      "community_name": "Ext",
       "norm_label": "ext"
     },
     {
@@ -7465,8 +7465,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_ext_init",
-      "community": 134,
-      "community_name": "Site",
+      "community": 27,
+      "community_name": "Ext",
       "norm_label": ".__init__()"
     },
     {
@@ -7477,8 +7477,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_handback_ext_evaluate",
-      "community": 134,
-      "community_name": "Site",
+      "community": 27,
+      "community_name": "Ext",
       "norm_label": ".evaluate()"
     },
     {
@@ -7679,8 +7679,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "tests_discovery_test_handback_rationale_62",
-      "community": 134,
-      "community_name": "Site",
+      "community": 27,
+      "community_name": "Ext",
       "norm_label": "the hand-back extension's service worker: a click counter and a badge. never..."
     },
     {
@@ -7702,7 +7702,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_human_help.py"
     },
     {
@@ -7714,7 +7714,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_no_watch",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "_no_watch()"
     },
     {
@@ -7726,7 +7726,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_no_ext",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "_no_ext()"
     },
     {
@@ -7739,7 +7739,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_state",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "state"
     },
     {
@@ -7752,7 +7752,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_control",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "control"
     },
     {
@@ -7764,7 +7764,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_control_init",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": ".__init__()"
     },
     {
@@ -7776,7 +7776,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_control_ask",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": ".ask()"
     },
     {
@@ -7788,8 +7788,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "page"
     },
     {
@@ -7800,8 +7800,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page_init",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".__init__()"
     },
     {
@@ -7812,8 +7812,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page_on",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".on()"
     },
     {
@@ -7824,8 +7824,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page_remove_listener",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".remove_listener()"
     },
     {
@@ -7836,8 +7836,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page_navigate",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".navigate()"
     },
     {
@@ -7848,8 +7848,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_page_screenshot",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".screenshot()"
     },
     {
@@ -7862,7 +7862,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_lock",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "lock"
     },
     {
@@ -7874,7 +7874,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_lock_open",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": ".open()"
     },
     {
@@ -7886,7 +7886,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_run",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "_run()"
     },
     {
@@ -7897,7 +7897,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_py_parametrize",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "parametrize"
     },
     {
@@ -7909,7 +7909,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_outcomes",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_outcomes()"
     },
     {
@@ -7921,7 +7921,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_take_over",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "_take_over()"
     },
     {
@@ -7933,7 +7933,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_take_over_records_page_paths_and_sends_as_evidence",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_take_over_records_page_paths_and_sends_as_evidence()"
     },
     {
@@ -7945,7 +7945,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_listener_is_removed_after_hand_back",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_listener_is_removed_after_hand_back()"
     },
     {
@@ -7956,8 +7956,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_a_screenshot_that_times_out_still_hands_back_cleanly",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_a_screenshot_that_times_out_still_hands_back_cleanly()"
     },
     {
@@ -7969,7 +7969,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_no_deadlock_when_a_gate_is_pending_at_done",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_no_deadlock_when_a_gate_is_pending_at_done()"
     },
     {
@@ -7981,7 +7981,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_test_done_with_a_send_held_forever_ends_the_take_over_as_stuck",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "test_done_with_a_send_held_forever_ends_the_take_over_as_stuck()"
     },
     {
@@ -7992,7 +7992,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_1",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "human_help: one open-ended panel -> answer in words, take over, or stop."
     },
     {
@@ -8003,7 +8003,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_17",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "the hand-back button has its own tests (test_handback.py); quiet here."
     },
     {
@@ -8013,8 +8013,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_53",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "fires framenavigated like playwright, for the main frame and for an iframe."
     },
     {
@@ -8025,7 +8025,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_113",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "run human_help's take-over; `during(page)` is what the human does before..."
     },
     {
@@ -8035,8 +8035,8 @@
       "source_location": "L155",
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_155",
-      "community": 1,
-      "community_name": "Page",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "live crash: register (a form post) held by guard_send -> shot_after timed out..."
     },
     {
@@ -8047,7 +8047,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_human_help_rationale_164",
       "community": 18,
-      "community_name": "test_human_help.py",
+      "community_name": "SimpleNamespace",
       "norm_label": "the human pressed register (gate held, its question on top), then clicked done..."
     },
     {
@@ -8165,7 +8165,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_label_values_look_ns",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "_look_ns()"
     },
     {
@@ -8235,8 +8235,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_label_values_test_sent_values_count_as_run_values",
-      "community": 152,
-      "community_name": "SimpleNamespace",
+      "community": 78,
+      "community_name": "test_label_values.py",
       "norm_label": "test_sent_values_count_as_run_values()"
     },
     {
@@ -8364,8 +8364,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_latest_screenshot",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_latest_screenshot.py"
     },
     {
@@ -8376,8 +8376,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_latest_screenshot_cls",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_cls()"
     },
     {
@@ -8388,8 +8388,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_latest_screenshot_shot",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_shot()"
     },
     {
@@ -8399,8 +8399,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "toolmessage",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "toolmessage"
     },
     {
@@ -8411,8 +8411,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_latest_screenshot_test_only_last_image_survives",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_only_last_image_survives()"
     },
     {
@@ -8422,8 +8422,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_latest_screenshot_rationale_1",
-      "community": 150,
-      "community_name": "test_latest_screenshot.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "latestscreenshotonly keeps only the newest image in the model's context."
     },
     {
@@ -8668,8 +8668,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_observable_test_a_run_that_neither_reads_nor_sends_is_refused",
-      "community": 110,
-      "community_name": "_meta",
+      "community": 74,
+      "community_name": "test_observable.py",
       "norm_label": "test_a_run_that_neither_reads_nor_sends_is_refused()"
     },
     {
@@ -8680,8 +8680,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_observable_test_a_read_or_a_send_is_enough",
-      "community": 110,
-      "community_name": "_meta",
+      "community": 74,
+      "community_name": "test_observable.py",
       "norm_label": "test_a_read_or_a_send_is_enough()"
     },
     {
@@ -9608,7 +9608,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_select_anchor.py"
     },
     {
@@ -9620,7 +9620,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_where_at",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "_where_at()"
     },
     {
@@ -9632,7 +9632,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_a_point_inside_a_merged_label_and_value_box_anchors_on_the_cleaned_label",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_a_point_inside_a_merged_label_and_value_box_anchors_on_the_cleaned_label()"
     },
     {
@@ -9644,7 +9644,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_a_plain_word_under_the_point_is_still_never_the_anchor",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_a_plain_word_under_the_point_is_still_never_the_anchor()"
     },
     {
@@ -9656,7 +9656,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_select_ev",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "_select_ev()"
     },
     {
@@ -9668,7 +9668,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_the_select_step_keeps_the_dropdowns_index",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_the_select_step_keeps_the_dropdowns_index()"
     },
     {
@@ -9679,7 +9679,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_py_path",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "path"
     },
     {
@@ -9691,7 +9691,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_an_old_select_without_an_index_still_loads",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_an_old_select_without_an_index_still_loads()"
     },
     {
@@ -9703,7 +9703,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_a_select_with_no_anchor_is_refused_not_saved",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "test_a_select_with_no_anchor_is_refused_not_saved()"
     },
     {
@@ -9714,7 +9714,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_test_a_sent_dropdown_is_logged_with_its_index_on_the_page",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": "test_a_sent_dropdown_is_logged_with_its_index_on_the_page()"
     },
@@ -9726,7 +9726,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_rationale_1",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "a dropdown's point inside an ocr box that merged its label and value ('to..."
     },
     {
@@ -9737,7 +9737,7 @@
       "_origin": "ast",
       "id": "tests_discovery_test_select_anchor_rationale_34",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "norm_label": "a box's own text with nothing cut from it (a value, a button) stays off the..."
     },
     {
@@ -9747,8 +9747,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_send_settle.py"
     },
     {
@@ -9760,8 +9760,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_page",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "page"
     },
     {
@@ -9772,8 +9772,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_page_init",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".__init__()"
     },
     {
@@ -9784,8 +9784,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_page_screenshot",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".screenshot()"
     },
     {
@@ -9796,8 +9796,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_page_wait_for_timeout",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": ".wait_for_timeout()"
     },
     {
@@ -9808,8 +9808,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_none",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_none()"
     },
     {
@@ -9820,8 +9820,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_act",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_act()"
     },
     {
@@ -9832,8 +9832,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_test_after_an_approved_send_the_look_shows_the_response",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_after_an_approved_send_the_look_shows_the_response()"
     },
     {
@@ -9844,8 +9844,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_test_no_send_means_no_extra_wait",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_no_send_means_no_extra_wait()"
     },
     {
@@ -9856,7 +9856,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_test_landed_keeps_only_new_fixed_text",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": "test_landed_keeps_only_new_fixed_text()"
     },
@@ -9867,8 +9867,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_rationale_1",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "d: after an approved send, act waits for the page's response before its..."
     },
     {
@@ -9878,8 +9878,8 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "tests_discovery_test_send_settle_rationale_13",
-      "community": 123,
-      "community_name": "test_send_settle.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "the response lands 3 polls after the gate is released."
     },
     {
@@ -9889,8 +9889,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "test_sent_dropdowns.py"
     },
     {
@@ -9901,8 +9901,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_logged",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "_logged()"
     },
     {
@@ -9913,8 +9913,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_test_a_defaulted_dropdown_the_send_carries_is_logged_without_its_value",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "test_a_defaulted_dropdown_the_send_carries_is_logged_without_its_value()"
     },
     {
@@ -9925,8 +9925,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_test_a_dropdown_the_send_does_not_carry_is_not_a_step",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "test_a_dropdown_the_send_does_not_carry_is_not_a_step()"
     },
     {
@@ -9937,8 +9937,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_test_it_becomes_a_select_input_before_the_send_click",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "test_it_becomes_a_select_input_before_the_send_click()"
     },
     {
@@ -9948,8 +9948,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_py_path",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "path"
     },
     {
@@ -9960,8 +9960,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_test_a_select_the_agent_made_earlier_is_not_doubled",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "test_a_select_the_agent_made_earlier_is_not_doubled()"
     },
     {
@@ -9971,8 +9971,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_sent_dropdowns_rationale_1",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "norm_label": "a dropdown the send carries becomes a select step, even when left on its page..."
     },
     {
@@ -9982,8 +9982,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_spot_changed.py"
     },
     {
@@ -9994,8 +9994,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed_load",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_load()"
     },
     {
@@ -10006,8 +10006,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed_look",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "_look()"
     },
     {
@@ -10017,8 +10017,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed_py_ndarray",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "ndarray"
     },
     {
@@ -10028,7 +10028,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "simplenamespace",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": "simplenamespace"
     },
@@ -10040,8 +10040,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed_test_dots_count_as_change_and_blank_does_not",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "test_dots_count_as_change_and_blank_does_not()"
     },
     {
@@ -10051,8 +10051,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_discovery_test_spot_changed_rationale_1",
-      "community": 118,
-      "community_name": "test_spot_changed.py",
+      "community": 18,
+      "community_name": "SimpleNamespace",
       "norm_label": "spot_changed: password dots are pixels, not ocr text."
     },
     {
@@ -10112,7 +10112,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_transaction_gates_route_init",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": ".__init__()"
     },
@@ -10340,7 +10340,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_transaction_gates_test_only_the_real_dropdown_becomes_a_dropdown",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": "test_only_the_real_dropdown_becomes_a_dropdown()"
     },
@@ -10552,7 +10552,7 @@
       "source_location": "L219",
       "_origin": "ast",
       "id": "tests_discovery_test_transaction_gates_rationale_219",
-      "community": 152,
+      "community": 18,
       "community_name": "SimpleNamespace",
       "norm_label": "the user's screenshot: every field set to \"1\", amount 124677, one real dropdown..."
     },
@@ -10787,8 +10787,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_discovery_test_wandering_test_text_on_most_looks_is_never_the_checkpoint",
-      "community": 120,
-      "community_name": "test_wandering.py",
+      "community": 110,
+      "community_name": "_meta",
       "norm_label": "test_text_on_most_looks_is_never_the_checkpoint()"
     },
     {
@@ -10825,6 +10825,314 @@
       "community": 120,
       "community_name": "test_wandering.py",
       "norm_label": "live run 'log in, bank phone number' (navigate_to_request_loan.yaml): a 404 and..."
+    },
+    {
+      "label": "fakes.py",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_fakes",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "fakes.py"
+    },
+    {
+      "label": "_Request",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L19",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_fakes_request",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "_request"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L22",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_request_init",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": "FakeRoute",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L35",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakeroute",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "fakeroute"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L42",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakeroute_init",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": ".continue_()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L52",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakeroute_continue",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".continue_()"
+    },
+    {
+      "label": ".abort()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L55",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakeroute_abort",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".abort()"
+    },
+    {
+      "label": ".fulfill()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L58",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakeroute_fulfill",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".fulfill()"
+    },
+    {
+      "label": "FakePage",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L62",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "fakepage"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L71",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_init",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": "._record()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L76",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_record",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "._record()"
+    },
+    {
+      "label": ".screenshot()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L81",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_screenshot",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".screenshot()"
+    },
+    {
+      "label": ".evaluate()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L85",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_evaluate",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".evaluate()"
+    },
+    {
+      "label": ".wait_for_timeout()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L88",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_wait_for_timeout",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".wait_for_timeout()"
+    },
+    {
+      "label": ".on()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L91",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_on",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".on()"
+    },
+    {
+      "label": ".remove_listener()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L94",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakepage_remove_listener",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".remove_listener()"
+    },
+    {
+      "label": "FakeControl",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L98",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakecontrol",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "fakecontrol"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L106",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakecontrol_init",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": ".ask()",
+      "file_type": "code",
+      "source_file": "tests/fakes.py",
+      "source_location": "L110",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_fakes_fakecontrol_ask",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".ask()"
+    },
+    {
+      "label": "Shared offline fakes for the ported test suite (tests/unit, tests/integration).\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/fakes.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_fakes_rationale_1",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "shared offline fakes for the ported test suite (tests/unit, tests/integration)...."
+    },
+    {
+      "label": "The handful of ``playwright.async_api.Request`` fields the project's code reads.",
+      "file_type": "rationale",
+      "source_file": "tests/fakes.py",
+      "source_location": "L20",
+      "_origin": "ast",
+      "id": "tests_fakes_rationale_20",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "the handful of ``playwright.async_api.request`` fields the project's code reads."
+    },
+    {
+      "label": "A fake ``playwright.async_api.Route``: records every\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/fakes.py",
+      "source_location": "L36",
+      "_origin": "ast",
+      "id": "tests_fakes_rationale_36",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "a fake ``playwright.async_api.route``: records every..."
+    },
+    {
+      "label": "A fake ``playwright.async_api.Page``. Every awaited method is recorded in\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/fakes.py",
+      "source_location": "L63",
+      "_origin": "ast",
+      "id": "tests_fakes_rationale_63",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "a fake ``playwright.async_api.page``. every awaited method is recorded in..."
+    },
+    {
+      "label": "A fake discovery/replay ``CONTROL`` surface (what ``ControlWindow`` presents).\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/fakes.py",
+      "source_location": "L99",
+      "_origin": "ast",
+      "id": "tests_fakes_rationale_99",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "a fake discovery/replay ``control`` surface (what ``controlwindow`` presents)...."
+    },
+    {
+      "label": "integration/conftest.py",
+      "file_type": "code",
+      "source_file": "tests/integration/conftest.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_integration_conftest",
+      "community": 28,
+      "community_name": "integration/conftest.py",
+      "norm_label": "integration/conftest.py"
+    },
+    {
+      "label": "tests/integration/: offline round-trip tests (e.g. discovery output -> replay\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/integration/conftest.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_integration_conftest_rationale_1",
+      "community": 28,
+      "community_name": "integration/conftest.py",
+      "norm_label": "tests/integration/: offline round-trip tests (e.g. discovery output -> replay..."
     },
     {
       "label": "replay/conftest.py",
@@ -11409,8 +11717,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_cleanup",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_cleanup.py"
     },
     {
@@ -11421,8 +11729,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_click",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "_click()"
     },
     {
@@ -11432,8 +11740,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_py_fixture",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "fixture"
     },
     {
@@ -11444,8 +11752,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_site",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "site()"
     },
     {
@@ -11456,8 +11764,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_cap",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "_cap()"
     },
     {
@@ -11468,8 +11776,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_run",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "_run()"
     },
     {
@@ -11480,8 +11788,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_success_then_cleanup_in_order_after_the_checkpoint",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_success_then_cleanup_in_order_after_the_checkpoint()"
     },
     {
@@ -11492,8 +11800,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_cleanup_runs_after_a_failed_step",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_cleanup_runs_after_a_failed_step()"
     },
     {
@@ -11504,8 +11812,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_cleanup_runs_after_a_failed_checkpoint",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_cleanup_runs_after_a_failed_checkpoint()"
     },
     {
@@ -11516,8 +11824,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_a_cleanup_failure_keeps_success_and_records_failed",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_a_cleanup_failure_keeps_success_and_records_failed()"
     },
     {
@@ -11528,8 +11836,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_a_cleanup_miss_is_retried_once_then_recorded_without_a_rescue",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_a_cleanup_miss_is_retried_once_then_recorded_without_a_rescue()"
     },
     {
@@ -11540,8 +11848,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_old_artifacts_without_cleanup_are_unchanged",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "test_old_artifacts_without_cleanup_are_unchanged()"
     },
     {
@@ -11552,8 +11860,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_test_no_cleanup_when_stopped_before_step_1",
-      "community": 2,
-      "community_name": "ask_inputs",
+      "community": 40,
+      "community_name": "replay",
       "norm_label": "test_no_cleanup_when_stopped_before_step_1()"
     },
     {
@@ -11563,8 +11871,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_cleanup_rationale_1",
-      "community": 107,
-      "community_name": "test_table_replay.py",
+      "community": 16,
+      "community_name": "test_cleanup.py",
       "norm_label": "cleanup steps (e.g. log out) run last, always, best-effort, and never change..."
     },
     {
@@ -12475,8 +12783,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_handback_manifest",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "test_handback_manifest.py"
     },
     {
@@ -12487,8 +12795,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_handback_manifest_test_manifest_has_no_site_access",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "test_manifest_has_no_site_access()"
     },
     {
@@ -12498,8 +12806,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_handback_manifest_rationale_1",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "norm_label": "the hand-back extension never touches any site: no content scripts, no host..."
     },
     {
@@ -13126,7 +13434,7 @@
       "_origin": "ast",
       "id": "tests_replay_test_partial_outputs_test_the_gate_marks_a_human_approved_send",
       "community": 109,
-      "community_name": "Route",
+      "community_name": "HeldRoute",
       "norm_label": "test_the_gate_marks_a_human_approved_send()"
     },
     {
@@ -13966,8 +14274,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_select_index",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_select_index.py"
     },
     {
@@ -13978,8 +14286,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_js",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "_js()"
     },
     {
@@ -13990,8 +14298,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_test_an_index_picks_its_own_dropdown_from_a_point_nearer_the_other",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_an_index_picks_its_own_dropdown_from_a_point_nearer_the_other()"
     },
     {
@@ -14002,8 +14310,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_test_without_an_index_the_point_decides",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_without_an_index_the_point_decides()"
     },
     {
@@ -14015,8 +14323,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_page",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "_page"
     },
     {
@@ -14027,8 +14335,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_page_init",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": ".__init__()"
     },
     {
@@ -14039,8 +14347,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_page_evaluate",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": ".evaluate()"
     },
     {
@@ -14051,8 +14359,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_page_wait_for_timeout",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": ".wait_for_timeout()"
     },
     {
@@ -14063,8 +14371,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_select",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "_select()"
     },
     {
@@ -14075,8 +14383,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_test_the_step_index_reaches_the_page_and_merged_ocr_confirms_it",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_the_step_index_reaches_the_page_and_merged_ocr_confirms_it()"
     },
     {
@@ -14087,8 +14395,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_test_an_old_step_without_an_index_selects_by_point",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_an_old_step_without_an_index_selects_by_point()"
     },
     {
@@ -14099,8 +14407,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_select_index_test_the_confirm_is_not_fooled_by_a_longer_number",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "test_the_confirm_is_not_fooled_by_a_longer_number()"
     },
     {
@@ -14110,8 +14418,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_replay_test_select_index_rationale_1",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "two dropdowns side by side: the step's recorded index picks its own <select>,..."
     },
     {
@@ -14121,8 +14429,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "tests_replay_test_select_index_rationale_14",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 6,
+      "community_name": "test_select_index.py",
       "norm_label": "run replay's real select_at_js in node against a fake page holding from and to."
     },
     {
@@ -14356,8 +14664,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_frame",
-      "community": 109,
-      "community_name": "Route",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": "frame"
     },
     {
@@ -14368,8 +14676,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_frame_init",
-      "community": 109,
-      "community_name": "Route",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": ".__init__()"
     },
     {
@@ -14393,8 +14701,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_fakepage_init",
-      "community": 109,
-      "community_name": "Route",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": ".__init__()"
     },
     {
@@ -14443,7 +14751,7 @@
       "_origin": "ast",
       "id": "tests_replay_test_takeover_route",
       "community": 109,
-      "community_name": "Route",
+      "community_name": "HeldRoute",
       "norm_label": "route"
     },
     {
@@ -14455,7 +14763,7 @@
       "_origin": "ast",
       "id": "tests_replay_test_takeover_route_init",
       "community": 109,
-      "community_name": "Route",
+      "community_name": "HeldRoute",
       "norm_label": ".__init__()"
     },
     {
@@ -14467,7 +14775,7 @@
       "_origin": "ast",
       "id": "tests_replay_test_takeover_route_continue",
       "community": 109,
-      "community_name": "Route",
+      "community_name": "HeldRoute",
       "norm_label": ".continue_()"
     },
     {
@@ -14527,8 +14835,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_humancontrol",
-      "community": 22,
-      "community_name": ".click",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": "humancontrol"
     },
     {
@@ -14539,8 +14847,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_humancontrol_init",
-      "community": 22,
-      "community_name": ".click",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": ".__init__()"
     },
     {
@@ -14551,8 +14859,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_humancontrol_ask",
-      "community": 109,
-      "community_name": "Route",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": ".ask()"
     },
     {
@@ -14575,8 +14883,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_click",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 22,
+      "community_name": ".click",
       "norm_label": "_click()"
     },
     {
@@ -14648,7 +14956,7 @@
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_sends_are_noted_only_during_a_take_over",
       "community": 109,
-      "community_name": "Route",
+      "community_name": "HeldRoute",
       "norm_label": "test_sends_are_noted_only_during_a_take_over()"
     },
     {
@@ -14660,8 +14968,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldpage",
-      "community": 33,
-      "community_name": "HangPage",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": "heldpage"
     },
     {
@@ -14684,8 +14992,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldpage_screenshot",
-      "community": 33,
-      "community_name": "HangPage",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": ".screenshot()"
     },
     {
@@ -14709,7 +15017,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldroute",
-      "community": 136,
+      "community": 109,
       "community_name": "HeldRoute",
       "norm_label": "heldroute"
     },
@@ -14721,8 +15029,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldroute_init",
-      "community": 136,
-      "community_name": "HeldRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": ".__init__()"
     },
     {
@@ -14733,7 +15041,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldroute_continue",
-      "community": 136,
+      "community": 109,
       "community_name": "HeldRoute",
       "norm_label": ".continue_()"
     },
@@ -14745,7 +15053,7 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_heldroute_abort",
-      "community": 136,
+      "community": 109,
       "community_name": "HeldRoute",
       "norm_label": ".abort()"
     },
@@ -14758,8 +15066,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_gatecontrol",
-      "community": 136,
-      "community_name": "HeldRoute",
+      "community": 53,
+      "community_name": "test_takeover.py",
       "norm_label": "gatecontrol"
     },
     {
@@ -14770,8 +15078,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_gatecontrol_init",
-      "community": 136,
-      "community_name": "HeldRoute",
+      "community": 53,
+      "community_name": "test_takeover.py",
       "norm_label": ".__init__()"
     },
     {
@@ -14782,8 +15090,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_gatecontrol_ask",
-      "community": 136,
-      "community_name": "HeldRoute",
+      "community": 53,
+      "community_name": "test_takeover.py",
       "norm_label": ".ask()"
     },
     {
@@ -14794,8 +15102,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_navigation_send_never_screenshots_and_the_gate_shows",
-      "community": 136,
-      "community_name": "HeldRoute",
+      "community": 53,
+      "community_name": "test_takeover.py",
       "norm_label": "test_navigation_send_never_screenshots_and_the_gate_shows()"
     },
     {
@@ -14844,8 +15152,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_donewhilesending",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": "donewhilesending"
     },
     {
@@ -14856,8 +15164,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_donewhilesending_init",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": ".__init__()"
     },
     {
@@ -14868,8 +15176,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_donewhilesending_ask",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 109,
+      "community_name": "HeldRoute",
       "norm_label": ".ask()"
     },
     {
@@ -14880,8 +15188,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_no_deadlock_between_a_pending_gate_and_done",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": "test_no_deadlock_between_a_pending_gate_and_done()"
     },
     {
@@ -14930,8 +15238,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_formroute",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": "formroute"
     },
     {
@@ -14954,8 +15262,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_formroute_continue",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": ".continue_()"
     },
     {
@@ -14967,8 +15275,8 @@
       "_callable_class": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_scriptedcontrol",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": "scriptedcontrol"
     },
     {
@@ -14979,8 +15287,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_scriptedcontrol_init",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": ".__init__()"
     },
     {
@@ -14991,8 +15299,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_scriptedcontrol_ask",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": ".ask()"
     },
     {
@@ -15003,8 +15311,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_scriptedcontrol_form",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": ".form()"
     },
     {
@@ -15015,8 +15323,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_human_post_during_a_take_over_passes_both_gates_with_no_evaluate",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": "test_human_post_during_a_take_over_passes_both_gates_with_no_evaluate()"
     },
     {
@@ -15027,8 +15335,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_agent_send_uses_the_stash_not_the_page",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": "test_agent_send_uses_the_stash_not_the_page()"
     },
     {
@@ -15039,8 +15347,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_click_stashes_the_dropdowns_before_clicking",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 22,
+      "community_name": ".click",
       "norm_label": "test_click_stashes_the_dropdowns_before_clicking()"
     },
     {
@@ -15100,8 +15408,8 @@
       "_callable": true,
       "_origin": "ast",
       "id": "tests_replay_test_takeover_test_done_hands_back_within_a_timeout_as_stuck",
-      "community": 33,
-      "community_name": "HangPage",
+      "community": 53,
+      "community_name": "test_takeover.py",
       "norm_label": "test_done_hands_back_within_a_timeout_as_stuck()"
     },
     {
@@ -15134,8 +15442,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "tests_replay_test_takeover_rationale_57",
-      "community": 22,
-      "community_name": ".click",
+      "community": 25,
+      "community_name": "HumanControl",
       "norm_label": "takes over; while 'in control', the human opens a page and sends a form."
     },
     {
@@ -15145,8 +15453,8 @@
       "source_location": "L142",
       "_origin": "ast",
       "id": "tests_replay_test_takeover_rationale_142",
-      "community": 33,
-      "community_name": "HangPage",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": "like playwright: while a form post (a navigation) is held, `page.screenshot()`..."
     },
     {
@@ -15167,8 +15475,8 @@
       "source_location": "L217",
       "_origin": "ast",
       "id": "tests_replay_test_takeover_rationale_217",
-      "community": 53,
-      "community_name": "test_takeover.py",
+      "community": 24,
+      "community_name": "HeldPage",
       "norm_label": "the human clicks done just as their form post is held: the gate must still show..."
     },
     {
@@ -15189,8 +15497,8 @@
       "source_location": "L269",
       "_origin": "ast",
       "id": "tests_replay_test_takeover_rationale_269",
-      "community": 153,
-      "community_name": "FormRoute",
+      "community": 33,
+      "community_name": "HangPage",
       "norm_label": "answers each gate from a script; records what each form offered."
     },
     {
@@ -15401,6 +15709,385 @@
       "community": 20,
       "community_name": "test_models.py",
       "norm_label": "offline tests for `cua.models.make_chat_model` (iliad gateway). no network, no..."
+    },
+    {
+      "label": "test_fakes.py",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "test_fakes.py"
+    },
+    {
+      "label": "TestFakeRoute",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L10",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakeroute",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "testfakeroute"
+    },
+    {
+      "label": ".test_records_the_request_fields()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L11",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakeroute_test_records_the_request_fields",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_records_the_request_fields()"
+    },
+    {
+      "label": ".test_defaults_are_a_plain_get_with_no_body()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L23",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakeroute_test_defaults_are_a_plain_get_with_no_body",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_defaults_are_a_plain_get_with_no_body()"
+    },
+    {
+      "label": "asyncio",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "asyncio",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "asyncio"
+    },
+    {
+      "label": ".test_continue_abort_fulfill_are_each_recorded()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L30",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakeroute_test_continue_abort_fulfill_are_each_recorded",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_continue_abort_fulfill_are_each_recorded()"
+    },
+    {
+      "label": "TestFakePage",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L42",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakepage",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "testfakepage"
+    },
+    {
+      "label": ".test_url_attribute_is_settable_and_readable()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L43",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakepage_test_url_attribute_is_settable_and_readable",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_url_attribute_is_settable_and_readable()"
+    },
+    {
+      "label": ".test_screenshot_and_evaluate_are_recorded()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L48",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakepage_test_screenshot_and_evaluate_are_recorded",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_screenshot_and_evaluate_are_recorded()"
+    },
+    {
+      "label": ".test_on_and_remove_listener_are_recorded()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L57",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakepage_test_on_and_remove_listener_are_recorded",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_on_and_remove_listener_are_recorded()"
+    },
+    {
+      "label": ".test_raise_all_makes_every_awaited_method_raise()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L71",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakepage_test_raise_all_makes_every_awaited_method_raise",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_raise_all_makes_every_awaited_method_raise()"
+    },
+    {
+      "label": "TestFakeControl",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L87",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakecontrol",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "testfakecontrol"
+    },
+    {
+      "label": ".test_records_each_mode_shown()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L89",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakecontrol_test_records_each_mode_shown",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_records_each_mode_shown()"
+    },
+    {
+      "label": ".test_returns_queued_answers_in_order()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L96",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakecontrol_test_returns_queued_answers_in_order",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_returns_queued_answers_in_order()"
+    },
+    {
+      "label": ".test_returns_none_once_answers_run_out()",
+      "file_type": "code",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L104",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_testfakecontrol_test_returns_none_once_answers_run_out",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": ".test_returns_none_once_answers_run_out()"
+    },
+    {
+      "label": "Tests for the shared offline fakes in tests/fakes.py (TDD: written before the\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_unit_test_fakes_rationale_1",
+      "community": 1,
+      "community_name": "asyncio",
+      "norm_label": "tests for the shared offline fakes in tests/fakes.py (tdd: written before the..."
+    },
+    {
+      "label": "PRODUCTIONIZE_PLAN.md",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_productionize_plan",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "productionize_plan.md"
+    },
+    {
+      "label": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "productionize plan: notebooks \u2192 `src/cua/` package"
+    },
+    {
+      "label": "Global constraints",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L20",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_global_constraints",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "global constraints"
+    },
+    {
+      "label": "Review focus (failure modes no single step's tests naturally cover)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L29",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_review_focus_failure_modes_no_single_step_s_tests_naturally_cover",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "review focus (failure modes no single step's tests naturally cover)"
+    },
+    {
+      "label": "1. Package tree",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L43",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_1_package_tree",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "1. package tree"
+    },
+    {
+      "label": "2. De-duplication (checked by AST diff of both notebooks)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L111",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_2_de_duplication_checked_by_ast_diff_of_both_notebooks",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "2. de-duplication (checked by ast diff of both notebooks)"
+    },
+    {
+      "label": "3. State: globals \u2192 explicit objects",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L129",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_3_state_globals_explicit_objects",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "3. state: globals \u2192 explicit objects"
+    },
+    {
+      "label": "4. Async and typing",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L150",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_4_async_and_typing",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "4. async and typing"
+    },
+    {
+      "label": "5. Notebooks after the move",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L160",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_5_notebooks_after_the_move",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "5. notebooks after the move"
+    },
+    {
+      "label": "6. Tests",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L166",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_6_tests",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "6. tests"
+    },
+    {
+      "label": "7. ML-engineering practices (kept small)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L192",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_7_ml_engineering_practices_kept_small",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "7. ml-engineering practices (kept small)"
+    },
+    {
+      "label": "8. Migration order (strictly sequential; one sub-agent per step; notebooks untouched until step 10)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L203",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_8_migration_order_strictly_sequential_one_sub_agent_per_step_notebooks_untouched_until_step_10",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "8. migration order (strictly sequential; one sub-agent per step; notebooks untouched until step 10)"
+    },
+    {
+      "label": "9. Risks",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L224",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_9_risks",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "9. risks"
+    },
+    {
+      "label": "10. Line-count offenders (today)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L236",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_10_line_count_offenders_today",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "10. line-count offenders (today)"
+    },
+    {
+      "label": "Open questions (user's call)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L248",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_open_questions_user_s_call",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "open questions (user's call)"
+    },
+    {
+      "label": "Decisions (user, 2026-10-01)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L257",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_decisions_user_2026_10_01",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "decisions (user, 2026-10-01)"
+    },
+    {
+      "label": "Restore: TypeSafe tool selection + model routing (user, 2026-10-01)",
+      "file_type": "document",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L267",
+      "_origin": "ast",
+      "id": "docs_productionize_plan_restore_typesafe_tool_selection_model_routing_user_2026_10_01",
+      "community": 2,
+      "community_name": "Productionize Plan: notebooks \u2192 `src/cua/` package",
+      "norm_label": "restore: typesafe tool selection + model routing (user, 2026-10-01)"
     },
     {
       "label": "discovery/PLAN.md",
@@ -16983,7 +17670,7 @@
       "label": "yaml",
       "_origin": "semantic",
       "community": 41,
-      "community_name": "asyncio",
+      "community_name": "test_select_anchor.py",
       "external": true,
       "file_type": "concept",
       "norm_label": "yaml",
@@ -16994,8 +17681,8 @@
     {
       "label": "pydantic",
       "_origin": "semantic",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 110,
+      "community_name": "_meta",
       "external": true,
       "file_type": "concept",
       "norm_label": "pydantic",
@@ -17016,18 +17703,6 @@
       "id": "typing"
     },
     {
-      "label": "asyncio",
-      "_origin": "semantic",
-      "community": 41,
-      "community_name": "asyncio",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "asyncio",
-      "source_file": "",
-      "type": "external",
-      "id": "asyncio"
-    },
-    {
       "label": "base64",
       "_origin": "semantic",
       "community": 112,
@@ -17042,8 +17717,8 @@
     {
       "label": "dataclasses",
       "_origin": "semantic",
-      "community": 18,
-      "community_name": "test_human_help.py",
+      "community": 74,
+      "community_name": "test_observable.py",
       "external": true,
       "file_type": "concept",
       "norm_label": "dataclasses",
@@ -17066,8 +17741,8 @@
     {
       "label": "functools",
       "_origin": "semantic",
-      "community": 42,
-      "community_name": "replay.py",
+      "community": 23,
+      "community_name": "test_transaction_gates.py",
       "external": true,
       "file_type": "concept",
       "norm_label": "functools",
@@ -17078,8 +17753,8 @@
     {
       "label": "json",
       "_origin": "semantic",
-      "community": 72,
-      "community_name": "test_evidence.py",
+      "community": 19,
+      "community_name": "json",
       "external": true,
       "file_type": "concept",
       "norm_label": "json",
@@ -17114,8 +17789,8 @@
     {
       "label": "urllib_parse",
       "_origin": "semantic",
-      "community": 41,
-      "community_name": "asyncio",
+      "community": 17,
+      "community_name": "test_sent_dropdowns.py",
       "external": true,
       "file_type": "concept",
       "norm_label": "urllib_parse",
@@ -17150,8 +17825,8 @@
     {
       "label": "re",
       "_origin": "semantic",
-      "community": 120,
-      "community_name": "test_wandering.py",
+      "community": 78,
+      "community_name": "test_label_values.py",
       "external": true,
       "file_type": "concept",
       "norm_label": "re",
@@ -41952,6 +42627,585 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L98",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L62",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L35",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes",
+      "target": "tests_fakes_request",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_rationale_1",
+      "target": "tests_fakes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_fakes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L49",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakeroute_init",
+      "target": "tests_fakes_request",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_rationale_20",
+      "target": "tests_fakes_request",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_request",
+      "target": "tests_fakes_request_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L55",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakeroute",
+      "target": "tests_fakes_fakeroute_abort",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L52",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakeroute",
+      "target": "tests_fakes_fakeroute_continue",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakeroute",
+      "target": "tests_fakes_fakeroute_fulfill",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L42",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakeroute",
+      "target": "tests_fakes_fakeroute_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L36",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_rationale_36",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_fakes_fakeroute",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute_test_continue_abort_fulfill_are_each_recorded",
+      "target": "tests_fakes_fakeroute"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute_test_defaults_are_a_plain_get_with_no_body",
+      "target": "tests_fakes_fakeroute"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L12",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute_test_records_the_request_fields",
+      "target": "tests_fakes_fakeroute"
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L85",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_evaluate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L91",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_on",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L76",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L94",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_remove_listener",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L81",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_screenshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L88",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage",
+      "target": "tests_fakes_fakepage_wait_for_timeout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L63",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_rationale_63",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_on_and_remove_listener_are_recorded",
+      "target": "tests_fakes_fakepage"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L72",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_raise_all_makes_every_awaited_method_raise",
+      "target": "tests_fakes_fakepage"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L49",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_screenshot_and_evaluate_are_recorded",
+      "target": "tests_fakes_fakepage"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L44",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_url_attribute_is_settable_and_readable",
+      "target": "tests_fakes_fakepage"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_fakes_fakepage",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L86",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage_evaluate",
+      "target": "tests_fakes_fakepage_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L82",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage_screenshot",
+      "target": "tests_fakes_fakepage_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakepage_wait_for_timeout",
+      "target": "tests_fakes_fakepage_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L110",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakecontrol",
+      "target": "tests_fakes_fakecontrol_ask",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_fakecontrol",
+      "target": "tests_fakes_fakecontrol_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/fakes.py",
+      "source_location": "L99",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_fakes_rationale_99",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_records_each_mode_shown",
+      "target": "tests_fakes_fakecontrol"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L105",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_returns_none_once_answers_run_out",
+      "target": "tests_fakes_fakecontrol"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L97",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_returns_queued_answers_in_order",
+      "target": "tests_fakes_fakecontrol"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L7",
+      "weight": 0.8,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_fakes_fakecontrol",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/integration/conftest.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_integration_conftest_rationale_1",
+      "target": "tests_integration_conftest",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -50328,6 +51582,420 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "pytest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L87",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_unit_test_fakes_testfakecontrol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L42",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_unit_test_fakes_testfakepage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes",
+      "target": "tests_unit_test_fakes_testfakeroute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_rationale_1",
+      "target": "tests_unit_test_fakes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_unit_test_fakes_testfakeroute_test_continue_abort_fulfill_are_each_recorded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L23",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_unit_test_fakes_testfakeroute_test_defaults_are_a_plain_get_with_no_body",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute",
+      "target": "tests_unit_test_fakes_testfakeroute_test_records_the_request_fields",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L88",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_records_each_mode_shown",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L103",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_returns_none_once_answers_run_out",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L95",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol_test_returns_queued_answers_in_order",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L70",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_raise_all_makes_every_awaited_method_raise",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage_test_screenshot_and_evaluate_are_recorded",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L29",
+      "weight": 1.0,
+      "context": "decorator",
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakeroute_test_continue_abort_fulfill_are_each_recorded",
+      "target": "asyncio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L57",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_unit_test_fakes_testfakepage_test_on_and_remove_listener_are_recorded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_unit_test_fakes_testfakepage_test_raise_all_makes_every_awaited_method_raise",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L48",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_unit_test_fakes_testfakepage_test_screenshot_and_evaluate_are_recorded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L43",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakepage",
+      "target": "tests_unit_test_fakes_testfakepage_test_url_attribute_is_settable_and_readable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_unit_test_fakes_testfakecontrol_test_records_each_mode_shown",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L104",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_unit_test_fakes_testfakecontrol_test_returns_none_once_answers_run_out",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/unit/test_fakes.py",
+      "source_location": "L96",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_unit_test_fakes_testfakecontrol",
+      "target": "tests_unit_test_fakes_testfakecontrol_test_returns_queued_answers_in_order",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan",
+      "target": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L236",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_10_line_count_offenders_today",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L43",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_1_package_tree",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_2_de_duplication_checked_by_ast_diff_of_both_notebooks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L129",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_3_state_globals_explicit_objects",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L150",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_4_async_and_typing",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L160",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_5_notebooks_after_the_move",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L166",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_6_tests",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L192",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_7_ml_engineering_practices_kept_small",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L203",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_8_migration_order_strictly_sequential_one_sub_agent_per_step_notebooks_untouched_until_step_10",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L224",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_9_risks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L257",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_decisions_user_2026_10_01",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_global_constraints",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L248",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_open_questions_user_s_call",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L267",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_restore_typesafe_tool_selection_model_routing_user_2026_10_01",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/PRODUCTIONIZE_PLAN.md",
+      "source_location": "L29",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_productionize_plan_productionize_plan_notebooks_src_cua_package",
+      "target": "docs_productionize_plan_review_focus_failure_modes_no_single_step_s_tests_naturally_cover",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "notebooks/discovery/PLAN.md",
@@ -51693,5 +53361,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "1a3fe5658336f3ba38e856020eae3062c3503d82"
+  "built_at_commit": "4f692a8e76367a19f1dc019957a6c52971d73d70"
 }

@@ -1,7 +1,7 @@
 {
   "pyproject.toml": {
-    "mtime": 1790871984.256169,
-    "ast_hash": "bc2fd5403470c089c68b22f2b5a9da0c",
+    "mtime": 1790874491.2157974,
+    "ast_hash": "b32b6bc931098540f55f1f49f897dbf7",
     "semantic_hash": ""
   },
   "src/cua/__init__.py": {
@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "REPORT.md": {
-    "mtime": 1790872094.3575077,
-    "ast_hash": "47f8b0ce167b84e16af519093bb8bdc9",
+    "mtime": 1790873663.0243616,
+    "ast_hash": "61f5e0ddc7f0107e28b3712f77c63ec0",
     "semantic_hash": ""
   },
   "evidence/README.md": {
@@ -1152,6 +1152,26 @@
   "evidence/replay/20260930T223218Z-transfer_money/capability.yaml": {
     "mtime": 1790807538.3125627,
     "ast_hash": "f8f9e25af2b88d691f14163e73daa12f",
+    "semantic_hash": ""
+  },
+  "tests/fakes.py": {
+    "mtime": 1790874707.442429,
+    "ast_hash": "7a057a3de472faca3bd282ac1296973e",
+    "semantic_hash": ""
+  },
+  "tests/integration/conftest.py": {
+    "mtime": 1790874875.6805997,
+    "ast_hash": "6732e83c62d25430a27622833ef3ed73",
+    "semantic_hash": ""
+  },
+  "tests/unit/test_fakes.py": {
+    "mtime": 1790874713.5691862,
+    "ast_hash": "4d60b036e994336fde101d1f20caedcd",
+    "semantic_hash": ""
+  },
+  "docs/PRODUCTIONIZE_PLAN.md": {
+    "mtime": 1790873895.4814847,
+    "ast_hash": "2ccd20458504e6c1e000b052b7c565a3",
     "semantic_hash": ""
   }
 }

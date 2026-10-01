@@ -249,6 +249,10 @@ take-over.
 
 ## Cuts
 
+0. **`cua eval --runs N` (planned next, deferred 2026-10-01).** Replay a capability N times and
+   report a stability score: status counts + which rung found each step. The assignment's
+   "multi-run stability" stretch goal. Design in `docs/PRODUCTIONIZE_PLAN.md` step 12.
+
 1. **Per-keystroke take-over capture.** We record pages, sends, and screenshots, not what the
    human typed. The design is a report-only listener that logs *which labelled field* got input,
    never the value. So a take-over is still not replayable, and the save refuses it.
