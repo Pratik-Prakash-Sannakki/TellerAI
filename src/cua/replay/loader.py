@@ -4,8 +4,8 @@ Moved unchanged from notebooks/replay/replay.py (``PLACEHOLDER`` 767, ``load_cap
 770-789, ``load_outcomes`` 792-797, ``seen_outcome`` 800-806, ``given_inputs`` 809-815,
 ``fill`` 818-820, ``secret_name`` 823-825, ``step_inputs`` 828-831). The notebook's globals
 (``CFG``, ``SECRETS``) become explicit parameters: ``site: SiteProfile`` and ``cfg:
-BrowserConfig``. ``ask_inputs``/``ask_option`` need the control window and are not here
-(step 9).
+BrowserConfig``. ``ask_inputs`` (834-847) and ``ask_option`` (850-857) take ``ctx`` first: the
+``CONTROL`` global is ``ctx.control``, ``CFG.sensitive_words`` is ``ctx.bcfg.sensitive_words``.
 """
 
 from __future__ import annotations
@@ -13,12 +13,17 @@ from __future__ import annotations
 import dataclasses
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from cua.config import OUTCOME_STATUSES, BrowserConfig, SiteProfile, resolve_secret
 from cua.safety.hosts import host_allowed
+from cua.safety.redact import is_sensitive
 from cua.schema import Capability, Stop
+
+if TYPE_CHECKING:
+    from cua.replay.context import Ctx
 
 PLACEHOLDER = re.compile(r"\{\{\s*(secret:)?(\w+)\s*\}\}")
 
@@ -112,3 +117,45 @@ def step_inputs(cap: Capability) -> list[str]:
         n for st in cap.steps for sec, n in PLACEHOLDER.findall(st.model_dump_json()) if not sec
     )
     return list(dict.fromkeys([*found, *(p.name for p in cap.inputs)]))
+
+
+def _ask_rows(ctx: Ctx, cap: Capability, names: list[str]) -> list[tuple[str, bool]]:
+    about = {p.name: p.description for p in cap.inputs}
+    picks = {
+        m[2]
+        for st in cap.steps
+        if st.action == "select" and (m := PLACEHOLDER.fullmatch(st.option))
+    }
+    note = " (must match an option on the page)"
+    words = ctx.bcfg.sensitive_words
+    return [
+        (f"{n}: {about.get(n, '')}" + (note if n in picks else ""), is_sensitive(n, words))
+        for n in names
+    ]
+
+
+async def ask_inputs(
+    ctx: Ctx, cap: Capability, given: dict[str, str] | None = None
+) -> dict[str, str]:
+    """R8: ONE form before step 1 for every input the caller did not give. Nothing is
+    pre-filled."""
+    given = dict(given or {})
+    names = [n for n in step_inputs(cap) if n not in given]
+    if not names:
+        return given
+    got = await ctx.control.form("Replay needs these inputs:", _ask_rows(ctx, cap, names))
+    got = got or [""] * len(names)
+    if blank := [n for n, v in zip(names, got, strict=False) if not v]:
+        raise Stop("STUCK", f"inputs not given: {blank}")
+    return given | dict(zip(names, got, strict=False))
+
+
+async def ask_option(ctx: Ctx, cap: Capability, name: str, options: list[str]) -> str:
+    """The one mid-run prompt: the given value is not a live option. Choose one, blank first."""
+    about = next((p.description for p in cap.inputs if p.name == name), "")
+    got = await ctx.control.form(
+        "That value is not an option here:", [(f"{name}: {about}", False)], [""], [["", *options]]
+    )
+    if not got or got[0] not in options:
+        raise Stop("STUCK", f"no option chosen for {name}")
+    return got[0]

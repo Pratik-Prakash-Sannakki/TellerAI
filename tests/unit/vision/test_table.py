@@ -20,7 +20,7 @@ import cua.vision.table as table_mod
 from cua.vision.look import Box, Element, Look
 from cua.vision.table import TABLE_GAP, append_rows, read_rows, table_columns
 from tests.discovery.test_extract_table import COLS, FOOTER, HEADER, ROWS
-from tests.replay.test_table_replay import SHARED as REPLAY_SHARED
+from tests.unit.replay.test_replay_table import SHARED as REPLAY_SHARED
 
 DISCOVERY = Path(__file__).parents[3] / "notebooks/discovery/discovery.py"
 NO_GLOBALS = {

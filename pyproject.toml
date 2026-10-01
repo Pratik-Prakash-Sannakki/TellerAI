@@ -53,8 +53,11 @@ select = ["E", "F", "I", "B", "UP", "SIM", "PL", "PT"]
 # tests/discovery/ and tests/replay/ predate these rules and are ported, not edited, step by step
 # (see docs/PRODUCTIONIZE_PLAN.md section 6: each old test file is deleted when its code is ported).
 [tool.ruff.lint.per-file-ignores]
+# The replay tests ported from tests/replay/ (step 9) keep their original compound assertions and
+# literals verbatim (the old folder's own ignores move with them), so a port never rewrites a check.
+"tests/unit/replay/test_replay_*.py" = ["E501", "PLR2004", "PT018"]
+"tests/integration/test_discovery_to_replay.py" = ["E501", "PT018"]
 "tests/discovery/*" = ["B023", "E501", "I001", "PLC0415", "PLR0913", "PLR0917", "PLR2004", "PT018"]
-"tests/replay/*" = ["B007", "E501", "I001", "PLC0415", "PLR2004", "PT018"]
 # Ported verbatim from tests/test_models.py (step 1); its local imports and checks are unchanged.
 "tests/unit/test_llm.py" = ["PLC0415", "PLR2004", "PT011"]
 # src/cua is out of scope for step 0 (owned by later migration steps); the single pre-existing
