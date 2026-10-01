@@ -1,6 +1,7 @@
 """Pixels -> text: screenshots, OCR, canvas math, crops, and the shared table reader.
 
-Pure (no Playwright) except ``screenshot.take_look`` (step 5). Imports only numpy/cv2, plus
+Pure (no Playwright) except ``screenshot`` (not re-exported here, so importing
+``cua.vision`` never imports Playwright). Imports only numpy/cv2, plus
 ``cua.config`` for ``BrowserConfig`` (allowed: see the import rule in ``src/cua/README.md``).
 Importing this package must never load the OCR model -- ``ocr.ocr_engine()`` builds it lazily.
 """
