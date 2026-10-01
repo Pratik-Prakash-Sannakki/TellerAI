@@ -1,4 +1,5 @@
-"""Banking rule: no typed or human-given value is stored. Source-level checks on the notebook."""
+"""Banking rule: no typed or human-given value is stored. Source-level checks on the notebook.
+The run wipe is pinned in tests/unit/discovery/test_run.py (step 8a)."""
 import ast
 from pathlib import Path
 
@@ -27,7 +28,3 @@ def test_no_saved_form() -> None:
     assert "last_form" not in SRC.read_text()
 
 
-def test_run_goal_wipes_working_values() -> None:
-    fn = next(n for n in TREE.body if getattr(n, "name", None) == "run_goal")
-    src = ast.unparse(fn)
-    assert "finally" in src and "HANDOFF.entered" in src and "HANDOFF.given" in src

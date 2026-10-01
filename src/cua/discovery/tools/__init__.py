@@ -1,1 +1,1 @@
-"""Discovery's agent tools (step 3: only ``guard.FAILED``; later steps add the tools)."""
+"""Discovery's agent tools: guards, human helpers, read helpers (step 8a); the @tool set is 8b's."""

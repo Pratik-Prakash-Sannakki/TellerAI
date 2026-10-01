@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
-from cua.discovery.tools.guard import FAILED
+from cua.discovery.tools.failed import FAILED
 from cua.safety.redact import norm, redactor
 from cua.schema import Event
 

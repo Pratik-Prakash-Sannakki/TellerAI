@@ -6,14 +6,25 @@ gives later steps one place to import them from instead of redefining them per t
 fakes in tests/discovery/ and tests/replay/ are left alone; they are deleted only when the test
 file that defines them is itself ported (see docs/PRODUCTIONIZE_PLAN.md section 6).
 
-No Playwright import: these are plain, typed stand-ins for the Playwright objects the real code
-touches (``Page``, a route handler's ``Route``) and for the discovery/replay control surface
-(``ControlWindow``/``CONTROL``). Nothing here touches a browser, the network, or an LLM.
+Only Playwright's error type is imported: these are plain, typed stand-ins for the Playwright
+objects the real code touches (``Page``, a route handler's ``Route``) and for the discovery/replay
+control surface (``ControlWindow``/``CONTROL``). ``make_session``/``make_ctx`` build a discovery
+``Ctx`` over these fakes. Nothing here touches a browser, the network, or an LLM.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import contextlib
+from collections.abc import AsyncIterator, Callable, Mapping
+from types import SimpleNamespace
+
+from playwright.async_api import Error as PlaywrightError
+
+from cua.browser.session import Session
+from cua.config import BrowserConfig, DiscoveryConfig, SiteProfile
+from cua.discovery.context import Ctx
+from cua.discovery.wiring import build_ctx, new_run
+from cua.vision.ocr import RefCounter
 
 
 class _Request:
@@ -111,3 +122,140 @@ class FakeControl:
         del title, details
         self.asked.append(mode)
         return self.answers.pop(0) if self.answers else None
+
+
+class FakeLock:
+    """A fake ``cua.browser.SiteLock``: ``open()`` records unlock/lock, nothing else."""
+
+    def __init__(self) -> None:
+        self.log: list[str] = []
+
+    async def set(self, locked: bool) -> None:
+        self.log.append("lock" if locked else "unlock")
+
+    @contextlib.asynccontextmanager
+    async def open(self) -> AsyncIterator[None]:
+        self.log.append("unlock")
+        try:
+            yield
+        finally:
+            self.log.append("lock")
+
+
+class FakeTab:
+    """A fake site or control tab with the Playwright calls discovery's wiring and take-over make.
+
+    Fires ``framenavigated`` like Playwright (``navigate``), records route/unroute and every
+    other call in ``calls``; ``expose_function`` raises "already registered" the second time.
+    ``hangs=True`` makes ``screenshot`` time out (a send held at the gates).
+    """
+
+    def __init__(self, url: str = "https://example.test/x") -> None:
+        self.url, self.main_frame = url, SimpleNamespace(url="")
+        self.handlers: dict[str, list[Callable[..., object]]] = {}
+        self.calls: list[str] = []
+        self.routes: list[object] = []
+        self.exposed: dict[str, Callable[..., object]] = {}
+        self.html, self.closed, self.hangs, self.shots = "", False, False, 0
+
+    def on(self, event: str, fn: Callable[..., object]) -> None:
+        self.calls.append("on")
+        self.handlers.setdefault(event, []).append(fn)
+
+    def remove_listener(self, event: str, fn: Callable[..., object]) -> None:
+        self.calls.append("remove_listener")
+        self.handlers[event].remove(fn)
+
+    def emit(self, event: str, arg: object) -> None:
+        for fn in list(self.handlers.get(event, [])):
+            fn(arg)
+
+    def navigate(self, url: str, iframe: bool = False) -> None:
+        frame = SimpleNamespace(url=url) if iframe else self.main_frame
+        frame.url = url
+        if not iframe:
+            self.url = url
+        self.emit("framenavigated", frame)
+
+    async def screenshot(self, **_: object) -> bytes:
+        self.calls.append("screenshot")
+        self.shots += 1
+        if self.hangs:
+            raise PlaywrightError("Page.screenshot: Timeout 3000ms exceeded.")
+        return f"shot{self.shots}".encode()
+
+    async def wait_for_timeout(self, ms: float) -> None:
+        self.calls.append("wait_for_timeout")
+
+    async def goto(self, url: str) -> None:
+        self.calls.append("goto")
+        self.url = url
+
+    async def unroute(self, pattern: str) -> None:
+        self.calls.append("unroute")
+        self.routes.clear()
+
+    async def route(self, pattern: str, handler: object) -> None:
+        self.calls.append("route")
+        self.routes.append(handler)
+
+    async def expose_function(self, name: str, fn: Callable[..., object]) -> None:
+        self.calls.append("expose_function")
+        if name in self.exposed:
+            raise PlaywrightError(f'Function "{name}" has been already registered')
+        self.exposed[name] = fn
+
+    async def set_content(self, content: str) -> None:
+        self.html = content
+
+    def is_closed(self) -> bool:
+        return self.closed
+
+    async def bring_to_front(self) -> None:
+        self.calls.append("bring_to_front")
+
+
+def make_session(
+    page: FakeTab | None = None,
+    control_page: FakeTab | None = None,
+    ext: object | None = None,
+    cfg: BrowserConfig | None = None,
+) -> Session:
+    """A ``cua.browser.Session`` over fakes (no Playwright launched)."""
+    return Session(
+        pw=None,  # type: ignore[arg-type]
+        context=None,  # type: ignore[arg-type]
+        page=page or FakeTab(),  # type: ignore[arg-type]
+        control_page=control_page or FakeTab("about:blank"),  # type: ignore[arg-type]
+        ext=ext,  # type: ignore[arg-type]
+        cfg=cfg or BrowserConfig(ext_s=0.05, ext_poll_s=0.01),
+        site=SITE,
+        lock=FakeLock(),  # type: ignore[arg-type]
+        refs=RefCounter(),
+    )
+
+
+SITE = SiteProfile(
+    name="test",
+    start_url="https://example.test/app/",
+    allowed_hosts=frozenset({"example.test"}),
+    secret_env=(("username", "TEST_USER"), ("password", "TEST_PASS")),
+    deny_words=frozenset({"register", "admin"}),
+    login_words=frozenset({"log in"}),
+    login_failure_texts=("could not be verified",),
+)
+
+
+def make_ctx(
+    session: Session | None = None,
+    cfg: DiscoveryConfig | None = None,
+    secrets: Mapping[str, str] | None = None,
+    goal: str = "",
+) -> Ctx:
+    """A discovery ``Ctx`` over fakes, built like ``attach`` but with no page wiring."""
+    ctx = build_ctx(
+        session or make_session(),
+        cfg or DiscoveryConfig(),
+        {"username": "u-val", "password": "p-val"} if secrets is None else secrets,
+    )
+    return new_run(ctx, goal)
