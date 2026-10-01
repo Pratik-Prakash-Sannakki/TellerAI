@@ -11,7 +11,6 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
 
 import yaml
 from dotenv import load_dotenv
@@ -162,9 +161,4 @@ def resolve_secret(name: str, site: SiteProfile) -> str:
     return value
 
 
-def host_allowed(url: str, site: SiteProfile) -> bool:
-    """True if `url`'s host is on the site's allowlist (D15). ``about:blank`` is always allowed
-    (the browser's own blank starting page, not a real navigation anywhere)."""
-    if url == "about:blank":
-        return True
-    return urlparse(url).hostname in site.allowed_hosts
+from cua.safety.hosts import host_allowed  # noqa: E402, F401  re-export (moved in step 6)
