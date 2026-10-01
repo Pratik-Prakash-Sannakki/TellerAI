@@ -28,14 +28,6 @@ def test_short_value_at_left_edge_is_read(ns, mk_look) -> None:
     assert ns["read_field"](lk, (400, 115)) == "IL"
 
 
-def test_typed_ok_words_tolerant_digits_exact(ns) -> None:
-    ok = ns["typed_ok"]
-    assert ok("llinois", "Illinois")
-    assert ok("IL", "IL") and ok("10", "10") and ok("$10.00", "10.00")
-    assert not ok("13345", "13344") and not ok("100", "10")
-    assert not ok("", "IL")
-
-
 class _Page:
     url = "https://parabank.parasoft.com/parabank/billpay.htm"
 

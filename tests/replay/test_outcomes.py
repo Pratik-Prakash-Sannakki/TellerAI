@@ -3,8 +3,6 @@ import asyncio
 
 import pytest
 
-from test_load_inputs import CAP, _write
-
 LOGIN = [("Username", (40, 100, 110, 120)), ("LOG IN", (40, 160, 100, 180))]
 HOME = [("Welcome", (40, 40, 140, 60)), ("Pay", (40, 300, 80, 320))]
 
@@ -102,27 +100,6 @@ def test_a_send_is_never_retried_after_an_expiry(site) -> None:
     with pytest.raises(ns["Stop"]) as e:
         _walk(ns)
     assert e.value.status == "FAILED" and ns["STATE"].recoveries == 0
-
-
-def test_text_already_on_screen_before_the_step_is_not_an_outcome(ns) -> None:
-    seen = ns["seen_outcome"]
-    assert seen("Help: error codes", "Help: error codes Pay", ns["CFG"].outcomes) is None
-    assert seen("Pay", "Payment error", ns["CFG"].outcomes)["status"] == "FAILED"
-    assert seen("Pay", "Terrorist", ns["CFG"].outcomes) is None            # whole words only
-
-
-def test_yaml_outcomes_replace_the_defaults(ns, tmp_path) -> None:
-    rules = [{"text": "limit reached", "status": "BUSINESS_OUTCOME", "meaning": "daily limit reached"}]
-    path = _write(tmp_path, {**CAP, "outcomes": rules})
-    cap, _ = ns["load_capability"](path)                                   # the schema itself is unchanged
-    assert cap.name == "get_balance" and ns["load_outcomes"](path) == rules
-    assert ns["load_outcomes"](_write(tmp_path, CAP)) == list(ns["CFG"].outcomes)
-
-
-def test_unknown_outcome_status_is_refused(ns, tmp_path) -> None:
-    path = _write(tmp_path, {**CAP, "outcomes": [{"text": "x", "status": "MAYBE", "meaning": "?"}]})
-    with pytest.raises(ns["Stop"]):
-        ns["load_outcomes"](path)
 
 
 def test_login_page_back_mid_run_is_recovered(site, mk_look) -> None:

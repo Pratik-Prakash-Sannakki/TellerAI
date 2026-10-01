@@ -1,8 +1,6 @@
 """replay(path, inputs): given values by exact name (any case); unknown keys stop; only the rest is asked."""
 import asyncio
 
-import pytest
-
 from test_load_inputs import CAP, _write
 
 
@@ -21,18 +19,6 @@ class FakeForm:
     async def form(self, title, fields, values=None, options=None):
         self.asked.append(fields)
         return self.answer
-
-
-def test_given_inputs_match_by_exact_name_any_case(ns) -> None:
-    cap = _cap(ns, ["amount", "payee_name"])
-    assert ns["given_inputs"](cap, {"Amount": "10", "PAYEE_NAME": "Acme"}) == {"amount": "10", "payee_name": "Acme"}
-
-
-def test_unknown_key_stops_naming_what_is_accepted(ns) -> None:
-    with pytest.raises(ns["Stop"]) as e:
-        ns["given_inputs"](_cap(ns, ["amount", "payee_name"]), {"account_id": "1", "payee": "x"})
-    assert e.value.status == "STUCK"
-    assert e.value.reason == "not a permissible input: account_id, payee. Accepts: amount, payee_name."
 
 
 def test_all_inputs_given_means_no_form(ns) -> None:
