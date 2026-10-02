@@ -1,0 +1,37 @@
+{
+  "status": "done",
+  "events": 25,
+  "take_over": true,
+  "take_overs": [
+    {
+      "reason": "login failed ('could not be verified'). Do not try again",
+      "actions": [
+        {
+          "kind": "send",
+          "path": "/parabank/login.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/login.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "send",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/index.htm"
+        }
+      ]
+    }
+  ],
+  "capability_saved": null
+}

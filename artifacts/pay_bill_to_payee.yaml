@@ -1,42 +1,49 @@
 schema_version: 2
 name: pay_bill_to_payee
 version: 1
-description: Logs into the customer account and pays a bill by transferring funds
-  to a specified payee with their address and account details.
+description: Logs into the online banking account and submits a bill payment to a
+  specified payee from a chosen account, returning confirmation that the payment was
+  completed.
 base_url: https://parabank.parasoft.com/parabank
 viewport:
 - 1280
 - 800
 device_scale_factor: 1.0
 inputs:
-- name: address
-  type: string
-  description: The street address of the payee receiving the payment
-- name: zip_code
-  type: string
-  description: The postal zip code of the payee's location
-- name: phone
-  type: string
-  description: The phone number of the payee
-- name: account
-  type: string
-  description: The account number to transfer funds to
-- name: verify_account
-  type: string
-  description: The account number re-entered for verification
-- name: amount
-  type: string
-  description: The dollar amount to transfer for the bill payment
 - name: payee_name
   type: string
-  description: The name of the person or entity receiving the payment
+  description: Name of the payee to pay the bill to
+- name: account
+  type: number
+  description: Payee's account number to pay into
+- name: verify_account
+  type: number
+  description: Re-entry of the payee's account number for verification
+- name: amount
+  type: number
+  description: Dollar amount to pay
+- name: from_account
+  type: string
+  description: Account number to pay from
+- name: address
+  type: string
+  description: Payee's street address
 - name: city
   type: string
-  description: The city where the payee is located
+  description: Payee's city
 - name: state
   type: string
-  description: The state where the payee is located
-outputs: []
+  description: Payee's state
+- name: zip_code
+  type: string
+  description: Payee's zip code
+- name: phone
+  type: string
+  description: Payee's phone number
+outputs:
+- name: confirmation
+  type: string
+  description: Bill payment confirmation message
 secrets:
 - username
 - password
@@ -48,7 +55,7 @@ steps:
       ordinal: 1
       offset:
       - 10
-      - 45
+      - 46
     template: crops/pay_bill_to_payee/s0.png
   value: '{{secret:username}}'
 - action: type
@@ -57,7 +64,7 @@ steps:
       label: Password
       ordinal: 1
       offset:
-      - 41
+      - 40
       - 20
     template: crops/pay_bill_to_payee/s1.png
   value: '{{secret:password}}'
@@ -73,6 +80,7 @@ steps:
       - 1
       - 50
     template: crops/pay_bill_to_payee/s2.png
+  cleanup: false
 - action: click
   target:
     ocr_text:
@@ -85,36 +93,17 @@ steps:
       - -21
       - 25
     template: crops/pay_bill_to_payee/s3.png
+  cleanup: false
 - action: type
   target:
     anchor:
-      label: 'Address:'
+      label: 'Payee Name:'
       ordinal: 1
       offset:
-      - 137
-      - 1
+      - 149
+      - 0
     template: crops/pay_bill_to_payee/s4.png
-  value: '{{address}}'
-- action: type
-  target:
-    anchor:
-      label: 'Zip Code:'
-      ordinal: 1
-      offset:
-      - 138
-      - 0
-    template: crops/pay_bill_to_payee/s5.png
-  value: '{{zip_code}}'
-- action: type
-  target:
-    anchor:
-      label: 'Phone #:'
-      ordinal: 1
-      offset:
-      - 137
-      - 0
-    template: crops/pay_bill_to_payee/s6.png
-  value: '{{phone}}'
+  value: '{{payee_name}}'
 - action: type
   target:
     anchor:
@@ -123,7 +112,7 @@ steps:
       offset:
       - 142
       - 1
-    template: crops/pay_bill_to_payee/s7.png
+    template: crops/pay_bill_to_payee/s5.png
   value: '{{account}}'
 - action: type
   target:
@@ -132,8 +121,8 @@ steps:
       ordinal: 1
       offset:
       - 161
-      - 0
-    template: crops/pay_bill_to_payee/s8.png
+      - 1
+    template: crops/pay_bill_to_payee/s6.png
   value: '{{verify_account}}'
 - action: type
   target:
@@ -143,18 +132,29 @@ steps:
       offset:
       - 140
       - 0
-    template: crops/pay_bill_to_payee/s9.png
+    template: crops/pay_bill_to_payee/s7.png
   value: '{{amount}}'
+- action: select
+  target:
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 125
+      - 0
+    template: crops/pay_bill_to_payee/s8.png
+  option: '{{from_account}}'
+  index: 0
 - action: type
   target:
     anchor:
-      label: 'Payee Name:'
+      label: 'Address:'
       ordinal: 1
       offset:
-      - 149
-      - 1
-    template: crops/pay_bill_to_payee/s10.png
-  value: '{{payee_name}}'
+      - 137
+      - 2
+    template: crops/pay_bill_to_payee/s9.png
+  value: '{{address}}'
 - action: type
   target:
     anchor:
@@ -163,7 +163,7 @@ steps:
       offset:
       - 122
       - 0
-    template: crops/pay_bill_to_payee/s11.png
+    template: crops/pay_bill_to_payee/s10.png
   value: '{{city}}'
 - action: type
   target:
@@ -173,8 +173,28 @@ steps:
       offset:
       - 126
       - 0
-    template: crops/pay_bill_to_payee/s12.png
+    template: crops/pay_bill_to_payee/s11.png
   value: '{{state}}'
+- action: type
+  target:
+    anchor:
+      label: 'Zip Code:'
+      ordinal: 1
+      offset:
+      - 138
+      - 1
+    template: crops/pay_bill_to_payee/s12.png
+  value: '{{zip_code}}'
+- action: type
+  target:
+    anchor:
+      label: 'Phone #:'
+      ordinal: 1
+      offset:
+      - 137
+      - 1
+    template: crops/pay_bill_to_payee/s13.png
+  value: '{{phone}}'
 - action: click
   target:
     ocr_text:
@@ -186,5 +206,28 @@ steps:
       offset:
       - 109
       - 24
-    template: crops/pay_bill_to_payee/s13.png
+    template: crops/pay_bill_to_payee/s14.png
+  cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Bill Payment Complete
+      ordinal: 1
+      offset:
+      - 143
+      - 34
+  save_as: confirmation
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/pay_bill_to_payee/s16.png
+  cleanup: true
 checkpoint: Bill Payment Complete

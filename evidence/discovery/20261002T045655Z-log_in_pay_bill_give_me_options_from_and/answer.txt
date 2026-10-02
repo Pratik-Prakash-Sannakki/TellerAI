@@ -1,0 +1,3 @@
+Successfully logged out. The task is complete.
+
+**Summary:** Logged into ParaBank, navigated to the Bill Pay page, and found that it only offers a "From Account" dropdown (single account: ***) — there is no "To Account" dropdown on this page since the payee's account/address info is entered manually rather than selected from a list. Per your confirmation (***), I extracted the From Account options only. Then logged out.

@@ -1,9 +1,9 @@
 schema_version: 2
 name: pay_bill
 version: 1
-description: Logs into the banking system and submits a bill payment to a specified
-  payee. This capability processes the payment transaction and transfers funds from
-  the user's account to the payee.
+description: Logs into the online banking portal and submits a bill payment to a specified
+  payee by transferring funds from a selected account. Returns confirmation that the
+  bill payment was completed.
 base_url: https://parabank.parasoft.com/parabank
 viewport:
 - 1280
@@ -12,35 +12,38 @@ device_scale_factor: 1.0
 inputs:
 - name: payee_name
   type: string
-  description: The name of the person or organization receiving the payment
+  description: Name of the payee to be paid
 - name: address
   type: string
-  description: The street address of the payee
+  description: Street address of the payee
 - name: city
   type: string
-  description: The city of the payee
+  description: City of the payee's address
 - name: state
   type: string
-  description: The state of the payee
+  description: State of the payee's address
 - name: zip_code
   type: string
-  description: The postal zip code of the payee
+  description: Zip code of the payee's address
 - name: phone
   type: string
-  description: The phone number of the payee
+  description: Phone number of the payee
 - name: account
   type: string
-  description: The account number of the payee to receive the payment
+  description: Account number associated with the payee for payment
 - name: verify_account
   type: string
-  description: Confirmation of the payee account number
+  description: Re-entry of the payee account number for verification
 - name: amount
   type: string
-  description: The dollar amount to be paid
+  description: Dollar amount to be paid to the payee
 - name: from_account
   type: string
-  description: The user's account number from which funds will be transferred
-outputs: []
+  description: Account number from which the funds will be withdrawn
+outputs:
+- name: confirmation
+  type: string
+  description: Bill payment confirmation message
 secrets:
 - username
 - password
@@ -51,8 +54,8 @@ steps:
       label: Customer Login
       ordinal: 1
       offset:
-      - 10
-      - 51
+      - 9
+      - 45
     template: crops/pay_bill/s0.png
   value: '{{secret:username}}'
 - action: type
@@ -61,8 +64,8 @@ steps:
       label: Password
       ordinal: 1
       offset:
-      - 40
-      - 25
+      - 39
+      - 19
     template: crops/pay_bill/s1.png
   value: '{{secret:password}}'
 - action: click
@@ -87,8 +90,8 @@ steps:
       label: Transfer Funds
       ordinal: 1
       offset:
-      - -20
-      - 25
+      - -22
+      - 24
     template: crops/pay_bill/s3.png
   cleanup: false
 - action: type
@@ -97,8 +100,8 @@ steps:
       label: 'Payee Name:'
       ordinal: 1
       offset:
-      - 148
-      - 1
+      - 149
+      - 0
     template: crops/pay_bill/s4.png
   value: '{{payee_name}}'
 - action: type
@@ -117,8 +120,8 @@ steps:
       label: 'City:'
       ordinal: 1
       offset:
-      - 123
-      - 1
+      - 122
+      - -1
     template: crops/pay_bill/s6.png
   value: '{{city}}'
 - action: type
@@ -128,7 +131,7 @@ steps:
       ordinal: 1
       offset:
       - 126
-      - 1
+      - 0
     template: crops/pay_bill/s7.png
   value: '{{state}}'
 - action: type
@@ -137,7 +140,7 @@ steps:
       label: 'Zip Code:'
       ordinal: 1
       offset:
-      - 139
+      - 138
       - 0
     template: crops/pay_bill/s8.png
   value: '{{zip_code}}'
@@ -147,7 +150,7 @@ steps:
       label: 'Phone #:'
       ordinal: 1
       offset:
-      - 136
+      - 137
       - 0
     template: crops/pay_bill/s9.png
   value: '{{phone}}'
@@ -187,7 +190,7 @@ steps:
       label: 'From account #:'
       ordinal: 1
       offset:
-      - 124
+      - 76
       - 0
     template: crops/pay_bill/s13.png
   option: '{{from_account}}'
@@ -205,6 +208,15 @@ steps:
       - 24
     template: crops/pay_bill/s14.png
   cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Bill Payment Complete
+      ordinal: 1
+      offset:
+      - 157
+      - 34
+  save_as: confirmation
 - action: click
   target:
     ocr_text:
@@ -216,6 +228,6 @@ steps:
       offset:
       - -17
       - 25
-    template: crops/pay_bill/s15.png
+    template: crops/pay_bill/s16.png
   cleanup: true
 checkpoint: Bill Payment Complete

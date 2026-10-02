@@ -1,0 +1,9 @@
+Successfully logged out. Task completed:
+
+***. Logged in to ParaBank
+2. Navigated to Bill Payment Service page
+3. Retrieved and saved the 'From account' dropdown options (showing account ***)
+4. Identified that there is no 'To account' dropdown on the Bill Pay page — payee account details are entered as free text fields
+5. Logged out
+
+The from_accounts options have been saved with the available account options for the Bill Pay "From account #" dropdown.

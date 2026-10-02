@@ -1,0 +1,143 @@
+schema_version: 2
+name: request_loan
+version: 1
+description: Logs into the online banking portal and submits a loan request by specifying
+  the desired loan amount, down payment, and the account to associate with the loan.
+  Returns confirmation of whether the loan request was processed.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: loan_amount
+  type: string
+  description: The dollar amount of the loan being requested.
+- name: down_payment
+  type: string
+  description: The dollar amount to be paid upfront as a down payment.
+- name: from_account
+  type: string
+  description: The account number from which the down payment will be drawn.
+outputs:
+- name: confirmation
+  type: id
+  description: New account number created for the approved loan
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 10
+      - 45
+    template: crops/request_loan/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 40
+      - 20
+    template: crops/request_loan/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/request_loan/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Request Loan
+      ordinal: 1
+    anchor:
+      label: Update Contact Info
+      ordinal: 1
+      offset:
+      - -17
+      - 24
+    template: crops/request_loan/s3.png
+  cleanup: false
+- action: type
+  target:
+    anchor:
+      label: 'Loan Amount: $'
+      ordinal: 1
+      offset:
+      - 155
+      - 2
+    template: crops/request_loan/s4.png
+  value: '{{loan_amount}}'
+- action: type
+  target:
+    anchor:
+      label: 'Down Payment: $'
+      ordinal: 1
+      offset:
+      - 160
+      - 1
+    template: crops/request_loan/s5.png
+  value: '{{down_payment}}'
+- action: select
+  target:
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 126
+      - 1
+    template: crops/request_loan/s6.png
+  option: '{{from_account}}'
+  index: 0
+- action: click
+  target:
+    ocr_text:
+      text: APPLY NOW
+      ordinal: 1
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 100
+      - 25
+    template: crops/request_loan/s7.png
+  cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Loan Request Processed
+      ordinal: 1
+      offset:
+      - -5
+      - 176
+  save_as: confirmation
+  pattern: '[A-Za-z]*\d[\w-]*'
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/request_loan/s9.png
+  cleanup: true
+checkpoint: Loan Request Processed

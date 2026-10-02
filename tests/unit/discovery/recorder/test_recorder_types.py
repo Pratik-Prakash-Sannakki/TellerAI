@@ -57,17 +57,39 @@ def test_an_event_without_shapes_is_string() -> None:
     }
 
 
-def test_human_entry_is_typed_too() -> None:
-    entry = _ev(
+def _entry(label: str, value: str) -> dict:
+    return _ev(
         "request_value",
-        {"hint": "Zip Code:"},
+        {"hint": label},
         "human entry",
-        label="Zip Code:",
+        label=label,
         human_entry=True,
         dropdown=False,
-        shapes=shapes_of("90210"),
+        shapes=shapes_of(value),
     )
-    assert _types(entry) == {"zip_code": "number"}
+
+
+def test_a_digit_only_human_entry_does_not_make_a_number_input() -> None:
+    """Bug: a human typed fake digits ("1") into City during discovery and City became a number
+    input, so replay refused "Springfield". A human's discovery answer is placeholder data: digits
+    alone cannot tell a text box from a number box."""
+    assert _types(_entry("City:", "1"), _entry("Zip Code:", "90210")) == {
+        "city": "string",
+        "zip_code": "string",
+    }
+
+
+def test_a_human_entry_still_types_by_a_structural_shape() -> None:
+    assert _types(
+        _entry("Email:", "jane@example.com"),
+        _entry("Phone #:", "555-123-4567"),
+        _entry("Date:", "2026-01-01"),
+        _entry("Amount:", "12.50"),
+    ) == {"email": "email", "phone": "phone", "date": "date", "amount": "currency"}
+
+
+def test_a_goal_value_the_agent_types_still_makes_a_number_input() -> None:
+    assert _types(_typed("Account #", "12345")) == {"account": "number"}
 
 
 def test_open_path_query_value_is_typed_from_its_shape() -> None:

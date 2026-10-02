@@ -12,6 +12,10 @@ Precedence, when one value matches several shapes ("100" is number, id and integ
   id                            -- letters/dashes with a digit ("A12-3"); last, so a plain digit
                                    string (an account, a zip) is a number.
 Several values: the shapes ALL of them share, first by precedence; none shared -> "string".
+A human's answer during discovery (``human_entry``) is placeholder fake data: people type "1" or
+"123" into any box (City, State, Payee). Digits alone cannot tell a text box from a number box, so
+a human entry types its input only by a STRUCTURAL shape; number/integer/id from it are dropped.
+A wrong "number" makes replay refuse real text; a "string" only skips a check the site still does.
 Secrets are never inputs (``{{secret:x}}``), so they are never typed.
 """
 
@@ -24,6 +28,7 @@ from cua.discovery.recorder.events import input_name
 from cua.schema import Event, value_matches_type
 
 PRECEDENCE = ("email", "phone", "date", "currency", "number", "integer", "id")
+STRUCTURAL = ("email", "phone", "date", "currency")  # a placeholder rarely matches one by accident
 
 
 def shapes_of(value: str) -> list[str]:
@@ -48,7 +53,10 @@ def event_shapes(ev: Event) -> dict[str, list[str] | None]:
     if ev["tool"] in {"type_text", "select_option", "request_value"}:
         name = input_name(ev.get("label") or str(ev["args"].get("hint", "")))
         shapes = ev.get("shapes")
-        return {name: list(shapes) if shapes is not None else None}
+        if shapes is None:
+            return {name: None}
+        keep = STRUCTURAL if ev.get("human_entry") else PRECEDENCE
+        return {name: [s for s in shapes if s in keep]}
     return {}
 
 

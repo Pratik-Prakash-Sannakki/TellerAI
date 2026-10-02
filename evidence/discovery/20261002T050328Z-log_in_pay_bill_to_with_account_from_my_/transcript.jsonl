@@ -1,0 +1,17 @@
+{"i": 0, "text": "", "tools": ["observe"]}
+{"i": 1, "text": "", "tools": ["type_secret", "type_secret", "click"]}
+{"i": 2, "text": "Both fields are filled. Now let me click the LOG IN button.", "tools": ["click"]}
+{"i": 3, "text": "Logged in successfully. Now let's go to Bill Pay.", "tools": ["click"]}
+{"i": 4, "text": "Good! I'm on the Bill Payment Service page. I can see the form to fill in. Let me fill in the required information:\n- Payee Name: ***\n- Account #: ***\n- Amount: ***\n- From account #: *** (already filled)\n\nLet me scroll up to see if there are all the fields I need or start filling them out.", "tools": ["click"]}
+{"i": 5, "text": "", "tools": ["type_text"]}
+{"i": 6, "text": "", "tools": ["type_text"]}
+{"i": 7, "text": "", "tools": ["type_text", "type_text"]}
+{"i": 8, "text": "", "tools": ["select_option"]}
+{"i": 9, "text": "The \"From account #\" was filled by a human. Now let me request missing values for the remaining fields (Address, City, State, Zip Code, Phone #).", "tools": ["request_missing_values"]}
+{"i": 10, "text": "All fields are filled. Now let's click \"SEND PAYMENT\".", "tools": ["click"]}
+{"i": 11, "text": "The payment was successful. Let me extract the confirmation message before logging out.", "tools": ["extract_value"]}
+{"i": 12, "text": "Now let me log out.", "tools": ["click"]}
+{"i": 13, "text": "Logged out successfully. The task is complete.", "tools": ["finish_business_outcome"]}
+{"i": 14, "text": "", "tools": ["observe"]}
+{"i": 15, "text": "", "tools": ["finish_business_outcome"]}
+{"i": 16, "text": "Task completed successfully. I logged in, navigated to Bill Pay, filled in all required information (payee name \"***\", account #*** amount *** from account #***), submitted the payment which was approved by a human gate, and then logged out as required. The confirmation message \"Bill Payment to *** in the amount of *** from account *** was successful.\" was captured and saved before logout.", "tools": []}
