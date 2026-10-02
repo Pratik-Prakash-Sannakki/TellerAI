@@ -446,7 +446,7 @@ Replay runs predate the `cua` package (no `run.json`); no `cua eval` run is save
 No key, no browser, no network:
 
 ```bash
-.venv/bin/python -m pytest -q tests     # 875 passed (2026-10-02)
+.venv/bin/python -m pytest -q tests     # 888 passed, 1 skipped (2026-10-02)
 .venv/bin/mypy --strict src             # no issues (71 files)
 uvx ruff check src tests                # lint
 ```
