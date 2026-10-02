@@ -34,8 +34,7 @@ dropdown`); `select_option` chooses, and `extract_options` saves its option list
 `type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`, `extract_table`,
 `extract_options`, `finish_business_outcome`, `request_missing_values`, `ask_human`).
 
-- Model: Sonnet via direct Anthropic (`ANTHROPIC_API_KEY`) by default (`cua.llm.make_chat_model`).
-  An optional Anthropic-compatible gateway is opt-in via env vars `ILIAD_BASE_URL` + `ILIAD_API_KEY`.
+- Model: Sonnet via direct Anthropic (`ANTHROPIC_API_KEY`, `cua.llm.make_chat_model`).
 - Middleware: prompt caching off; latest screenshot only; `RecordWhy` (see evidence). TypeSafe
   routing is opt-in (`TYPESAFE_API_KEY`).
 - Run deadline (built): `DiscoveryConfig.run_timeout_s` (900). Past it the run ends `STUCK`

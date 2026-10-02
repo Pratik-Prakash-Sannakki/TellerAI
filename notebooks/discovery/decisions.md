@@ -496,3 +496,8 @@ deleted with `src/cua/agent.py` in 4f692a8.
   text (first 400 chars) to typesafe.ai. Never turn it on with real data.
 - **Fail open:** classifier confidence below 0.8, or any error (network, auth, timeout), keeps
   every tool. A wrong guess must never hide the tool the agent needs.
+- **Model choice is per step (2026-10-02).** TypeSafe's own `ModelRouterMiddleware` classifies
+  once per run, from the goal text, so a multi-step goal always got Sonnet and Haiku was never
+  used. Our `ModelRouter` asks for every model call, from the same step state as the tool router.
+  Haiku only when the classifier says "fast" with confidence 0.8 or more; anything else, or any
+  error, uses Sonnet.

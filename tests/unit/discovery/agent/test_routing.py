@@ -1,5 +1,5 @@
-"""TypeSafe tool selection + model routing (restored 2026-10-01): off with no key, fail open below
-the confidence threshold and on any classifier error, and the job map covers every visual tool.
+"""TypeSafe tool selection + per-step model routing: off with no key, fail open (all tools, Sonnet)
+below the confidence threshold and on any classifier error, and the job map covers every tool.
 No network, no LLM: a fake classifier and a fake request/handler."""
 
 from __future__ import annotations
@@ -13,7 +13,9 @@ from cua.discovery.agent import routing
 from cua.discovery.agent.routing import (
     JOB_CRITERIA,
     JOB_EXTRA_TOOLS,
+    MODEL_CRITERIA,
     NEVER_HIDE,
+    ModelRouter,
     ToolRouter,
     build_routing_middleware,
     confidence_gate,
@@ -36,7 +38,7 @@ class FakeClassifier:
         if self.error:
             raise ConnectionError("typesafe down")
         answer = SimpleNamespace(choice=self.job, confidence=self.confidence)
-        return SimpleNamespace(choices={"job": answer})
+        return SimpleNamespace(choices={"job": answer, "model": answer})
 
 
 class FakeRequest:
@@ -44,9 +46,13 @@ class FakeRequest:
         self.tools = [SimpleNamespace(name=n) for n in names]
         self.messages = [SimpleNamespace(content=last)]
 
-    def override(self, tools: list[SimpleNamespace]) -> FakeRequest:
+        self.model = "default"
+
+    def override(self, **changes: object) -> FakeRequest:
         out = FakeRequest([])
-        out.tools, out.messages = tools, self.messages
+        out.tools, out.messages, out.model = self.tools, self.messages, self.model
+        for key, value in changes.items():
+            setattr(out, key, value)
         return out
 
 
@@ -124,13 +130,50 @@ async def test_a_classifier_error_keeps_all_tools(capsys: pytest.CaptureFixture[
     assert "typesafe job router FAILED" in capsys.readouterr().out
 
 
+async def _model(clf: FakeClassifier) -> str:
+    models = {"fast": "HAIKU", "powerful": "SONNET"}
+    router = ModelRouter(clf, lambda: "https://example.test/app/x.htm", _choice, models)  # type: ignore[arg-type]
+    seen: list[str] = []
+
+    async def handler(r: FakeRequest) -> str:
+        seen.append(r.model)
+        return "ok"
+
+    call: Callable[[FakeRequest, Callable[[FakeRequest], Awaitable[str]]], Awaitable[str]]
+    call = router.awrap_model_call  # type: ignore[assignment]
+    assert await call(FakeRequest(TOOLS), handler) == "ok"
+    return seen[0]
+
+
+@pytest.mark.asyncio
+async def test_a_confident_simple_step_goes_to_haiku() -> None:
+    clf = FakeClassifier("fast", 0.9)
+    assert await _model(clf) == "HAIKU"
+    assert clf.states == ["page='x.htm'. last result: 'Clicked [3].'"]
+
+
+@pytest.mark.asyncio
+async def test_every_other_step_goes_to_sonnet() -> None:
+    assert await _model(FakeClassifier("powerful", 0.99)) == "SONNET"
+    assert await _model(FakeClassifier("fast", 0.5)) == "SONNET"  # not sure: never Haiku
+    assert await _model(FakeClassifier(error=True)) == "SONNET"
+
+
+@pytest.mark.asyncio
+async def test_the_choice_is_made_per_call_not_per_run() -> None:
+    clf = FakeClassifier("fast", 0.9)
+    assert await _model(clf) == "HAIKU"
+    clf.job = "powerful"
+    assert await _model(clf) == "SONNET"
+    assert set(MODEL_CRITERIA) == {"fast", "powerful"}
+
+
 def test_with_a_key_both_routers_are_built(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TYPESAFE_API_KEY", "k")
     built = SimpleNamespace(Choice=_choice, TypeSafeClassifier=lambda: FakeClassifier())
-    models: list[str] = []
     monkeypatch.setattr(routing, "_typesafe", lambda: built)
-    monkeypatch.setattr(routing, "_model_router", lambda: models.append("router") or "R")
+    monkeypatch.setattr(routing, "_models", lambda: {"fast": "H", "powerful": "S"})
     out = build_routing_middleware(lambda: "https://example.test/")
     assert isinstance(out[0], ToolRouter)
-    assert out[1:] == ["R"]
-    assert models == ["router"]
+    assert isinstance(out[1], ModelRouter)
+    assert out[1].models == {"fast": "H", "powerful": "S"}

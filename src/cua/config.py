@@ -17,10 +17,9 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-# Model names (env overrides keep working). The LLM endpoint itself is chosen in cua.llm:
-# direct Anthropic by default; an LLM gateway only when ILIAD_BASE_URL + ILIAD_API_KEY are set.
-SONNET_MODEL_NAME = os.getenv("ILIAD_SONNET_MODEL") or "claude-sonnet-4-5-20250929"
-HAIKU_MODEL_NAME = os.getenv("ILIAD_HAIKU_MODEL") or "claude-haiku-4-5-20251001"
+# Model names: the latest Sonnet and Haiku. Every call goes direct to Anthropic (cua.llm).
+SONNET_MODEL_NAME = "claude-sonnet-5"
+HAIKU_MODEL_NAME = "claude-haiku-4-5-20251001"
 
 OUTCOME_STATUSES = frozenset({"BUSINESS_OUTCOME", "RECOVER", "FAILED"})  # replay's load_outcomes
 # Assignment 3.4: the action types a site may allow -- exactly the capability Step `action`s.

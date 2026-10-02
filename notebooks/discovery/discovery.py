@@ -25,7 +25,7 @@
 # ## Setup
 # Imports and the site profile (`configs/parabank.yaml`); secrets come from `.env`, by name only.
 # Then one visible Chromium at a fixed page size (Q10) plus the "Agent control" tab, the send
-# guard, and the deep agent with the model from the Iliad gateway. Re-run safe: an open browser
+# guard, and the deep agent with the model (direct Anthropic). Re-run safe: an open browser
 # is reused.
 
 # %%

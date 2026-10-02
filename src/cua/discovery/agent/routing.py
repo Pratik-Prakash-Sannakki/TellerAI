@@ -17,6 +17,7 @@ from types import ModuleType
 from typing import Protocol
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
+from langchain_core.language_models import BaseChatModel
 
 from cua.llm import make_chat_model, model_name_for
 
@@ -41,6 +42,14 @@ JOB_CRITERIA = {
     "finish": "The goal's business result is on screen and only needs to be reported.",
 }
 JOB_CONFIDENCE_THRESHOLD = 0.8
+MODEL_CRITERIA = {
+    "fast": "A single simple step: reading the page, or one obvious click, type, or select with "
+    "no ambiguity.",
+    "powerful": "Anything else: planning, choosing between several similar elements, forms, or "
+    "any step before a risky click.",
+}
+MODEL_INSTRUCTIONS = "Pick the cheapest model that can do this step correctly. If unsure, pick "
+"'powerful'."
 
 AsyncHandler = Callable[[ModelRequest], Awaitable[ModelResponse]]
 
@@ -73,6 +82,12 @@ def page_name(url: str) -> str:
     return url.split("?")[0].split(";")[0].rstrip("/").rsplit("/", 1)[-1].lower()
 
 
+def step_state(request: ModelRequest, page_path: Callable[[], str]) -> str:
+    """What the classifier sees for a step: the page path + the last result's first 400 chars."""
+    last = str(request.messages[-1].content)[:400]
+    return f"page={page_name(page_path())!r}. last result: {last!r}"
+
+
 class ToolRouter(AgentMiddleware):
     """Classifies the step's job with TypeSafe's Choice primitive and narrows the tool list to it.
     Sends the current page path and the last tool result's text to typesafe.ai (never enable on a
@@ -91,8 +106,7 @@ class ToolRouter(AgentMiddleware):
 
     async def awrap_model_call(self, request: ModelRequest, handler: AsyncHandler) -> ModelResponse:
         try:
-            last = str(request.messages[-1].content)[:400]
-            state = f"page={page_name(self.page_path())!r}. last result: {last!r}"
+            state = step_state(request, self.page_path)
             job = self.choice(instructions="What kind of step is this?", criteria=JOB_CRITERIA)
             response = await self.classifier.ainvoke({"state": state, "questions": {"job": job}})
             answer = response.choices["job"]  # type: ignore[attr-defined]
@@ -117,30 +131,43 @@ def _typesafe() -> ModuleType:
     return langchain_typesafe
 
 
-def _model_router() -> AgentMiddleware:
-    """Haiku for a simple step, Sonnet otherwise (both through cua.llm)."""
-    from langchain_typesafe.experimental.middleware import (  # noqa: PLC0415 (optional extra)
-        ModelChoice,
-        ModelRouterMiddleware,
-    )
+class ModelRouter(AgentMiddleware):
+    """Picks Haiku ("fast") or Sonnet ("powerful") for EACH model call, from the same step state
+    the tool router sees. (TypeSafe's own ModelRouterMiddleware decides once per run from the
+    goal, so a multi-step goal never reached Haiku.) Haiku only when the classifier is confident;
+    below the threshold or on any error, the step uses Sonnet."""
 
-    router: AgentMiddleware = ModelRouterMiddleware(  # type: ignore[assignment]  # untyped third-party middleware
-        choices={
-            "fast": ModelChoice(
-                model=make_chat_model("haiku"),
-                criteria="A single simple step: reading the page, or one obvious click, type, "
-                "or select with no ambiguity.",
-            ),
-            "powerful": ModelChoice(
-                model=make_chat_model("sonnet"),
-                criteria="Anything else: planning, choosing between several similar elements, "
-                "forms, or any step before a risky click.",
-            ),
-        },
-        instructions="Pick the cheapest model that can do the step correctly. If unsure, pick "
-        "'powerful'.",
-    )
-    return router
+    def __init__(
+        self,
+        classifier: Classifier,
+        page_path: Callable[[], str],
+        choice: Callable[..., object],
+        models: dict[str, BaseChatModel],
+        threshold: float = JOB_CONFIDENCE_THRESHOLD,
+    ) -> None:
+        self.classifier, self.page_path, self.choice = classifier, page_path, choice
+        self.models, self.threshold = models, threshold
+
+    async def awrap_model_call(self, request: ModelRequest, handler: AsyncHandler) -> ModelResponse:
+        route = "powerful"
+        try:
+            pick = self.choice(instructions=MODEL_INSTRUCTIONS, criteria=MODEL_CRITERIA)
+            payload: dict[str, object] = {
+                "state": step_state(request, self.page_path),
+                "questions": {"model": pick},
+            }
+            response = await self.classifier.ainvoke(payload)
+            answer = response.choices["model"]  # type: ignore[attr-defined]
+            if answer.choice == "fast" and answer.confidence >= self.threshold:
+                route = "fast"
+            print(f"typesafe model -> {route!r} (asked {answer.choice!r} {answer.confidence:.2f})")
+        except Exception as exc:
+            print(f"typesafe model router FAILED, using 'powerful': {type(exc).__name__}: {exc}")
+        return await handler(request.override(model=self.models[route]))
+
+
+def _models() -> dict[str, BaseChatModel]:
+    return {"fast": make_chat_model("haiku"), "powerful": make_chat_model("sonnet")}
 
 
 def build_routing_middleware(page_path: Callable[[], str]) -> list[AgentMiddleware]:
@@ -153,10 +180,11 @@ def build_routing_middleware(page_path: Callable[[], str]) -> list[AgentMiddlewa
         )
         return []
     ts = _typesafe()
-    tools = ToolRouter(ts.TypeSafeClassifier(), page_path, ts.Choice)
-    models = _model_router()
+    classifier = ts.TypeSafeClassifier()
+    tools = ToolRouter(classifier, page_path, ts.Choice)
+    models = ModelRouter(classifier, page_path, ts.Choice, _models())
     print(
-        f"model router ON (TypeSafe): fast={model_name_for('haiku')} | "
+        f"model router ON (TypeSafe, per step): fast={model_name_for('haiku')} | "
         f"powerful={model_name_for('sonnet')}"
     )
     return [tools, models]

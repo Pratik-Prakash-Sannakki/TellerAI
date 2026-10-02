@@ -29,9 +29,8 @@ cp .env.example .env                     # then fill in the keys below
 | Key | Needed for | Notes |
 |---|---|---|
 | `PARABANK_USERNAME` / `PARABANK_PASSWORD` | discovery and replay | a ParaBank demo user (fake data only). Typed by `type_secret`; the model sees the name, never the value |
-| `ANTHROPIC_API_KEY` | discovery only | the default: every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
-| `ILIAD_BASE_URL` + `ILIAD_API_KEY` | optional | an optional Anthropic-compatible gateway via env vars. Only when `ILIAD_BASE_URL` is set do calls go through it; a URL with no key is an error |
-| `ILIAD_SONNET_MODEL`, `ILIAD_HAIKU_MODEL`, `SSL_CERT_FILE` | optional | model-name overrides / a CA bundle for the gateway |
+| `ANTHROPIC_API_KEY` | discovery only | every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
+| `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one |
 | `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool-selection + model routing for discovery (off by default) |
 
 Replay needs no LLM key at all.

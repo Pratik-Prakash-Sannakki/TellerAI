@@ -11,9 +11,9 @@ The discovery deep agent: what the model is told, what wraps each model call, an
    Anthropic-compatible gateways reject cache markers), `LatestScreenshotOnly` (only the newest
    screenshot reaches the model), `RecordWhy` (the model's reason for each call, masked, max 200
    chars, put on each event as `why`).
-3. `routing.py` - optional TypeSafe tool router + Haiku/Sonnet model router. Off unless
+3. `routing.py` - optional TypeSafe tool router + per-step Haiku/Sonnet model router. Off unless
    `TYPESAFE_API_KEY` is set (`build_routing_middleware(page_path) -> []`). Fails open: low
-   confidence or any error keeps every tool. When on it sends the page path + last result text
+   confidence or any error keeps every tool and uses Sonnet. When on it sends the page path + last result text
    to typesafe.ai: never with real data. `langchain_typesafe` (extra `typesafe`) is imported
    only when on.
 4. `build.py` - `build_agent(ctx, model)`: `create_deep_agent` over `build_tools(ctx)`, the prompt,
