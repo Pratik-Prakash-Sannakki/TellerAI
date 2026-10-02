@@ -1,8 +1,10 @@
 # Teller: learn a banking task once, replay it forever
 
-<a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview" width="100%"></a>
+https://github.com/user-attachments/assets/5ef8c957-d093-440a-b31c-b6f06ea4ec09
 
-*Preview of the 46-second intro. Full video with sound: [`brag-output/brag.mp4`](brag-output/brag.mp4).*
+*The 46-second intro, with sound. If the player doesn't load, here's the preview GIF; the file is at [`brag-output/brag.mp4`](brag-output/brag.mp4).*
+
+<a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview" width="100%"></a>
 
 ## The problem
 
