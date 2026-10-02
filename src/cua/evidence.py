@@ -17,7 +17,7 @@ from pathlib import Path
 from pydantic import JsonValue
 
 from cua.config import SiteProfile
-from cua.safety.redact import OcrFn, mask_png
+from cua.safety.redact import IdMask, OcrFn, mask_png
 
 Redact = Callable[[str], str]
 
@@ -32,10 +32,14 @@ def _clean(obj: object, redact: Redact) -> object:
     return obj
 
 
-def _png(path: Path, png: bytes | None, redact: Redact, ocr_fn: OcrFn) -> str | None:
+def _png(
+    path: Path, png: bytes | None, redact: Redact, ocr_fn: OcrFn, ids: IdMask | None = None
+) -> str | None:
+    """A masked PNG: run values and secrets blacked out; with ``ids``, account ids down to their
+    last digits."""
     if not png:
         return None
-    path.write_bytes(mask_png(png, redact, ocr_fn))
+    path.write_bytes(mask_png(png, redact, ocr_fn, ids))
     return path.name
 
 

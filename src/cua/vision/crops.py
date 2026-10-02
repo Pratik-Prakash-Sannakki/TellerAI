@@ -73,8 +73,8 @@ def spot_changed(
 
 
 FIELD_MIN = (40, 12)  # px: the smallest drawn rectangle that counts as an input box
-INSET = 3            # px: ignore the border itself (a focus ring thickens it on a click)
-INK = 128            # grey level below which a pixel is ink (text, dots)
+INSET = 3  # px: ignore the border itself (a focus ring thickens it on a click)
+INK = 128  # grey level below which a pixel is ink (text, dots)
 
 
 def input_box(look: Look, point: tuple[int, int]) -> Box | None:

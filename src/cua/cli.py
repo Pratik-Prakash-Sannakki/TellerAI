@@ -27,9 +27,11 @@ from cua.config import (
     secret_values,
 )
 from cua.discovery.agent.build import build_agent
+from cua.discovery.evidence import artifact_mask
 from cua.discovery.evidence import save_evidence as save_discovery_evidence
 from cua.discovery.goal import run_goal
 from cua.discovery.recorder import (
+    ArtifactMask,
     NotSaved,
     build_capability,
     check_savable,
@@ -52,6 +54,7 @@ from cua.llm import make_chat_model
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence as save_replay_evidence
 from cua.replay.wiring import attach as replay_attach
+from cua.safety.redact import IdMask
 from cua.schema import Capability, Event, ReplayResult
 
 EVIDENCE = Path("evidence")
@@ -127,8 +130,9 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
         model = make_chat_model("sonnet")
         try:
             agent = build_agent(ctx, model)  # a CompiledStateGraph; run_goal types it as Agent
-            print(await run_goal(ctx, agent, goal))  # type: ignore[arg-type]
-            path = await _save(ctx.run.log, ctx.run.goal, model, out)
+            answer = await run_goal(ctx, agent, goal)  # type: ignore[arg-type]
+            print(IdMask.for_site(site)(answer))
+            path = await _save(ctx.run.log, ctx.run.goal, model, out, artifact_mask(ctx))
         finally:  # evidence after any run, successful or not
             folder = save_discovery_evidence(
                 ctx, EVIDENCE / "discovery", capability=path, model=getattr(model, "model", None)
@@ -139,29 +143,33 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
     return path
 
 
-async def _save(log: list[Event], goal: str, model: BaseChatModel, out: Path) -> Path | None:
-    """Save the run as a capability, or say plainly why not. Checked before the model is asked."""
+async def _save(
+    log: list[Event], goal: str, model: BaseChatModel, out: Path, mask: ArtifactMask
+) -> Path | None:
+    """Save the run as a capability, or say plainly why not. Checked before the model is asked;
+    the artifact is masked and leak-checked before any file is written."""
     try:
         check_savable(log)
-        cap = build_capability(log, await describe(goal, log, model))
+        cap = build_capability(log, await describe(goal, log, model, mask.ids))
+        path = save_artifact(cap, crops_for(log, cap), out, mask)
     except NotSaved as e:
         print(f"not saved: {e}")
         print("The run's evidence is still written below. Fix the cause and run again.")
         return None
-    path = save_artifact(cap, crops_for(log, cap), out)
     print("saved:", path)
     return path
 
 
-def _print_result(cap: Path, result: ReplayResult) -> None:
+def _print_result(cap: Path, result: ReplayResult, ids: IdMask) -> None:
+    """The run for the terminal: account ids by their last digits; amounts shown."""
     print("capability:", cap)
-    print(
-        "status:", result.summary, result.reason, f"| recoveries: {result.recoveries}",
-        f"| cleanup: {result.cleanup or 'none'}",
-    )  # fmt: skip
-    print(result.outputs_line)
+    print(ids(
+        f"status: {result.summary} {result.reason} | recoveries: {result.recoveries} "
+        f"| cleanup: {result.cleanup or 'none'}"
+    ))  # fmt: skip
+    print(ids(result.outputs_line))
     for row in result.drift:
-        print({k: v for k, v in row.items() if k != "shots"})
+        print(ids(str({k: v for k, v in row.items() if k != "shots"})))
 
 
 async def run_replay(
@@ -173,7 +181,7 @@ async def run_replay(
     try:
         ctx = await replay_attach(session, site, ReplayConfig())
         result = await replay(ctx, cap, inputs)
-        _print_result(cap, result)
+        _print_result(cap, result, IdMask.for_site(site))
         if evidence:
             print("evidence:", save_replay_evidence(ctx, result, cap, EVIDENCE / "replay"))
         return result
@@ -194,7 +202,7 @@ async def run_eval(
         for n in range(1, runs + 1):
             ctx = await replay_attach(session, site, ReplayConfig())
             result = await replay(ctx, cap, inputs)
-            print(f"run {n}/{runs}:", result.summary)
+            print(f"run {n}/{runs}:", IdMask.for_site(site)(result.summary))
             results.append(result)
             masks.append(set(ctx.last.values) | {v for v in ctx.secrets.values() if v})
             info = run_info(None, None, (ctx.bcfg, ctx.cfg), ctx.site)

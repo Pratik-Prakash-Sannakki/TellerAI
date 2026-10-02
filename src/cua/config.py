@@ -51,6 +51,8 @@ class SiteProfile:
     login_empty_texts: tuple[str, ...] = ()  # "the boxes were empty": a missed type, retry once
     outcomes: tuple[OutcomeRule, ...] = ()
     allowed_actions: frozenset[str] = STEP_ACTIONS  # 3.4; yaml omits the key = all allowed
+    id_min_digits: int = 5  # a digit run this long is an account id: masked in what is stored
+    id_visible_digits: int = 3  # ...down to its last digits ('98765' -> '***765')
 
     @property
     def base_url(self) -> str:
@@ -156,6 +158,8 @@ def load_site(name: str, root: Path | None = None) -> SiteProfile:
         login_empty_texts=tuple(data.get("login_empty_texts") or ()),
         outcomes=_outcomes(data.get("outcomes") or [], path),
         allowed_actions=_actions(data.get("allowed_actions"), path),
+        id_min_digits=int(data.get("id_min_digits", 5)),
+        id_visible_digits=int(data.get("id_visible_digits", 3)),
     )
 
 

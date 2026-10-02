@@ -465,3 +465,10 @@ async def test_type_text_logs_the_value_shape_never_the_value(
     ev = d.ctx.run.log[-1]
     assert ev["shapes"] == ["currency", "number"]
     assert "123.45" not in str(ev)
+
+
+def test_blocks_never_shows_the_session_token() -> None:
+    lk = Look(b"", b"", (), "https://example.test/app/a.htm;jsessionid=AB12CD?id=1")
+    text = observe.blocks(make_ctx(), "Hi.", lk)[0]["text"]
+    assert "URL: https://example.test/app/a.htm?id=1\n" in text
+    assert "jsessionid" not in text

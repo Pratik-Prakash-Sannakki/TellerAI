@@ -75,4 +75,4 @@ def test_after_wipe_the_run_holds_no_given_text_entered_values_or_look(with_tabl
 
 
 def test_saved_texts_includes_saved_options() -> None:
-    assert saved_texts({"accounts": ["14010", "14232"]}) == {"14010", "14232"}
+    assert saved_texts({"accounts": ["***010", "14232"]}) == {"***010", "14232"}

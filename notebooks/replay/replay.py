@@ -36,6 +36,7 @@ from cua.config import BrowserConfig, ReplayConfig, load_site, secret_values
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence
 from cua.replay.wiring import attach
+from cua.safety.redact import IdMask
 
 ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "pyproject.toml").exists())
 site = load_site("parabank")
@@ -56,12 +57,13 @@ print("browser open | page", session.cfg.viewport)
 # BROWSER
 cap_path = ROOT / "artifacts" / "get_all_account_balances.yaml"
 result = await replay(ctx, cap_path, inputs={})   # e.g. {"amount": "10"}; the rest is asked
+ids = IdMask.for_site(site)  # the terminal shows an account id by its last digits only
 print("capability:", cap_path)
-print("status:", result.summary, result.reason, f"| recoveries: {result.recoveries}",
-      f"| cleanup: {result.cleanup or 'none'}")
-print(result.outputs_line)
+print(ids(f"status: {result.summary} {result.reason} | recoveries: {result.recoveries} "
+          f"| cleanup: {result.cleanup or 'none'}"))
+print(ids(result.outputs_line))
 for row in result.drift:
-    print({k: v for k, v in row.items() if k != "shots"})
+    print(ids(str({k: v for k, v in row.items() if k != "shots"})))
 
 # %% [markdown]
 # ## Evidence

@@ -8,14 +8,84 @@ Two changes the migration asked for, no logic change: ``describe`` takes the mod
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 from langchain_core.language_models import BaseChatModel
 
 from cua.discovery.recorder.build import used_inputs
-from cua.discovery.recorder.events import step_events
+from cua.discovery.recorder.events import NotSaved, step_events
+from cua.safety.redact import IdMask, OcrFn, mask_png
 from cua.schema import Capability, CapabilityMeta, Event
+
+TEXT_KEYS = {
+    "name",
+    "description",
+    "label",
+    "text",
+    "option",
+    "value",
+    "checkpoint",
+    "row_key",
+    "column",
+    "save_as",
+    "columns",
+}  # where a typed value could hide
+NAME_KEYS = {"name", "save_as", "template"}  # names and paths: an id keeps its digits, no stars
+
+
+@dataclass(frozen=True)
+class ArtifactMask:
+    """How a capability is cleaned before it is written: account ids down to their last digits
+    (text, names, crops), then a refusal if any run value is still in a text field. ``redact``
+    masks the run's values; ``ocr_fn`` reads the crops (None: crops are written as they are)."""
+
+    ids: IdMask
+    redact: Callable[[str], str]
+    ocr_fn: OcrFn | None = None
+
+
+def artifact_texts(yml: str) -> list[str]:
+    """The artifact's free-text fields only. Structural numbers (``version: 1``, a viewport, an
+    offset, ``s1.png``) are not values a person typed, and a one-character form value such as
+    '1' matches them, so the whole-file check refused clean artifacts."""
+    out: list[str] = []
+
+    def walk(node: object, key: str = "") -> None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, str(k))
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, key)
+        elif key in TEXT_KEYS and isinstance(node, str):
+            out.append(node)
+
+    walk(yaml.safe_load(yml) if yml.strip() else {})
+    return out
+
+
+def _mask_ids(node: object, ids: IdMask, key: str = "") -> object:
+    if isinstance(node, dict):
+        return {k: _mask_ids(v, ids, str(k)) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_mask_ids(v, ids, key) for v in node]
+    if isinstance(node, str) and key in TEXT_KEYS | NAME_KEYS:
+        return ids.name(node) if key in NAME_KEYS else ids(node)
+    return node
+
+
+def masked(cap: Capability, mask: ArtifactMask) -> Capability:
+    """The capability with every account id cut to its last digits; NotSaved if a run value is
+    still in one of its text fields (checked before anything is written)."""
+    data = _mask_ids(cap.model_dump(mode="json", exclude_none=True), mask.ids)
+    out = Capability.model_validate(data)
+    yml = yaml.safe_dump(data, sort_keys=False)
+    if leaked := [t for t in artifact_texts(yml) if mask.redact(t) != t]:
+        raise NotSaved(f"a run value is in the artifact ({len(leaked)} text field(s)).")
+    return out
 
 
 def crops_for(log: list[Event], cap: Capability) -> dict[str, bytes]:
@@ -28,8 +98,16 @@ def crops_for(log: list[Event], cap: Capability) -> dict[str, bytes]:
 
 
 def save_artifact(
-    cap: Capability, crops: dict[str, bytes], out_dir: Path = Path("artifacts")
+    cap: Capability,
+    crops: dict[str, bytes],
+    out_dir: Path = Path("artifacts"),
+    mask: ArtifactMask | None = None,
 ) -> Path:
+    """``<out_dir>/<name>.yaml`` + its crops. With ``mask``: ids cut to their last digits and a
+    run value refused (NotSaved) BEFORE any file is written."""
+    if mask is not None:
+        cap = masked(cap, mask)
+        crops = {mask.ids.name(rel): _crop(png, mask) for rel, png in crops.items()}
     path = Path(out_dir) / f"{cap.name}.yaml"
     for rel, png in crops.items():
         (Path(out_dir) / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -39,9 +117,20 @@ def save_artifact(
     return path
 
 
-async def describe(goal: str, log: list[Event], model: BaseChatModel) -> CapabilityMeta:
-    """R11: name, description, input descriptions, success text. Labels only, no values."""
-    lines = [f"{ev['tool']} {ev.get('label') or ev.get('text') or ''}" for ev in step_events(log)]
+def _crop(png: bytes, mask: ArtifactMask) -> bytes:
+    return mask_png(png, mask.redact, mask.ocr_fn, mask.ids) if mask.ocr_fn else png
+
+
+async def describe(
+    goal: str, log: list[Event], model: BaseChatModel, ids: IdMask | None = None
+) -> CapabilityMeta:
+    """R11: name, description, input descriptions, success text. Labels only, no values. With
+    ``ids``, the goal and the step lines reach the model with every account id cut."""
+    cut = ids or (lambda text: text)
+    goal = cut(goal)
+    lines = [
+        cut(f"{ev['tool']} {ev.get('label') or ev.get('text') or ''}") for ev in step_events(log)
+    ]
     names = used_inputs(log)
     tables, options = (
         list(dict.fromkeys(ev["args"]["save_as"] for ev in step_events(log) if ev["tool"] == t))

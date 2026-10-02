@@ -156,6 +156,17 @@ def test_rows_with_an_empty_cell_are_still_rows() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_value_echoes_an_id_by_its_last_digits_only() -> None:
+    """The model's echo of a saved account id showed the full number; the saved value stays
+    whole (it is the run's output, in memory)."""
+    ctx = make_ctx()
+    ctx.run.look = make_look([("Account", (10, 60, 90, 80)), ("98765", (150, 60, 220, 80))])
+    args = {"ref": 2, "save_as": "acct", "value_type": "string", "description": "account"}
+    assert await _tool("extract_value", ctx).ainvoke(args) == "Saved acct = '***765'."
+    assert ctx.run.saved == {"acct": "98765"}
+
+
+@pytest.mark.asyncio
 async def test_extract_value_saves_the_value_and_logs_only_where_it_is() -> None:
     ctx = make_ctx()
     ctx.run.look = make_look(
@@ -333,7 +344,7 @@ TRANSFER_FORM = [
     ("From account #:", (480, 345, 590, 365)),
     ("Transfer Funds", (300, 100, 500, 130)),
 ]
-ACCOUNTS = ["14010", "14232", "15120"]
+ACCOUNTS = ["***010", "14232", "15120"]
 
 
 def _options_ctx(options: list[str] | None, index: int | None = 0) -> Ctx:

@@ -172,6 +172,16 @@ control. CDP `Input.setIgnoreInputEvents` blocks human input on the site except 
   logged). Replay fails that step before acting.
 - **Nothing is stored (built, R7).** Values never enter logs or YAML and are wiped at run end.
 - **Secrets (built).** `type_secret(name)`: the model sees only the name.
+- **Account ids masked to their last 3 digits (built).** A run of 5+ digits that is not an amount
+  (`IdMask`, `id_min_digits` / `id_visible_digits` in the site config) is shown as `***010` in
+  evidence text and folder names, artifacts (names, labels, OCR text, crops), the model's
+  `extract_value` echo, `describe()`'s prompt and the terminal; in a PNG all but its last 3 digits
+  are blacked out. Amounts and balances are shown. An artifact is masked and leak-checked before
+  any file is written. Logged URLs drop `;jsessionid=` and the query.
+- **TypeSafe sees no screen text (built).** The router sends only the page name, the last tool's
+  name and its status word (`OK`, `REFUSED`, `Saved`); errors print their type only.
+- **Browser profile deleted at close (built).** `close_session` removes the temp profile (cookies,
+  cache); discovery drops the run's chat, reads, crops and final screen once evidence is written.
 - **Host lock (built).** Only `parabank.parasoft.com`.
 - **Deny words (built).** Clicks on `register`, `lookup`, `admin` are refused.
 

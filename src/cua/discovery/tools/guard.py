@@ -17,7 +17,7 @@ from typing import ParamSpec, cast
 from cua.discovery.context import Ctx, canvas
 from cua.discovery.tools import human  # module import: human.py imports this one back
 from cua.discovery.tools.failed import FAILED
-from cua.safety.redact import is_sensitive, norm
+from cua.safety.redact import is_sensitive, no_session, norm
 from cua.schema.events import Event
 
 P = ParamSpec("P")
@@ -54,7 +54,7 @@ def log(
         "args": args,
         "result": result.split("\n")[0],
         "point": point,
-        "url": ctx.page.url,
+        "url": no_session(ctx.page.url),  # no session token, no query value
         "crop": crop,
         **extra,
     }

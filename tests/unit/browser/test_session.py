@@ -79,3 +79,36 @@ async def test_check_viewport_refuses_another_size() -> None:
     cfg = BrowserConfig(viewport=(40, 20))
     with pytest.raises(RuntimeError, match="screenshot is 30x20, expected"):
         await check_viewport(_session(LivePage(png=_png(30, 20)), LivePage(), cfg))
+
+
+@pytest.mark.asyncio
+async def test_close_session_deletes_the_browser_profile(tmp_path: Path) -> None:
+    """The profile (cookies, cache, history of a bank session) was left in /tmp after close."""
+    profile = tmp_path / "cua-profile"
+    (profile / "Default").mkdir(parents=True)
+    (profile / "Default" / "Cookies").write_text("session")
+    closed: list[str] = []
+
+    class Closer:
+        async def close(self) -> None:
+            closed.append("context")
+
+        async def stop(self) -> None:
+            closed.append("pw")
+
+    s = _session(LivePage(), LivePage())
+    s = Session(**{**s.__dict__, "pw": Closer(), "context": Closer(), "profile": profile})  # type: ignore[arg-type]
+    await session_mod.close_session(s)
+    assert closed == ["context", "pw"]
+    assert not profile.exists()
+
+
+@pytest.mark.asyncio
+async def test_a_session_without_a_profile_closes_too() -> None:
+    class Closer:
+        async def close(self) -> None: ...
+
+        async def stop(self) -> None: ...
+
+    s = _session(LivePage(), LivePage())
+    await session_mod.close_session(Session(**{**s.__dict__, "pw": Closer(), "context": Closer()}))  # type: ignore[arg-type]

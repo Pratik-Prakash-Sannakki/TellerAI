@@ -14,6 +14,10 @@ login_words: ["log in"]
 # `action`s). Omit the key to allow all of them. observe / finish / ask tools are not site
 # actions and are always allowed.
 allowed_actions: [navigate, click, type, select, scroll, extract, extract_table]
+# Account ids (a digit run at least this long, not an amount) are masked to their last digits in
+# evidence, artifacts, logs and the terminal: '98765' -> '***765'.
+id_min_digits: 5
+id_visible_digits: 3
 login_failure_texts:
   - could not be verified
   - user does not exist

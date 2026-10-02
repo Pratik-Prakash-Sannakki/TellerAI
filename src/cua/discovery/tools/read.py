@@ -27,7 +27,7 @@ from cua.discovery.tools.read_helpers import (
     value_in_box,
     where,
 )
-from cua.safety.redact import norm
+from cua.safety.redact import IdMask, norm
 from cua.vision.look import Element, Look
 from cua.vision.table import append_rows, read_rows, same_line, table_columns
 
@@ -54,7 +54,7 @@ def _saved_value(
         pattern=pattern,
         **read_target(lk, el, values),
     )
-    return f"Saved {save_as} = {value!r}."
+    return f"Saved {save_as} = {IdMask.for_site(ctx.site)(value)!r}."  # an id: its last digits
 
 
 def _make_extract_value(ctx: Ctx) -> BaseTool:

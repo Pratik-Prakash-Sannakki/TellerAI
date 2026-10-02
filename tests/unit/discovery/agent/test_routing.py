@@ -21,6 +21,7 @@ from cua.discovery.agent.routing import (
     confidence_gate,
     job_tool_names,
     page_name,
+    step_state,
 )
 from cua.discovery.tools import build_tools
 from tests.fakes import make_ctx
@@ -42,9 +43,11 @@ class FakeClassifier:
 
 
 class FakeRequest:
-    def __init__(self, names: list[str], last: str = "Clicked [3].") -> None:
+    def __init__(
+        self, names: list[str], last: object = "Clicked [3].", tool: str = "click"
+    ) -> None:
         self.tools = [SimpleNamespace(name=n) for n in names]
-        self.messages = [SimpleNamespace(content=last)]
+        self.messages = [SimpleNamespace(content=last, name=tool)]
 
         self.model = "default"
 
@@ -109,14 +112,14 @@ def test_page_name_is_the_last_path_segment() -> None:
 @pytest.mark.asyncio
 async def test_confident_job_narrows_the_tools() -> None:
     clf = FakeClassifier("read_value", 0.95)
-    kept = await _names(_router(clf), FakeRequest(TOOLS, "x" * 500))
+    kept = await _names(_router(clf), FakeRequest(TOOLS, "Saved x." + "y" * 500, "extract_value"))
     assert set(kept) == set(NEVER_HIDE) | {
         "extract_value",
         "extract_table",
         "extract_options",
         "scroll",
     }
-    assert clf.states == [f"page='transfer.htm'. last result: {'x' * 400!r}"]
+    assert clf.states == ["page='transfer.htm'. last tool: 'extract_value' -> 'Saved'"]
 
 
 @pytest.mark.asyncio
@@ -127,7 +130,38 @@ async def test_low_confidence_keeps_all_tools() -> None:
 @pytest.mark.asyncio
 async def test_a_classifier_error_keeps_all_tools(capsys: pytest.CaptureFixture[str]) -> None:
     assert await _names(_router(FakeClassifier(error=True)), FakeRequest(TOOLS)) == TOOLS
-    assert "typesafe job router FAILED" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "typesafe job router FAILED" in out
+    assert "ConnectionError" in out
+    assert "typesafe down" not in out  # the exception's text may carry a value: never printed
+
+
+@pytest.mark.asyncio
+async def test_the_model_router_prints_only_the_error_type(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert await _model(FakeClassifier(error=True)) == "SONNET"
+    out = capsys.readouterr().out
+    assert "ConnectionError" in out
+    assert "typesafe down" not in out
+
+
+SCREEN = [
+    {"type": "text", "text": "OK\nURL: https://h.test/a.htm;jsessionid=AB12\n[1] '#98765'"},
+    {"type": "image", "base64": "...", "mime_type": "image/png"},
+]
+
+
+@pytest.mark.parametrize(
+    ("last", "word"),
+    [(SCREEN, "OK"), ("REFUSED: that is a dropdown.", "REFUSED"), ("NO CHANGE at (1, 2)", "NO"),
+     ("", ""), ([], "")],
+)  # fmt: skip
+def test_step_state_never_sends_screen_text(last: object, word: str) -> None:
+    state = step_state(FakeRequest([], last, "observe"), lambda: "https://h.test/a.htm;jsessionid=AB12?x=98765")  # type: ignore[arg-type]
+    assert state == f"page='a.htm'. last tool: 'observe' -> {word!r}"
+    for leak in ("98765", "jsessionid", "AB12", "URL"):
+        assert leak not in state
 
 
 async def _model(clf: FakeClassifier) -> str:
@@ -149,7 +183,7 @@ async def _model(clf: FakeClassifier) -> str:
 async def test_a_confident_simple_step_goes_to_haiku() -> None:
     clf = FakeClassifier("fast", 0.9)
     assert await _model(clf) == "HAIKU"
-    assert clf.states == ["page='x.htm'. last result: 'Clicked [3].'"]
+    assert clf.states == ["page='x.htm'. last tool: 'click' -> 'Clicked'"]
 
 
 @pytest.mark.asyncio

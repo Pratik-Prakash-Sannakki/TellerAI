@@ -35,11 +35,12 @@ from pathlib import Path
 from cua.browser import check_viewport, close_session, open_session
 from cua.config import BrowserConfig, DiscoveryConfig, load_site, secret_values
 from cua.discovery.agent.build import build_agent
-from cua.discovery.evidence import save_evidence
+from cua.discovery.evidence import artifact_mask, save_evidence
 from cua.discovery.goal import run_goal
 from cua.discovery.recorder import build_capability, crops_for, describe, save_artifact
 from cua.discovery.wiring import attach
 from cua.llm import make_chat_model
+from cua.safety.redact import IdMask
 
 ROOT = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "pyproject.toml").exists())
 site = load_site("parabank")
@@ -64,26 +65,30 @@ print("opened:", session.page.url, "| page", session.cfg.viewport, "| model:", m
 # BROWSER
 answer = await run_goal(ctx, agent, "Log in, open Accounts Overview, and save the first account's "
                         "balance with extract_value as 'first_balance'. Then log out.")
-print(answer)
-print("saved:", ctx.run.saved, "| events:", len(ctx.run.log))
+ids = IdMask.for_site(site)  # the terminal shows an account id by its last digits only
+print(ids(answer))
+print("saved:", ids(str(ctx.run.saved)), "| events:", len(ctx.run.log))
 
 # %% [markdown]
 # ## Save artifact
 # The event log becomes a capability YAML + crops that replay loads as is (R10-R16), under the
 # top-level `artifacts/` folder. Steps come from the log; only the name and descriptions come from
-# the model. Labels, points, crops and input names only: no typed, selected or secret value.
+# the model. Labels, points, crops and input names only: no typed, selected or secret value, and
+# an account id keeps only its last digits (text, names and crops).
 
 # %%
 # BROWSER
-meta = await describe(ctx.run.goal, ctx.run.log, model)
+mask = artifact_mask(ctx)  # account ids -> last digits; a run value refused before writing
+meta = await describe(ctx.run.goal, ctx.run.log, model, mask.ids)
 cap = build_capability(ctx.run.log, meta)
-print(path := save_artifact(cap, crops_for(ctx.run.log, cap), ROOT / "artifacts"))
+print(path := save_artifact(cap, crops_for(ctx.run.log, cap), ROOT / "artifacts", mask))
 
 # %% [markdown]
 # ## Evidence
 # One folder per run under `evidence/discovery/` (spec 6.3, 3.6): the goal, every event, the
 # take-over screenshots, the step crops, the answer, a summary and `run.json`. Every run value and
-# secret is masked: `***` in text, a black box over its OCR text in a PNG.
+# secret is masked: `***` in text, a black box over its OCR text in a PNG; an account id keeps
+# only its last digits. The run's screen values are dropped once this is written.
 
 # %%
 # BROWSER

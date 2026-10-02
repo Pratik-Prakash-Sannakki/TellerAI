@@ -180,4 +180,43 @@ def test_masked_outputs_keep_the_shape(rows: list[dict[str, str]]) -> None:
 
 
 def test_masked_outputs_hide_every_option() -> None:
-    assert masked_outputs({"accounts": ["14010", "14232"]}) == {"accounts": ["***", "***"]}
+    assert masked_outputs({"accounts": ["***010", "14232"]}) == {"accounts": ["***", "***"]}
+
+
+def test_an_id_on_screen_keeps_its_last_digits_and_an_amount_stays(
+    run: tuple[Ctx, Path, Path],
+) -> None:
+    """failure.json's ``observed`` is raw screen text: an account id there (never an input)
+    was written in clear."""
+    ctx, cap_path, out = run
+    fail = {"step": 1, "action": "click", "expected": "x", "observed": "#98765 has $12345.00"}
+    folder = _save(ctx, _result(ctx, "FAILED", fail), cap_path, out)
+    observed = json.loads((folder / "failure.json").read_text())["observed"]
+    assert observed == "#***765 has $12345.00"
+    assert "98765" not in _all_text(folder)
+
+
+def test_an_id_in_the_capability_name_is_masked_in_the_folder_name(tmp_path: Path) -> None:
+    ctx = make_replay_ctx()
+    cap = write_cap(tmp_path)
+    cap.write_text(cap.read_text().replace("name: get_balance", "name: balance_98765"))
+    folder = _save(ctx, ReplayResult("SUCCESS", {}, []), cap, tmp_path / "out")
+    assert folder.name.endswith("-balance_765")
+
+
+def test_a_png_id_keeps_its_last_digits(tmp_path: Path) -> None:
+    ctx = make_replay_ctx()
+    drawn = np.full((60, 300, 3), 255, np.uint8)
+    cv2.putText(drawn, "98765", (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+    ctx.last.final = encode(drawn)
+
+    def ocr_id(img: object) -> list[tuple[str, Box]]:
+        return [("98765", Box(11, 5, 74, 35))]  # glyphs at x 11, 24, 38, 50, 63
+
+    res = ReplayResult("FAILED", {}, [], "x", [], {"step": 0, "observed": "x"})  # type: ignore[arg-type]
+    folder = save_evidence(ctx, res, write_cap(tmp_path), tmp_path / "out", ocr_id)
+    final = cv2.imdecode(
+        np.frombuffer((folder / "final.png").read_bytes(), np.uint8), cv2.IMREAD_COLOR
+    )
+    assert final[5:35, 11:38].max() == 0  # '9', '8' hidden
+    assert (final[:, 38:] == drawn[:, 38:]).all()  # '765' as drawn

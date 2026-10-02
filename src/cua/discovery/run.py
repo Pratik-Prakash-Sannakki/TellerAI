@@ -94,3 +94,14 @@ def wipe(run: DiscoveryRun, secrets: Mapping[str, str]) -> None:
     run.redact |= run_values(run, secrets) | saved_texts(run.saved)
     run.entered, run.given, run.look = {}, [], None
     run.typed_texts.clear()
+
+
+def forget(run: DiscoveryRun) -> None:
+    """After the evidence is written: drop what still holds screen values (the saved reads, the
+    chat, the answer, the final screen, the dropdowns, every crop and shot in the log). The log
+    keeps its labels; ``redact`` stays for a later evidence call on the same run."""
+    run.saved, run.messages, run.answer, run.final_shot, run.dropdowns = {}, [], "", None, []
+    for ev in run.log:
+        for key in ("crop", "shot_before", "shot_after"):
+            if key in ev:
+                ev[key] = None

@@ -323,3 +323,11 @@ Best-effort: one retry, no rescue panel. It never changes the main status; `resu
 - No rows = a valid output `[]`. The header not on screen = a failed check (retry, then rescue).
 - `result.outputs[name]` is the list of `{column: text}` rows (in `outputs_line` too). Evidence
   `summary.json` keeps the shape, every cell `***` (`masked_outputs`).
+
+## R22: account ids in replay evidence and the terminal — DECIDED (user, 2026-10-02)
+
+- Replay evidence (`failure.json` `observed`, drift, the folder name, the capability copy) and the
+  terminal show an account id by its last 3 digits (`***010`); in `final.png` and take-over shots
+  all but its last 3 digits are blacked out. Input values and secrets stay fully masked; amounts
+  are shown. Same `IdMask` as discovery (Q23), from the site config.
+

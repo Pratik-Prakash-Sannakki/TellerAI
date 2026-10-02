@@ -2,7 +2,8 @@
 ``observe`` tool.
 
 Moved from discovery.py 289-295 (blocks), 1134-1135 (reply) and 1138-1142 (observe). ``blocks``
-hides each secret value by name (``ctx.secrets``), as the notebook's ``hide_secrets`` did.
+hides each secret value by name (``ctx.secrets``), as the notebook's ``hide_secrets`` did, and
+the URL's session token (its query stays: the agent may need it to open a page).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from langchain_core.tools import BaseTool, tool
 from cua.discovery.context import Ctx, look
 from cua.discovery.tools import guard  # module import: guard -> human -> this module
 from cua.safety import hide_secrets
+from cua.safety.redact import no_session
 from cua.vision.look import Look
 
 
@@ -24,7 +26,10 @@ def blocks(ctx: Ctx, prefix: str, lk: Look) -> list[dict[str, str]]:
         for e in lk.elements
     )
     return [
-        {"type": "text", "text": f"{prefix}\nURL: {lk.url}\nText on screen:\n{listing}"},
+        {
+            "type": "text",
+            "text": f"{prefix}\nURL: {no_session(lk.url, query=True)}\nText on screen:\n{listing}",
+        },
         {
             "type": "image",
             "base64": base64.b64encode(lk.drawn).decode(),

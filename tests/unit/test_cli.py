@@ -15,6 +15,8 @@ import pytest
 import yaml
 
 from cua import cli
+from cua.discovery.recorder import ArtifactMask, NotSaved
+from cua.safety.redact import IdMask
 from cua.schema import ReplayResult
 
 SRC = Path(__file__).parents[2] / "src/cua"
@@ -168,6 +170,10 @@ def test_only_main_calls_asyncio_run() -> None:
 # --- wiring: the same calls, in the same order, as the notebooks ------------------------------
 
 
+def SITE_NS(name: str) -> SimpleNamespace:  # noqa: N802
+    return SimpleNamespace(name=name, start_url="U", id_min_digits=5, id_visible_digits=3)
+
+
 class _Session(SimpleNamespace):
     async def goto(self, url: str) -> None:
         self.calls.append(("goto", url))
@@ -183,7 +189,7 @@ def _fake_session(calls: list[tuple[object, ...]]) -> SimpleNamespace:
         calls.append(("stop",))
 
     return SimpleNamespace(
-        page=page, context=SimpleNamespace(close=close), pw=SimpleNamespace(stop=stop)
+        page=page, context=SimpleNamespace(close=close), pw=SimpleNamespace(stop=stop), profile=None
     )
 
 
@@ -197,11 +203,14 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, calls: list[tuple[object, ..
     async def check_viewport(s: object) -> None:
         calls.append(("check_viewport",))
 
-    monkeypatch.setattr(cli, "load_site", lambda name: SimpleNamespace(name=name, start_url="U"))
+    monkeypatch.setattr(cli, "load_site", lambda name: SITE_NS(name))
     monkeypatch.setattr(cli, "open_session", open_session)
     monkeypatch.setattr(cli, "check_viewport", check_viewport)
     monkeypatch.setattr(cli, "secret_values", lambda site: {"username": ""})
     return session
+
+
+MASK = ArtifactMask(IdMask(5, 3), str)
 
 
 def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -219,8 +228,8 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
         calls.append(("run_goal", agent, goal))
         return "done"
 
-    async def describe(goal: str, log: object, m: object) -> str:
-        calls.append(("describe", goal, m))
+    async def describe(goal: str, log: object, m: object, ids: object) -> str:
+        calls.append(("describe", goal, m, ids))
         return "META"
 
     monkeypatch.setattr(cli, "discovery_attach", attach)
@@ -231,7 +240,12 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr(cli, "check_savable", lambda log: None)
     monkeypatch.setattr(cli, "build_capability", lambda log, meta: "CAP")
     monkeypatch.setattr(cli, "crops_for", lambda log, cap: {})
-    monkeypatch.setattr(cli, "save_artifact", lambda cap, crops, out: out / "c.yaml")
+    monkeypatch.setattr(cli, "artifact_mask", lambda c: MASK)
+    monkeypatch.setattr(
+        cli,
+        "save_artifact",
+        lambda cap, crops, out, mask: calls.append(("mask", mask)) or out / "c.yaml",
+    )
     monkeypatch.setattr(
         cli,
         "save_discovery_evidence",
@@ -246,13 +260,16 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
         "attach",
         "run_goal",
         "describe",
+        "mask",
         "evidence",
         "close",
         "stop",
     ]
     assert calls[0][2] == {"profile_prefix": "cua-discovery-"}
     assert calls[4][1:] == ("AGENT", "g")
-    assert calls[6][1:] == (tmp_path / "c.yaml", "M")
+    assert calls[5][3:] == (MASK.ids,)  # the model sees the goal with ids cut
+    assert calls[6][1:] == (MASK,)  # the artifact is masked (and leak-checked) before writing
+    assert calls[7][1:] == (tmp_path / "c.yaml", "M")
 
 
 def test_replay_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -316,14 +333,22 @@ def test_a_run_that_cannot_be_saved_prints_why_and_never_asks_the_model(
         asked.append("describe")
 
     monkeypatch.setattr(cli, "describe", describe)
-    log = [{"tool": "start", "args": {}, "result": "", "url": "", "point": None},
-           {"tool": "take_over", "args": {}, "result": "handed back", "url": "", "point": None,
-            "recordable": False}]
-    assert asyncio.run(cli._save(log, "g", object(), tmp_path)) is None   # type: ignore[arg-type]
+    log = [
+        {"tool": "start", "args": {}, "result": "", "url": "", "point": None},
+        {
+            "tool": "take_over",
+            "args": {},
+            "result": "handed back",
+            "url": "",
+            "point": None,
+            "recordable": False,
+        },
+    ]
+    assert asyncio.run(cli._save(log, "g", object(), tmp_path, MASK)) is None  # type: ignore[arg-type]
     out = capsys.readouterr().out
     assert "not saved: a human take-over happened" in out
     assert "Traceback" not in out
-    assert asked == []                                 # refused before the model was asked
+    assert asked == []  # refused before the model was asked
 
 
 # --- cua eval ---------------------------------------------------------------------------------
@@ -433,3 +458,32 @@ def test_eval_replays_n_times_in_one_session(
     assert folder.name.endswith("-cap_x")
     assert secret_out not in (folder / "report.json").read_text()
     assert (folder / "run.json").exists()
+
+
+def test_a_leak_found_while_masking_is_not_saved_and_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def describe(*_: object) -> str:
+        return "META"
+
+    def refuse(*_: object) -> None:
+        raise NotSaved("a run value is in the artifact (1 text field(s)).")
+
+    monkeypatch.setattr(cli, "describe", describe)
+    monkeypatch.setattr(cli, "check_savable", lambda log: None)
+    monkeypatch.setattr(cli, "build_capability", lambda log, meta: "CAP")
+    monkeypatch.setattr(cli, "crops_for", lambda log, cap: {})
+    monkeypatch.setattr(cli, "save_artifact", refuse)
+    assert asyncio.run(cli._save([], "g", object(), tmp_path, MASK)) is None  # type: ignore[arg-type]
+    assert "not saved: a run value is in the artifact" in capsys.readouterr().out
+
+
+def test_the_terminal_shows_ids_by_their_last_digits_and_amounts_as_is(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    res = ReplayResult("SUCCESS", {"from": "98765", "balance": "$12345.00"}, [], "read 98765")
+    cli._print_result(Path("c.yaml"), res, IdMask(5, 3))
+    out = capsys.readouterr().out
+    assert "98765" not in out
+    assert "***765" in out
+    assert "$12345.00" in out

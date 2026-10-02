@@ -12,6 +12,8 @@ run). The viewport refusal (discovery.py 136-138) is :func:`check_viewport`, run
 
 from __future__ import annotations
 
+import asyncio
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +38,7 @@ class Session:
     site: SiteProfile
     lock: SiteLock
     refs: RefCounter
+    profile: Path | None = None  # the temp browser profile: deleted by close_session
 
 
 def handback_dir(start: Path) -> Path:
@@ -53,11 +56,11 @@ def _alive(existing: Session | None) -> bool:
     )
 
 
-async def _launch(pw: Playwright, cfg: BrowserConfig, profile_prefix: str) -> BrowserContext:
+async def _launch(pw: Playwright, cfg: BrowserConfig, profile: Path) -> BrowserContext:
     w, h = cfg.viewport
     ext_dir = handback_dir(Path.cwd())
     return await pw.chromium.launch_persistent_context(
-        tempfile.mkdtemp(prefix=profile_prefix),
+        profile,
         headless=False,
         viewport={"width": w, "height": h},
         device_scale_factor=1,
@@ -70,10 +73,15 @@ async def _launch(pw: Playwright, cfg: BrowserConfig, profile_prefix: str) -> Br
 
 
 async def close_session(session: Session) -> None:
-    """Close the browser window and stop Playwright. The notebooks keep it open between runs on
-    purpose (re-running a cell reuses it), so they call this from their own Close cell."""
-    await session.context.close()
-    await session.pw.stop()
+    """Close the browser window, stop Playwright and delete the temp profile (a bank session's
+    cookies and cache). The notebooks keep it open between runs on purpose (re-running a cell
+    reuses it), so they call this from their own Close cell."""
+    try:
+        await session.context.close()
+        await session.pw.stop()
+    finally:
+        if session.profile is not None:
+            await asyncio.to_thread(shutil.rmtree, session.profile, ignore_errors=True)
 
 
 async def _extension(context: BrowserContext) -> Worker | None:
@@ -99,14 +107,15 @@ async def open_session(
     if existing is not None and _alive(existing):
         return existing
     pw = existing.pw if existing is not None else await async_playwright().start()
-    context = await _launch(pw, cfg, profile_prefix)
+    profile = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix=profile_prefix))
+    context = await _launch(pw, cfg, profile)
     page = context.pages[0] if context.pages else await context.new_page()
     control_page = await context.new_page()
     ext = await _extension(context)
     print("hand-back extension:", "loaded" if ext else "NOT loaded")
     lock = SiteLock(await page.context.new_cdp_session(page))
     await lock.set(True)
-    return Session(pw, context, page, control_page, ext, cfg, site, lock, RefCounter())
+    return Session(pw, context, page, control_page, ext, cfg, site, lock, RefCounter(), profile)
 
 
 async def check_viewport(session: Session) -> None:

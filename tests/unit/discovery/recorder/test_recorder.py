@@ -8,10 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 import yaml
 
 from cua.discovery.recorder import (
+    ArtifactMask,
+    NotSaved,
     build_capability,
     crops_for,
     describe,
@@ -23,7 +27,9 @@ from cua.discovery.recorder import (
     step_events,
     used_inputs,
 )
+from cua.safety.redact import IdMask, redactor
 from cua.schema import Capability, CapabilityMeta
+from cua.vision import Box, decode, encode
 
 PNG = b"\x89PNG fake"
 START = {
@@ -198,7 +204,7 @@ def test_save_round_trips_and_holds_no_typed_value(tmp_path: Path) -> None:
 
 def test_save_artifact_defaults_to_top_level_artifacts() -> None:
     """User decision 6: artifacts/<name>.yaml + artifacts/crops/<name>/ (was artifacts/visual)."""
-    assert save_artifact.__defaults__ == (Path("artifacts"),)
+    assert save_artifact.__defaults__ == (Path("artifacts"), None)
 
 
 def test_same_field_typed_twice_keeps_the_last() -> None:
@@ -396,14 +402,91 @@ def test_a_second_login_never_moves_the_secrets_after_the_first_logout() -> None
     first_click = next(i for i, (a, _) in enumerate(actions) if a == "click")
     typed = [i for i, (_, v) in enumerate(actions) if v and "{{secret:" in v]
     assert typed
-    assert all(i < first_click for i in typed)   # secrets come before the login click
+    assert all(i < first_click for i in typed)  # secrets come before the login click
 
 
 def test_secrets_typed_after_the_login_click_are_refused() -> None:
     """A guard on the result: replay must never click Log In before the boxes are filled."""
     from cua.discovery.recorder import NotSaved  # noqa: PLC0415
     from cua.discovery.recorder.build import _check_login_order  # noqa: PLC0415
+
     steps = build_capability([*LOGIN, SENT], _meta()).steps
-    _check_login_order(steps)                                   # in order: fine
+    _check_login_order(steps)  # in order: fine
     with pytest.raises(NotSaved, match="login"):
         _check_login_order([steps[2], steps[0], steps[1]])
+
+
+IDS = IdMask(5, 3)
+ID_CLICK = _ev("click", REF, "Clicked '98765'.", label="Accounts", own="98765", text="98765")
+
+
+def _id_cap() -> Capability:
+    read = _ev(
+        "extract_table",
+        {"save_as": "account_98765_rows", "columns": ["Date"], "row_limit": 5,
+         "description": "Rows of account 98765"},
+        "saved",
+    )  # fmt: skip
+    return build_capability([*LOGIN, ID_CLICK, read], _meta(name="rows_of_98765"))
+
+
+def test_an_artifact_keeps_only_the_last_digits_of_an_id(tmp_path: Path) -> None:
+    path = save_artifact(_id_cap(), {}, tmp_path, ArtifactMask(IDS, str))
+    text = path.read_text()
+    assert "98765" not in text
+    cap = Capability.model_validate(yaml.safe_load(text))
+    assert path.name == "rows_of_765.yaml"
+    assert cap.name == "rows_of_765"
+    assert cap.steps[3].target.ocr_text.text == "***765"
+    assert cap.steps[3].target.template == "crops/rows_of_765/s3.png"
+    assert cap.outputs[0].name == "account_765_rows"
+    assert cap.outputs[0].description == "Rows of account ***765"
+
+
+def test_a_masked_artifacts_crops_follow_its_masked_name(tmp_path: Path) -> None:
+    log = [*LOGIN, ID_CLICK, SENT]
+    cap = build_capability(log, _meta(name="pay_98765"))
+    save_artifact(cap, crops_for(log, cap), tmp_path, ArtifactMask(IDS, str))
+    assert (tmp_path / "crops/pay_765/s3.png").read_bytes() == PNG
+    assert not (tmp_path / "crops/pay_98765").exists()
+
+
+def test_a_run_value_in_the_artifact_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    cap = build_capability([*LOGIN, SENT], _meta(description="Pays Sean."))
+    with pytest.raises(NotSaved, match="a run value is in the artifact"):
+        save_artifact(
+            cap, {"crops/login/s0.png": PNG}, tmp_path, ArtifactMask(IDS, redactor({"Sean"}))
+        )
+    assert not list(tmp_path.rglob("*"))
+
+
+@pytest.mark.asyncio
+async def test_describe_never_sees_a_full_id() -> None:
+    seen: list[str] = []
+
+    class Model:
+        def with_structured_output(self, schema: object) -> Model:
+            return self
+
+        async def ainvoke(self, prompt: str) -> CapabilityMeta:
+            seen.append(prompt)
+            return _meta()
+
+    await describe("Log in, open #98765", [*LOGIN, ID_CLICK, SENT], Model(), IDS)  # type: ignore[arg-type]
+    assert "98765" not in seen[0]
+    assert "#***765" in seen[0]
+
+
+def test_a_crop_showing_an_id_keeps_only_its_last_digits(tmp_path: Path) -> None:
+    drawn = np.full((40, 100, 3), 255, np.uint8)
+    cv2.putText(drawn, "98765", (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+    log = [*LOGIN, {**ID_CLICK, "crop": encode(drawn)}, SENT]
+    cap = build_capability(log, _meta(name="pay"))
+    ocr = lambda img: [("98765", Box(11, 5, 74, 35))]  # noqa: E731  glyphs at x 11,24,38,50,63
+    crops = {k: v for k, v in crops_for(log, cap).items() if k.endswith("s3.png")}
+    save_artifact(cap, crops, tmp_path, ArtifactMask(IDS, str, ocr))
+    img = decode((tmp_path / "crops/pay/s3.png").read_bytes())
+    assert img[5:35, 11:38].max() == 0  # '9', '8' hidden
+    assert (img[:, 38:] == drawn[:, 38:]).all()  # '765' as drawn

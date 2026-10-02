@@ -42,6 +42,7 @@ from cua.discovery.tools.human import human_fills
 from cua.discovery.tools.observe import blocks, reply
 from cua.discovery.tools.read_helpers import Spot, label_near, page_texts, where
 from cua.safety import host_allowed, is_sensitive, norm
+from cua.safety.redact import no_session
 from cua.vision.crops import element_at, read_near, screens_same, typed_into_box
 from cua.vision.look import Look
 
@@ -77,7 +78,7 @@ def _landing(ctx: Ctx, before: Look, after: Look, navs: int, sent: bool) -> dict
     """The click event's fields after the click: where it came from and what it led to."""
     return {
         "from_texts": page_texts(before, run_values(ctx.run, ctx.secrets)),
-        "from_url": before.url,
+        "from_url": no_session(before.url),
         "loaded": ctx.page.url != before.url,
         "navigated": ctx.run.navs != navs,
         "new_texts": bool(

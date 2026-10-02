@@ -15,6 +15,7 @@ from cua import evidence as shared
 from cua.discovery.agent.prompt import PROMPT_VERSION
 from cua.discovery.evidence import save_evidence, transcript
 from cua.discovery.run import DiscoveryRun
+from cua.safety.redact import IdMask
 from tests.fakes import make_ctx
 
 SECRET, ACCOUNT, NAME = "hunter2-pw", "14454", "Sean"
@@ -76,7 +77,7 @@ def masked(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
     """The OCR mask is tested in tests/unit/safety; here: that every PNG goes through it."""
     seen: list[bytes] = []
 
-    def mask(png: bytes, redact: object, ocr_fn: object) -> bytes:
+    def mask(png: bytes, redact: object, ocr_fn: object, ids: object = None) -> bytes:
         seen.append(png)
         return b"MASKED:" + png
 
@@ -84,16 +85,17 @@ def masked(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
     return seen
 
 
-def _save(
+def _save(  # noqa: PLR0913 (constraints allow 6)
     tmp_path: Path,
     answer: str = ANSWER,
     shot: bytes | None = None,
     capability: Path | None = None,
     extra_redact: frozenset[str] | set[str] = frozenset(),
+    goal: str = f"Log in, pay {NAME} $100000",
 ) -> Path:
     ctx = make_ctx(secrets={"username": "jdoe", "password": SECRET})
     run = DiscoveryRun(
-        goal=f"Log in, pay {NAME} $100000",
+        goal=goal,
         answer=answer,
         log=[dict(e) for e in LOG],  # type: ignore[misc]
         redact={"100000", ACCOUNT, NAME, "jdoe", *extra_redact},
@@ -140,7 +142,7 @@ def test_no_value_is_ever_written_in_clear(tmp_path: Path, masked: list[bytes]) 
         for value in (SECRET, ACCOUNT, NAME, "100000", "100,000", "jdoe"):
             assert value.casefold() not in text.casefold(), f"{value} leaked in {f.name}"
     assert "Bill Payment Complete" in (run / "answer.txt").read_text()
-    assert "paid *** from account ***" in (run / "answer.txt").read_text()
+    assert "paid *** from account ***454" in (run / "answer.txt").read_text()  # last 3 shown
 
 
 def test_a_failed_run_still_writes_evidence(tmp_path: Path, masked: list[bytes]) -> None:
@@ -154,7 +156,7 @@ def test_transcript_keeps_ai_text_and_tool_names_masked(
     run = _save(tmp_path)
     rows = [json.loads(line) for line in (run / "transcript.jsonl").read_text().splitlines()]
     assert rows == [
-        {"i": 0, "text": "Paying *** from ***.", "tools": ["click", "type_text"]},
+        {"i": 0, "text": "Paying *** from ***454.", "tools": ["click", "type_text"]},
         {"i": 1, "text": "Done. Bill Payment Complete.", "tools": []},
     ]
     assert transcript([], str) == []
@@ -219,3 +221,58 @@ def test_a_short_number_typed_this_run_does_not_flag_the_artifacts_own_numbers(
     )
     run = _save(tmp_path, capability=yml, extra_redact={"1", "0.00"})
     assert (run / "capability.yaml").exists()
+
+
+def test_an_id_in_the_goal_keeps_only_its_last_digits_everywhere(
+    tmp_path: Path, masked: list[bytes]
+) -> None:
+    """Live: the goal's account number (never a typed value) was written in clear in goal.txt
+    and the folder name."""
+    run = _save(tmp_path, goal="Log in, pay bill from account #98765", answer="paid from 98765")
+    assert "98765" not in run.name
+    assert run.name.endswith("from_account_765")
+    assert (run / "goal.txt").read_text() == "Log in, pay bill from account #***765\n"
+    assert (run / "answer.txt").read_text() == "paid from ***765\n"
+    for f in run.iterdir():
+        assert "98765" not in f.read_bytes().decode("latin-1"), f.name
+
+
+def test_an_amount_in_the_goal_is_left_as_is(tmp_path: Path, masked: list[bytes]) -> None:
+    run = _save(tmp_path, goal="Log in, pay $12345 from #98765")
+    assert (run / "goal.txt").read_text() == "Log in, pay $12345 from #***765\n"
+
+
+def test_every_png_is_masked_with_the_sites_id_mask(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[object] = []
+    monkeypatch.setattr(shared, "mask_png", lambda png, r, o, ids=None: seen.append(ids) or png)
+    _save(tmp_path)
+    assert seen
+    assert all(ids == IdMask(5, 3) for ids in seen)
+
+
+def test_the_run_is_forgotten_once_its_evidence_is_written(
+    tmp_path: Path, masked: list[bytes]
+) -> None:
+    ctx = make_ctx(secrets={"password": SECRET})
+    run = DiscoveryRun(
+        goal="g", answer="a", log=[dict(e) for e in LOG], saved={"x": "1"},  # type: ignore[misc]
+        messages=list(MESSAGES), final_shot=b"end", dropdowns=[{"point": (1, 2)}],
+    )  # fmt: skip
+    ctx.guard.state = run
+    save_evidence(ctx, tmp_path / "ev", None, ocr_fn=lambda i: [])
+    assert (run.saved, run.messages, run.answer, run.final_shot, run.dropdowns) == (
+        {}, [], "", None, [],
+    )  # fmt: skip
+    assert all(ev.get("crop") is None and ev.get("shot_before") is None for ev in run.log)
+    assert len(run.log) == len(LOG)  # labels only: kept
+
+
+def test_a_refused_artifact_still_forgets_the_run(tmp_path: Path, masked: list[bytes]) -> None:
+    yml = _artifact(tmp_path, f"name: pay\nsteps:\n- target:\n    anchor:\n      label: {NAME}\n")
+    ctx = make_ctx()
+    ctx.guard.state = DiscoveryRun(goal="g", redact={NAME}, messages=list(MESSAGES))
+    with pytest.raises(ValueError, match="a run value is in the artifact"):
+        save_evidence(ctx, tmp_path / "ev", yml, ocr_fn=lambda i: [])
+    assert ctx.run.messages == []

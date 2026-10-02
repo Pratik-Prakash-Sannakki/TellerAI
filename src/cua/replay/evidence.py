@@ -19,7 +19,7 @@ from pydantic import JsonValue
 
 from cua.evidence import Redact, _clean, _png, run_info
 from cua.replay.context import Ctx
-from cua.safety.redact import REPLAY_NUMBER, OcrFn, redactor
+from cua.safety.redact import REPLAY_NUMBER, IdMask, OcrFn, safe_redactor
 from cua.schema import ReplayResult
 from cua.vision import ocr
 
@@ -39,14 +39,16 @@ def masked_outputs(
     }
 
 
-def _drift_lines(result: ReplayResult, run: Path, redact: Redact, ocr_fn: OcrFn) -> list[str]:
+def _drift_lines(
+    result: ReplayResult, run: Path, redact: Redact, ocr_fn: OcrFn, ids: IdMask
+) -> list[str]:
     lines: list[str] = []
     for item in result.drift:
         row = dict(item)
         if "shots" in row:
             n, shots = sum(1 for x in lines if '"shots"' in x), row["shots"]
             row["shots"] = {
-                part: _png(run / f"take_over_{n}_{part}.png", shots.get(key), redact, ocr_fn)  # type: ignore[union-attr, arg-type]
+                part: _png(run / f"take_over_{n}_{part}.png", shots.get(key), redact, ocr_fn, ids)  # type: ignore[union-attr, arg-type]
                 for part, key in (("before", "start"), ("after", "end"))
             }
         lines.append(json.dumps(_clean(row, redact), default=str))
@@ -72,22 +74,25 @@ def save_evidence(
     out_dir: Path,
     ocr_fn: OcrFn | None = None,
 ) -> Path:
-    """Write the last run's evidence, masked. Call right after `replay`, successful or not."""
+    """Write the last run's evidence, masked. Call right after `replay`, successful or not.
+    Account ids (screen text, the capability name) keep only their last digits."""
     ocr_fn = ocr_fn or (lambda img: ocr(img, ctx.bcfg.ocr_min_score))
-    values = ctx.last.values | {v for v in ctx.secrets.values() if v}
-    redact = redactor(values, number=REPLAY_NUMBER)
+    ids = IdMask.for_site(ctx.site)
+    redact = safe_redactor(ctx.last.values, ctx.secrets, ids, number=REPLAY_NUMBER)
     cap_path = Path(cap_path)
-    name = yaml.safe_load(cap_path.read_text()).get("name", cap_path.stem)
+    name = ids.name(str(yaml.safe_load(cap_path.read_text()).get("name", cap_path.stem)))
     run = Path(out_dir) / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{name}"
     run.mkdir(parents=True, exist_ok=True)
-    (run / "drift.jsonl").write_text("\n".join(_drift_lines(result, run, redact, ocr_fn)) + "\n")
+    (run / "drift.jsonl").write_text(
+        "\n".join(_drift_lines(result, run, redact, ocr_fn, ids)) + "\n"
+    )
     summary = _clean(_summary(result), redact)
     (run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     if result.failure:
         failure = _clean(result.failure, redact)
         (run / "failure.json").write_text(json.dumps(failure, indent=2) + "\n")
-    _png(run / "final.png", ctx.last.final, redact, ocr_fn)
-    (run / "capability.yaml").write_text(cap_path.read_text())
+    _png(run / "final.png", ctx.last.final, redact, ocr_fn, ids)
+    (run / "capability.yaml").write_text(ids(cap_path.read_text()))
     info = run_info(None, None, (ctx.bcfg, ctx.cfg), ctx.site)
     (run / "run.json").write_text(json.dumps(info, indent=2) + "\n")
     return run

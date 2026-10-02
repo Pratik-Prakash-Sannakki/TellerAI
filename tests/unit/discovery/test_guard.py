@@ -79,7 +79,7 @@ def test_empty_fields_on_login_is_a_retry_not_a_failure() -> None:
     assert out is not None
     assert out.startswith("RETRY:")
     assert not ctx.run.login_blocked
-    assert ctx.run.typed_secrets == set()           # the secrets must be typed again
+    assert ctx.run.typed_secrets == set()  # the secrets must be typed again
 
 
 def test_login_is_blocked_after_the_limit() -> None:
@@ -312,3 +312,10 @@ def test_every_built_tool_has_an_action_type() -> None:
     names = {t.name for t in build_tools(make_ctx())}
     assert names == set(guard.TOOL_ACTIONS)
     assert {a for a in guard.TOOL_ACTIONS.values() if a} <= STEP_ACTIONS
+
+
+def test_log_never_stores_the_session_token_or_the_query() -> None:
+    ctx = make_ctx()
+    ctx.page.url = "https://example.test/app/activity.htm;jsessionid=AB12CD?id=98765"  # type: ignore[misc]
+    log(ctx, "click", {}, "ok")
+    assert ctx.run.log[0]["url"] == "https://example.test/app/activity.htm"

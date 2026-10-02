@@ -33,11 +33,21 @@ from cua.discovery.recorder.events import (
     without_logout,
     without_no_ops,
 )
-from cua.discovery.recorder.save import crops_for, describe, save_artifact
+from cua.discovery.recorder.save import (
+    ArtifactMask,
+    artifact_texts,
+    crops_for,
+    describe,
+    masked,
+    save_artifact,
+)
 from cua.discovery.recorder.types import input_types, pick_type, shapes_of
 
 __all__ = [
+    "ArtifactMask",
     "NotSaved",
+    "artifact_texts",
+    "masked",
     "check_savable",
     "FIELD_GAP",
     "FIELD_TOOLS",

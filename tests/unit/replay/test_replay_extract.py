@@ -241,11 +241,11 @@ def _options_cap(index: int | None) -> Capability:
 
 @pytest.mark.asyncio
 async def test_extract_options_reads_the_live_options_of_the_recorded_dropdown() -> None:
-    page = OptionsPage(["14010", "14232"])
+    page = OptionsPage(["***010", "14232"])
     ctx = make_replay_ctx(page)
     cp = _options_cap(1)
     assert await steps.do_extract_options(ctx, cp.steps[0], (720, 355), cp) is True
-    assert ctx.run.outputs == {"from_accounts": ["14010", "14232"]}
+    assert ctx.run.outputs == {"from_accounts": ["***010", "14232"]}
     assert page.args == [[720.0, 355.0, None, 1]]  # read only (want=None), by its index
 
 

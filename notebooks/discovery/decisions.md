@@ -492,8 +492,8 @@ deleted with `src/cua/agent.py` in 4f692a8.
   `request_missing_values`, `ask_human`; `finish` + `finish_business_outcome`.
 - Off unless `TYPESAFE_API_KEY` is set (then `[]`, the notebook's agent unchanged).
   `langchain-typesafe` is the optional `typesafe` extra, imported only when on.
-- **Privacy caveat:** when on, every model call sends the page path and the last tool result's
-  text (first 400 chars) to typesafe.ai. Never turn it on with real data.
+- **What leaves (2026-10-02, Q23):** only the page name, the last tool's name and its status word.
+  (It used to send the last result's first 400 chars: the OCR listing, ids, the session token.)
 - **Fail open:** classifier confidence below 0.8, or any error (network, auth, timeout), keeps
   every tool. A wrong guess must never hide the tool the agent needs.
 - **Model choice is per step (2026-10-02).** TypeSafe's own `ModelRouterMiddleware` classifies
@@ -501,3 +501,20 @@ deleted with `src/cua/agent.py` in 4f692a8.
   used. Our `ModelRouter` asks for every model call, from the same step state as the tool router.
   Haiku only when the classifier says "fast" with confidence 0.8 or more; anything else, or any
   error, uses Sonnet.
+
+## Q23: account ids in what is stored or shown — DECIDED (user, 2026-10-02)
+
+- An account id keeps only its last 3 digits everywhere it is stored or shown: `***010` (text,
+  names, evidence folder names, artifacts, crops, the model's `extract_value` echo, `describe()`,
+  the terminal). Mask in place, never swap in a fake id. Amounts are shown. Secrets stay `***`.
+- An id is 5+ digits on its own, not an amount (`$`, `-$`, decimals, thousands) and not inside a
+  word (timestamps, hashes, tokens). Both numbers are site config (`id_min_digits`,
+  `id_visible_digits`).
+- PNGs: a box holding only an id is blacked out but its last 3 digits, by width share; a box with
+  a run value or secret is blacked out whole, as before.
+- An artifact is masked, then leak-checked, before any file is written ("not saved: ..."). A
+  masked `ocr_text` (`***010`) no longer matches the screen at rung 1; replay falls to the anchor
+  or the template for that step.
+- Also: TypeSafe gets no screen text (Q22), logged URLs drop `;jsessionid=` and the query, the
+  browser profile is deleted at close, and a discovery run's chat, reads, crops and final screen
+  are dropped once its evidence is written.

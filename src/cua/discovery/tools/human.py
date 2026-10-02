@@ -179,7 +179,7 @@ _AMOUNT = re.compile(r"\$\s?([\d,]+(?:\.\d{1,2})?)")
 def goal_value(goal: str, label: str, options: list[str]) -> str | None:
     """The value the goal already gives for this field, or None. Code backstop for the prompt
     rule "only ask for what the goal does not give". Never a guess:
-    - a dropdown: the one live option the goal names as a whole word ('#14010' -> '14010');
+    - a dropdown: the one live option the goal names as a whole word ('#***010' -> '***010');
     - a money field: the goal's single $ amount ('$100' -> '100'); two amounts -> None."""
     if options:
         named = [o for o in options if re.search(rf"(?<![\w]){re.escape(o)}(?![\w])", goal)]

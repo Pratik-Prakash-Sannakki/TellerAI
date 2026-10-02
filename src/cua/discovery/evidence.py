@@ -12,18 +12,16 @@ from __future__ import annotations
 import json
 import shutil
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-
-import yaml
 
 from cua.discovery.agent.prompt import PROMPT_VERSION
 from cua.discovery.context import Ctx
-from cua.discovery.recorder.events import input_name
-from cua.discovery.run import DiscoveryRun
+from cua.discovery.recorder import ArtifactMask, artifact_texts, input_name
+from cua.discovery.run import DiscoveryRun, forget
 from cua.evidence import Redact, _clean, _png, run_info
-from cua.safety.redact import OcrFn, redactor
-from cua.vision import ocr
+from cua.safety.redact import IdMask, OcrFn, safe_redactor
+from cua.vision import ocr as ocr_
 
 
 def _text(content: object) -> str:
@@ -47,7 +45,7 @@ def transcript(messages: Sequence[object], redact: Redact) -> list[dict[str, obj
 
 
 def _events(
-    run: DiscoveryRun, folder: Path, redact: Redact, ocr_fn: OcrFn
+    run: DiscoveryRun, folder: Path, redact: Redact, png: Callable[[Path, object], str | None]
 ) -> tuple[list[str], list[dict[str, object]]]:
     lines: list[str] = []
     takeovers: list[dict[str, object]] = []
@@ -58,8 +56,8 @@ def _events(
             reason = ev["args"].get("reason", "")  # type: ignore[attr-defined]
             takeovers.append({"reason": reason, "actions": ev.get("actions", [])})
             for key, part in (("shot_before", "before"), ("shot_after", "after")):
-                ev[key] = _png(folder / f"take_over_{n}_{part}.png", ev.get(key), redact, ocr_fn)  # type: ignore[arg-type]
-        ev["crop"] = _png(folder / f"step_{i}.png", ev.get("crop"), redact, ocr_fn)  # type: ignore[arg-type]
+                ev[key] = png(folder / f"take_over_{n}_{part}.png", ev.get(key))
+        ev["crop"] = png(folder / f"step_{i}.png", ev.get("crop"))
         lines.append(json.dumps(_clean(ev, redact), default=str))
     return lines, takeovers
 
@@ -92,28 +90,12 @@ def _folder(out_dir: Path, run: DiscoveryRun, redact: Redact) -> Path:
     return folder
 
 
-TEXT_KEYS = {"name", "description", "label", "text", "option", "value", "checkpoint",
-             "row_key", "column", "save_as", "columns"}  # where a typed value could hide
-
-
-def artifact_texts(yml: str) -> list[str]:
-    """The artifact's free-text fields only. Structural numbers (``version: 1``, a viewport, an
-    offset, ``s1.png``) are not values a person typed, and a one-character form value such as
-    '1' matches them, so the whole-file check refused clean artifacts."""
-    out: list[str] = []
-
-    def walk(node: object, key: str = "") -> None:
-        if isinstance(node, dict):
-            for k, v in node.items():
-                walk(v, str(k))
-        elif isinstance(node, list):
-            for v in node:
-                walk(v, key)
-        elif key in TEXT_KEYS and isinstance(node, str):
-            out.append(node)
-
-    walk(yaml.safe_load(yml) if yml.strip() else {})
-    return out
+def artifact_mask(ctx: Ctx, ocr_fn: OcrFn | None = None) -> ArtifactMask:
+    """How this run's capability is cleaned before it is written (``save_artifact(mask=)``): the
+    site's id mask, this run's values and secrets, and the OCR that reads its crops."""
+    ids = IdMask.for_site(ctx.site)
+    ocr = ocr_fn or (lambda img: ocr_(img, ctx.session.cfg.ocr_min_score))
+    return ArtifactMask(ids, safe_redactor(ctx.run.redact, ctx.secrets, ids), ocr)
 
 
 def save_evidence(
@@ -123,24 +105,36 @@ def save_evidence(
     model: str | None = None,
     ocr_fn: OcrFn | None = None,
 ) -> Path:
-    """Write this run's evidence, masked. Call after any run, successful or not. ``model`` is the
-    model name for ``run.json``; ``ocr_fn`` defaults to the shared OCR at the browser's min score.
-    """
-    run = ctx.run
-    ocr_fn = ocr_fn or (lambda img: ocr(img, ctx.session.cfg.ocr_min_score))
-    redact = redactor(run.redact | {v for v in ctx.secrets.values() if v})
-    capability = Path(capability) if capability else None
+    """Write this run's evidence, masked, then forget the run's screen values. Call after any
+    run, successful or not. ``model`` is the model name for ``run.json``; ``ocr_fn`` defaults to
+    the shared OCR at the browser's min score. Account ids keep only their last digits."""
+    try:
+        return _write(ctx, Path(out_dir), Path(capability) if capability else None, model, ocr_fn)
+    finally:
+        forget(ctx.run)
+
+
+def _write(
+    ctx: Ctx, out_dir: Path, capability: Path | None, model: str | None, ocr_fn: OcrFn | None
+) -> Path:
+    run, ids = ctx.run, IdMask.for_site(ctx.site)
+    ocr = ocr_fn or (lambda img: ocr_(img, ctx.session.cfg.ocr_min_score))
+    redact = safe_redactor(run.redact, ctx.secrets, ids)
     yml = capability.read_text() if capability else ""
     if leaked := [t for t in artifact_texts(yml) if redact(t) != t]:  # names only: never a leak
         raise ValueError(f"a run value is in the artifact ({len(leaked)} text field(s))")
-    folder = _folder(Path(out_dir), run, redact)
-    lines, takeovers = _events(run, folder, redact, ocr_fn)
+    folder = _folder(out_dir, run, redact)
+
+    def png(path: Path, shot: object) -> str | None:
+        return _png(path, shot if isinstance(shot, bytes) else None, redact, ocr, ids)
+
+    lines, takeovers = _events(run, folder, redact, png)
     (folder / "goal.txt").write_text(redact(run.goal) + "\n")
     (folder / "answer.txt").write_text(redact(run.answer) + "\n")
     (folder / "events.jsonl").write_text("\n".join(lines) + "\n")
     rows = transcript(run.messages, redact)
     (folder / "transcript.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
-    _png(folder / "final.png", run.final_shot, redact, ocr_fn)
+    png(folder / "final.png", run.final_shot)
     if capability:
         _copy_capability(folder, capability, yml)
     summary = _clean(_summary(run, takeovers, capability), redact)

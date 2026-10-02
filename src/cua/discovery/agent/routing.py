@@ -3,8 +3,9 @@ D50/D52/D76). Ported from the old DOM agent (``git show 4f692a8^:src/cua/agent.p
 ``NEVER_HIDE``..``build_typesafe_middleware`` block) and re-mapped to the visual tools.
 
 Off unless ``TYPESAFE_API_KEY`` is set: ``build_routing_middleware`` then returns ``[]`` and the
-agent is the notebook's (one model, every tool). When on, each model call first sends the page
-path and the last result's text (first 400 chars) to typesafe.ai: never turn it on with real data.
+agent is the notebook's (one model, every tool). When on, each model call first sends typesafe.ai
+the page name, the last tool's name and its status word ('OK', 'REFUSED', 'Saved'): never screen
+text, a URL token or a value.
 The tool router fails OPEN: below ``JOB_CONFIDENCE_THRESHOLD``, or on any classifier error, every
 tool stays. ``langchain_typesafe`` (the ``typesafe`` extra) is imported only when the key is set.
 """
@@ -12,6 +13,7 @@ tool stays. ``langchain_typesafe`` (the ``typesafe`` extra) is imported only whe
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Awaitable, Callable
 from types import ModuleType
 from typing import Protocol
@@ -82,17 +84,29 @@ def page_name(url: str) -> str:
     return url.split("?")[0].split(";")[0].rstrip("/").rsplit("/", 1)[-1].lower()
 
 
+STATUS_WORD = re.compile(r"[A-Za-z]+")  # letters only: a digit (an id, an amount) never passes
+
+
+def _status_word(content: object) -> str:
+    """The first word of the last tool result ('OK', 'REFUSED', 'Saved'), never its text."""
+    if isinstance(content, list):
+        content = next((b.get("text", "") for b in content if isinstance(b, dict)), "")
+    m = STATUS_WORD.match(str(content).lstrip())
+    return m.group() if m else ""
+
+
 def step_state(request: ModelRequest, page_path: Callable[[], str]) -> str:
-    """What the classifier sees for a step: the page path + the last result's first 400 chars."""
-    last = str(request.messages[-1].content)[:400]
-    return f"page={page_name(page_path())!r}. last result: {last!r}"
+    """What the classifier sees for a step: the page name, the last tool's name and its status
+    word. No screen text (ids, a session token) ever leaves for typesafe.ai."""
+    last = request.messages[-1]
+    tool = getattr(last, "name", None) or ""
+    return f"page={page_name(page_path())!r}. last tool: {tool!r} -> {_status_word(last.content)!r}"
 
 
 class ToolRouter(AgentMiddleware):
     """Classifies the step's job with TypeSafe's Choice primitive and narrows the tool list to it.
-    Sends the current page path and the last tool result's text to typesafe.ai (never enable on a
-    run that may show real account data). Any error here (network, auth, timeout) fails OPEN:
-    the request goes through unmodified."""
+    Sends only ``step_state`` (page name, last tool, its status word) to typesafe.ai. Any error
+    here (network, auth, timeout) fails OPEN: the request goes through unmodified."""
 
     def __init__(
         self,
@@ -119,9 +133,8 @@ class ToolRouter(AgentMiddleware):
                 f"typesafe job -> {answer.choice!r} confidence={answer.confidence:.2f} "
                 f"kept={sorted(keep)}"
             )
-        except Exception as exc:
-            why = f"{type(exc).__name__}: {exc}"
-            print(f"typesafe job router FAILED, continuing with no change: {why}")
+        except Exception as exc:  # the type only: an error's text may carry a value
+            print(f"typesafe job router FAILED, continuing with no change: {type(exc).__name__}")
         return await handler(request)
 
 
@@ -162,7 +175,7 @@ class ModelRouter(AgentMiddleware):
                 route = "fast"
             print(f"typesafe model -> {route!r} (asked {answer.choice!r} {answer.confidence:.2f})")
         except Exception as exc:
-            print(f"typesafe model router FAILED, using 'powerful': {type(exc).__name__}: {exc}")
+            print(f"typesafe model router FAILED, using 'powerful': {type(exc).__name__}")
         return await handler(request.override(model=self.models[route]))
 
 
