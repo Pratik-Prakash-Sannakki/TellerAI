@@ -1,0 +1,1 @@
+Meet Teller, an AI banking agent. It works out a bank task once (17 model turns to pay a bill, with you approving both send gates), then saves it as YAML so every replay after that runs on plain code with zero LLM tokens. 1,000 bill payments: 17 model calls instead of 17,000.

@@ -1,21 +1,279 @@
-# interface.ai take-home: computer-use automation (pure visual)
+# Teller: learn a banking task once, replay it forever
 
-An AI agent learns a banking task on a real web app (ParaBank) by looking at screenshots and
-using the mouse and keyboard. At the end of the run it writes a **capability**: a YAML recipe
-plus a few small cropped images. A separate **replay** engine runs that recipe again with plain
-code and no LLM.
+## The problem
+
+Banks and credit unions still run their daily work on **legacy web portals**: bill pay, transfers,
+loan requests, balance lookups. Many were built a decade or more ago and are rarely rewritten.
+
+- **Old code, old DOM.** Layout tables, nested frames, server-rendered pages, no stable `id`s, no
+  `<label>`s, no accessibility tree worth reading. Element structure changes with every vendor patch.
+- **No API.** The portal *is* the integration. There is often nothing to call but the screen.
+- **Every tenant is different.** The same vendor product looks a little different at each bank, so
+  one script per bank becomes hundreds of scripts.
+- **Today's options don't hold up.**
+  - Scripted RPA and DOM selectors break as soon as the markup moves.
+  - A pure LLM agent re-reasons through every run: slow, paid per step, and not repeatable, which
+    is risky when money moves.
+- **The stakes are high.** Payments can't be guessed, credentials can't leak into a model, and
+  customer data can't sit in logs.
+
+## The solution
+
+**Teller** treats the portal the way a person does: it looks at the screen and uses the mouse and
+keyboard. It never depends on the DOM, so old markup doesn't matter.
+
+1. **Learn once.** An AI agent learns a task on a real banking web app (ParaBank) **from
+   screenshots alone**. A human answers its questions and approves every send at two gates.
+2. **Write it down.** It saves what it learned as a **capability**: a YAML recipe plus a few tiny
+   image crops. No customer values, no credentials.
+3. **Replay forever.** A separate **replay** engine runs that recipe with plain code and **no LLM**.
+   It finds each target by its text, a nearby label, or its look, never by DOM path or fixed x,y.
 
 ```
 discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no LLM, browser)
 ```
 
-Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q1-Q21)
-and `notebooks/replay/DECISIONS.md` (R1-R21). This README covers setup and running.
+> **Demo bank: ParaBank.** Everything here runs live on
+> [ParaBank](https://parabank.parasoft.com/parabank/), Parasoft's open-source demo bank
+> ([source](https://github.com/parasoft/parabank)). It is a good stand-in for the real thing: a
+> classic server-rendered banking portal with real flows (login, accounts overview, transfers,
+> bill pay, loans) and an old-school DOM. It holds only fake data, so the agent can log in, move
+> "money" and hit the send gates with no real customer at risk. Nothing in the code is
+> ParaBank-specific: its URL, words and login names live in one file, `configs/parabank.yaml`
+> (see [Configure the bank](#configure-the-bank-or-swap-in-another-one)).
 
-## How to set up and run it
+**Business impact**
 
-Needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and a desktop with a display (the
-browser runs visibly). Built and tested on macOS.
+- **Pay for the thinking once.** Learning bill pay took **17 model calls**. Every replay after that
+  takes **0**, so 1,000 bill payments cost 17 model calls, not 17,000.
+- **Legacy portals, as they are.** No API, no vendor integration, no DOM selectors to maintain.
+- **Same steps every time.** Replay is a fixed recipe in plain code: auditable and repeatable, with
+  no model guessing.
+- **A human signs off on every money movement.** Each payment or transfer stops at **two approval
+  gates**, and replay never auto-approves.
+- **Lower compliance risk.** Credentials never reach the model, no customer value is stored, and
+  evidence is masked.
+- **New tenant = one config file.** Another bank on the same product needs a YAML profile, not a
+  code change.
+
+## Business use case
+
+<video src="brag-output/brag.mp4" controls autoplay muted loop playsinline width="100%">
+  <a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview"></a>
+</video>
+
+*The full 46-second intro (`brag-output/brag.mp4`). Unmute for sound.*
+
+**What Teller does.**
+
+| | Old way | Teller |
+|---|---|---|
+| Old, messy DOM | Selectors break on every patch | Not used: reads the screen |
+| Learning a task | An engineer writes selectors | The agent learns it once from screenshots |
+| Running it | LLM every time, or brittle selectors | Plain code, no LLM, no API key |
+| Cost per run | Tokens per step | ~0 |
+| Same input, same steps? | Not guaranteed | Yes: a fixed recipe |
+| Money leaves the account | Agent may decide | Always two human approval gates |
+| Customer data at rest | Often logged | Never stored; evidence is masked |
+| Page drifts a little | Breaks | Falls back to other ways of finding the target, and logs which one it used |
+
+**Who uses it.**
+
+- **Banking ops teams:** turn a repetitive portal task (pay a bill, read every account balance,
+  list the accounts you can pay from) into a one-line command.
+- **Conversational banking assistants:** call a capability as a tool. The caller gets typed
+  outputs; a human approves every send.
+- **Multi-tenant vendors:** one base capability per vendor product. A tenant is one config file,
+  not a code change.
+
+Saved examples: `artifacts/` (`pay_bill`, `pay_bill_to_payee`, `transfer_money`, `request_loan`,
+`get_all_account_balances`, `get_transfer_account_options`).
+
+## Architecture
+
+### 1. The big picture
+
+```mermaid
+flowchart LR
+    G([Goal in plain words]) --> D
+    subgraph D[Discovery: learn once]
+        A[Deep agent<br/>Sonnet / Haiku] -->|one tool call| T[Tools + guards]
+        T -->|screenshot + OCR| A
+    end
+    D -->|event log| R[Recorder]
+    R --> C[(Capability<br/>YAML + crops)]
+    C --> P
+    subgraph P[Replay: run forever, no LLM]
+        E[Step engine] --> L[Find the target<br/>3 ways]
+    end
+    P --> O([Typed outputs + status])
+    H((Human)) <-->|questions, take-over,<br/>2 send gates| D
+    H <-->|inputs, 2 send gates,<br/>rescue| P
+    B[[ParaBank<br/>browser tab]] <--> D
+    B <--> P
+```
+
+### 2. Low-level architecture (abstract)
+
+The package is `src/cua/`, layered so the two sides never import each other.
+
+```mermaid
+flowchart TB
+    CLI[cli.py: cua discover / replay / eval]
+    CLI --> DISC[discovery/<br/>agent, tools, recorder]
+    CLI --> REP[replay/<br/>loader, locate, steps, engine]
+    CLI --> EV[eval.py<br/>stability report]
+    DISC --> SHARED
+    REP --> SHARED
+    subgraph SHARED[Shared core]
+        V[vision/<br/>screenshot, OCR, crops, tables]
+        BR[browser/<br/>session, site lock, input, dropdowns]
+        S[safety/<br/>SendGuard, mismatch, redaction, hosts]
+        HO[handoff/<br/>control tab, take-over, extension]
+    end
+    SHARED --> SC[schema/<br/>Capability, results, events<br/>pure, no I/O]
+    DISC --> LLM[llm.py<br/>make_chat_model]
+    CFG[(configs/parabank.yaml<br/>the only site values)] -.-> CLI
+    ENV[(.env<br/>secrets)] -.-> CLI
+```
+
+Import rules (tested in `tests/unit/test_import_rules.py`): `schema` imports nothing else from
+`cua`; `discovery` and `replay` never import each other; `replay` has no model import.
+
+### 3. Extended architecture
+
+```mermaid
+flowchart TB
+    subgraph Browser[Chromium, fixed 1280x800]
+        SITE[Site tab<br/>locked to human input via CDP]
+        CTRL[Agent control tab<br/>questions, forms, gates]
+        EXT[Hand-back toolbar extension]
+    end
+
+    subgraph Discovery
+        AG[create_deep_agent<br/>system prompt + 13 tools]
+        MW[Middleware<br/>RecordWhy, LatestScreenshotOnly,<br/>TypeSafe tool + model router]
+        TOOLS[observe, click, type_text, type_secret,<br/>select_option, scroll, open_path,<br/>extract_value/table/options,<br/>finish, request_missing_values, ask_human]
+        GUARD[one_at_a_time guard<br/>step budget 40, repeat x3,<br/>fail x3 -> human, deny words,<br/>allowed_actions, login limit]
+        LOG[(Event log<br/>labels, points, crops,<br/>never values)]
+        REC[Recorder<br/>drop failures, last success per field,<br/>strip detours, logout = cleanup,<br/>refuse take-over / leaks]
+        AG --- MW
+        AG --> TOOLS --> GUARD --> LOG --> REC
+    end
+
+    subgraph Vision
+        SHOT[Screenshot] --> OCR[RapidOCR] --> NUM[Numbered boxes<br/>for the model]
+        CROP[Tight crops,<br/>other text blanked]
+    end
+
+    subgraph Safety
+        SG[SendGuard on page.route<br/>holds every non-GET]
+        MM[Mismatch check<br/>numbers never given]
+        G1[Gate 1: approve / edit]
+        G2[Gate 2: send / decline]
+        SG --> MM --> G1 --> G2
+    end
+
+    subgraph Replay
+        LD[Loader<br/>validate viewport, host,<br/>inputs, secrets, crops]
+        LOC[Locate<br/>1 OCR text, 2 anchor + offset,<br/>3 template, or table cell]
+        ST[Step actions<br/>navigate, click, type, select,<br/>scroll, extract*]
+        JD[Judge<br/>outcome rules, re-login once]
+        RS[Rescue<br/>take over or stop]
+        LD --> LOC --> ST --> JD
+        JD -->|miss| RS
+    end
+
+    REC --> CAP[(artifacts/name.yaml<br/>+ crops/name/)]
+    CAP --> LD
+    TOOLS --> SITE
+    ST --> SITE
+    SITE --> SG
+    G1 & G2 --> CTRL
+    TOOLS --> SHOT
+    ST --> SHOT
+    EVID[(evidence/<br/>masked PNGs, events,<br/>drift log, run.json)]
+    LOG --> EVID
+    JD --> EVID
+```
+
+### 4. Flow: one capability, end to end
+
+```mermaid
+sequenceDiagram
+    actor U as Human
+    participant A as Agent (LLM)
+    participant C as Our code
+    participant S as ParaBank
+    participant Y as Capability YAML
+    participant R as Replay (no LLM)
+
+    U->>A: cua discover "Log in and pay a bill"
+    loop each step
+        C->>S: screenshot
+        C->>A: numbered OCR boxes + image
+        A->>C: one tool call (click [7], type_secret('password'), ...)
+        C->>C: guard: allowed? deny word? budget?
+        C->>S: mouse / keyboard
+    end
+    A->>C: request_missing_values (payee, amount)
+    C->>U: form in control tab
+    U-->>C: values (never shown to the model)
+    A->>C: click SEND PAYMENT
+    C->>C: SendGuard holds the POST
+    C->>U: Gate 1: confirm details
+    C->>U: Gate 2: send it?
+    U-->>C: approve
+    C->>S: request released
+    A->>C: extract_value(confirmation), log out
+    C->>Y: recorder writes steps + crops (no values)
+
+    U->>R: cua replay pay_bill.yaml --input amount=10
+    R->>Y: load + validate
+    loop each step
+        R->>S: find target (OCR text / anchor / template), act, check by OCR
+    end
+    R->>U: Gate 1 + Gate 2 on the send
+    R->>S: log out (cleanup, always)
+    R->>U: SUCCESS + outputs + drift log
+```
+
+## How it works
+
+**Pure visual.** Each step: screenshot a fixed 1280x800 page, OCR it, draw a red number on every
+text box, and show the model the image plus `[7] 'Transfer'`. The model picks one tool; our code
+acts with `page.mouse` / `page.keyboard` and checks the result with a second screenshot. No DOM
+reads, no accessibility tree. One exception: native `<select>` dropdowns (macOS draws their list
+outside the page), which are set and read through a small script and confirmed by OCR.
+
+**The model picks; our code decides.** Every tool call passes guards: one call at a time, a step
+budget, repeat and failure limits, deny words, the site's `allowed_actions`, and login limits. When
+unsure, the agent (or the guard) calls a human, who can answer, take over, or stop.
+
+**The recorder, not the model, writes the steps.** Steps come from the event log, the ground
+truth. Failed calls are dropped, the last success per field is kept, detours are cut, and the final
+logout becomes a cleanup step. The model writes only the name, descriptions and success text.
+
+**Replay is deterministic.** It loads and checks the YAML, asks every missing input in one form,
+then walks the steps: find the target (OCR text, then anchor + offset, then template), act, check by
+OCR. A send or a secret is never retried. Known page messages map to a status; a session expiry
+re-logs in once. Cleanup (logout) always runs.
+
+| Status | When |
+|---|---|
+| `SUCCESS` | all steps done, checkpoint seen, outputs read |
+| `DECLINED` | a human said no at Gate 2; nothing sent |
+| `STUCK` | a human stopped it, rejected Gate 1, or an input was blank or wrong |
+| `FAILED` | bad YAML, wrong screen size, host blocked, action not allowed, checkpoint or output missing |
+| `BUSINESS_OUTCOME` | a known answer, e.g. "not found", "insufficient funds" |
+
+Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*) and
+`notebooks/replay/DECISIONS.md` (R*).
+
+## Setup
+
+Needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and a desktop with a display (the browser
+runs visibly). Built and tested on macOS.
 
 ```bash
 uv sync                                  # add --extra typesafe for the optional tool/model router
@@ -31,83 +289,87 @@ cp .env.example .env                     # then fill in the keys below
 | `PARABANK_USERNAME` / `PARABANK_PASSWORD` | discovery and replay | a ParaBank demo user (fake data only). Typed by `type_secret`; the model sees the name, never the value |
 | `ANTHROPIC_API_KEY` | discovery only | every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
 | `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one |
-| `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool-selection + model routing for discovery (off by default) |
+| `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool selection + per-step Haiku/Sonnet routing for discovery. Needs `uv sync --extra typesafe` |
 
 Replay needs no LLM key at all.
 
-### Running without live services
+> ParaBank's demo database resets now and then, which deletes registered users. If login fails
+> with "could not be verified", re-register the same user in a normal browser before running
+> discovery. Fixing it through a take-over makes the run unsavable.
 
-The test suite needs no key, no browser and no network:
+## Configure the bank, or swap in another one
 
-```bash
-.venv/bin/python -m pytest -q tests     # 772 passed (2026-10-01)
+Everything bank-specific lives in **one YAML file**: `configs/<site>.yaml`. The code in `src/` has no
+site values in it, and a test enforces that (`tests/unit/test_no_site_values.py`). It is loaded
+into a frozen `SiteProfile` by `cua.config.load_site("<site>")`.
+
+### What the file holds (`configs/parabank.yaml`, shortened)
+
+```yaml
+name: parabank
+start_url: "https://parabank.parasoft.com/parabank/"   # where every run starts; base_url for artifacts
+allowed_hosts: [parabank.parasoft.com]                  # the host lock: anything else is refused / sent back
+secret_env:                                             # secret NAME -> env var NAME (never the value)
+  username: PARABANK_USERNAME
+  password: PARABANK_PASSWORD
+deny_words: [register, lookup, admin]                   # clicks / paths with these words are refused
+login_words: ["log in"]                                 # the login button's text: its POST skips the gates
+allowed_actions: [navigate, click, type, select, scroll, extract, extract_table]  # omit = all allowed
+login_failure_texts: [could not be verified, user does not exist, invalid username or password]
+login_empty_texts: [please enter a username and password]   # boxes were empty: retry once
+outcomes:                                               # text seen after a step -> replay status
+  - {text: insufficient funds, status: BUSINESS_OUTCOME, meaning: not enough funds}
+  - {text: session expired,    status: RECOVER,          meaning: the session expired}
+  - {text: error,              status: FAILED,           meaning: the site showed an error page}
 ```
 
-It covers the send gates and mismatch check, the "nothing stored" rule, evidence masking,
-artifact save/load, the targeting rungs, replay's step engine, take-over evidence, the import
-rules between packages, the `cua` CLI (argument parsing + wiring, monkeypatched), and a round
-trip (discovery's `build_capability` -> `save_artifact` -> replay's `load_capability`,
-unchanged). `tests/unit/test_llm.py` covers the model factory.
+| Key | Used by | What it does |
+|---|---|---|
+| `start_url` | both | First page opened; becomes the capability's `base_url` |
+| `allowed_hosts` | both | Host lock for clicks, `open_path`, `navigate` and a capability's `base_url` |
+| `secret_env` | both | Which `.env` variables hold the login. `type_secret('password')` looks it up by name |
+| `deny_words` | discovery | Hard refusals (e.g. never open "admin" or "register") |
+| `login_words` | both | The login click is the only send that skips the two gates |
+| `allowed_actions` | both | Step types the site permits. Unknown names fail at load |
+| `login_failure_texts` / `login_empty_texts` | discovery | Stop on a failed login; retry once on empty boxes |
+| `outcomes` | replay | `BUSINESS_OUTCOME`, `RECOVER` (re-login once) or `FAILED`. First match wins; a capability's own `outcomes:` replaces them |
 
-- Lint: `uvx ruff check src tests`.
-- `mypy --strict src`: 0 errors (70 files). Only override: `ignore_missing_imports` for `cv2`/`rapidocr` (see `pyproject.toml`).
+### Swap in another bank
 
-### Guard rails worth knowing
+1. **Copy the profile.**
+   ```bash
+   cp configs/parabank.yaml configs/mybank.yaml
+   ```
+   Then edit `name`, `start_url`, `allowed_hosts`, and the words your site actually shows: login
+   button text, login-failure messages, business messages like "insufficient funds".
+2. **Name its secrets.** Point `secret_env` at new variables and add them to `.env`:
+   ```yaml
+   secret_env: {username: MYBANK_USERNAME, password: MYBANK_PASSWORD}
+   ```
+   ```bash
+   MYBANK_USERNAME=...
+   MYBANK_PASSWORD=...
+   ```
+3. **Pick it with `--site`.** With one file in `configs/`, it's the default. With two or more,
+   `--site` is required:
+   ```bash
+   .venv/bin/cua discover "Log in and read the first account's balance" --site mybank --out artifacts/mybank
+   .venv/bin/cua replay artifacts/mybank/get_account_balance.yaml --site mybank
+   ```
+   In the notebooks, change `site = load_site("parabank")` in the setup cell.
+4. **Re-discover the tasks.** Capabilities are per site. Each one stores its `base_url` and crops,
+   and replay refuses one whose host isn't in the chosen profile's `allowed_hosts`. Keep each bank's
+   artifacts in their own folder (`--out artifacts/<site>`).
 
-- **Allowed actions.** `allowed_actions` in `configs/<site>.yaml` lists the step actions a site
-  permits (ParaBank: `navigate, click, type, select, scroll, extract, extract_table`; omit the key
-  to allow all). Discovery refuses any other with `REFUSED` (logged). Replay fails that step
-  (`FAILED`) before acting.
-- **Run timeout.** `DiscoveryConfig.run_timeout_s` (default 900). Past it the run ends `STUCK`:
-  "discovery timed out after N s". Cleanup and evidence still run.
-- **Typed inputs.** The recorder types each input from the *shape* of what was typed (`email`,
-  `phone`, `date`, `currency`, `number`, `integer`, `id`, else `string`), never the value. Replay
-  checks each given input against its type and stops (`STUCK`, name and type only) on a mismatch.
-- **`why` on events.** Each discovery event carries the model's reason for the call: masked (run
-  values and value shapes blanked), max 200 chars.
-- **Confirmation.** After an approved send, the agent saves the confirmation or reference number
-  (`id`), else the confirmation message (`string`), before `finish_business_outcome`.
+Nothing in `src/` changes. A second tenant on the same vendor product is one more YAML file.
 
-## Demo path
+**Limits to know:** the page must render at 1280x800 at scale 1 (replay refuses any other size).
+Login is assumed to be a username + password form. Native `<select>` dropdowns are the only place
+the code touches the page's script; everything else is screenshots, mouse and keyboard.
 
-Two ways to run the same system: thin notebooks (to watch each step) or the `cua` CLI (one
-command).
-
-### Notebooks
-
-Both notebooks are jupytext pairs: the `.py` is the source, the `.ipynb` is what you open. They
-are thin demos over the `cua` package — the real logic lives in `src/cua/`.
-
-**1. Discover (agent on a goal).**
-
-1. Open `notebooks/discovery/discovery.ipynb`, kernel **"BankerAgent (.venv)"**.
-2. **Run all.** A Chromium window opens at a fixed 1280x800 page with two tabs: the ParaBank
-   site tab and an "Agent control" tab.
-3. The `## Run` cell runs the agent on a goal, e.g. *"Log in, open Accounts Overview, and save
-   the first account's balance with extract_value as 'first_balance'. Then log out."* When the
-   agent needs you, the control tab comes to the front: answer a question, fill a form, or
-   approve/edit a send at the two gates. If you take over, the site unlocks for you; click
-   **Done** in the control tab to hand back.
-4. `## Save artifact` writes `artifacts/<name>.yaml` + `artifacts/crops/<name>/s<i>.png`. It
-   refuses a run that had a take-over.
-5. `## Evidence` writes a masked `evidence/discovery/<UTC>-<goal>/` folder.
-
-Saved examples from earlier runs: `artifacts/` (`transfer_money.yaml`, `pay_bill.yaml`,
-`pay_bill_to_payee.yaml`, `get_all_account_balances.yaml`).
-
-**2. Replay the artifact (no LLM).**
-
-1. Open `notebooks/replay/replay.ipynb` (same kernel).
-2. The `## Run` cell points at a YAML, e.g. `ROOT / "artifacts" / "get_all_account_balances.yaml"`.
-3. **Run all.** Replay loads and checks the YAML, opens `base_url`, then shows **one form** in
-   the control tab asking every input the capability needs. It walks the steps; any send still
-   stops at Gate 1 and Gate 2 for you.
-4. The cell prints `result.summary` (e.g. `SUCCESS`), the outputs, the drift log (which rung
-   found each step), and the path of the masked `evidence/replay/<UTC>-<name>/` folder.
+## Run it
 
 ### CLI
-
-The same flows as one command each, once `uv sync` installs `cua` as a script:
 
 ```bash
 .venv/bin/cua discover "Log in and read the first account's balance" --out artifacts
@@ -117,47 +379,93 @@ The same flows as one command each, once `uv sync` installs `cua` as a script:
 .venv/bin/cua eval artifacts/get_all_account_balances.yaml --runs 3
 ```
 
-`--site` picks a profile from `configs/` (defaults to the only one there: `parabank`).
-`cua replay` exits 1 unless the result is `SUCCESS`.
+- `--site` picks a profile from `configs/` (defaults to the only one there: `parabank`).
+- `cua replay` exits 1 unless the result is `SUCCESS`.
+- `cua eval` replays one capability N times in one session and prints a stability table: status
+  counts, success rate, human-assisted runs, a rung histogram per step, steps that fell back from
+  their first-choice rung, and whether outputs matched across runs (yes/no, never the values). It
+  writes `evidence/eval/<UTC>-<name>/report.json`. Every input must be given with `--input`, and it
+  exits 1 unless every run is `SUCCESS`.
 
-`cua eval` replays one capability N times (`--runs`, default 3) in one browser session and prints
-a stability table: status counts, success rate, human-assisted runs, a rung histogram per step,
-the steps that fell back from their first-choice rung, and whether the outputs matched across
-runs (a yes/no per output, never the values). It writes `evidence/eval/<UTC>-<name>/report.json`
-(+ `run.json`); `--evidence` also saves each run's replay folder. Every input must be given with
-`--input` (the runs are unattended), and it exits 1 unless every run is `SUCCESS`.
+### Notebooks
+
+Both are jupytext pairs (the `.py` is the source, open the `.ipynb`), thin demos over `src/cua/`.
+
+**Discover.** Open `notebooks/discovery/discovery.ipynb`, kernel **"BankerAgent (.venv)"**, Run
+all. Chromium opens with the ParaBank tab and an "Agent control" tab. When the agent needs you, the
+control tab comes to the front: answer a question, fill a form, or approve/edit a send at the two
+gates. If you take over, the site unlocks; click **Done** (or the toolbar hand-back icon) to hand
+back. `## Save artifact` writes the YAML + crops (refused after a take-over); `## Evidence` writes a
+masked `evidence/discovery/<UTC>-<goal>/` folder.
+
+**Replay.** Open `notebooks/replay/replay.ipynb`, point the `## Run` cell at a YAML, Run all. One
+form asks every input; any send still stops at Gate 1 and Gate 2. It prints the status, outputs,
+the drift log (which rung found each step), and the evidence folder.
+
+## Guard rails
+
+- **Every send is held.** `SendGuard` holds every non-GET request at the network layer, however it
+  was triggered (login is exempt). A mismatch check flags any number the human never gave, then
+  Gate 1 (approve / edit) and Gate 2 (send / decline). The agent never approves; replay never
+  auto-approves.
+- **Allowed actions.** `allowed_actions` in `configs/<site>.yaml` (ParaBank: `navigate, click,
+  type, select, scroll, extract, extract_table`). Discovery refuses any other (`REFUSED`, logged);
+  replay fails that step before acting.
+- **Run timeout.** `DiscoveryConfig.run_timeout_s` (default 900). Past it the run ends `STUCK`;
+  cleanup and evidence still run.
+- **Typed inputs.** The recorder types each input from the *shape* of what was typed (`email`,
+  `phone`, `date`, `currency`, `number`, `integer`, `id`, else `string`), never the value. Replay
+  checks each given input and stops (`STUCK`, name and type only) on a mismatch.
+- **`why` on events.** Each discovery event carries the model's masked reason, max 200 chars.
+- **Confirmation saved.** After an approved send, the agent saves the confirmation number (or
+  message) before finishing.
+- **Secrets.** `type_secret(name)`: the model sees only the name. Values live in `.env` only.
+- **Host lock and deny words.** Only `parabank.parasoft.com`; clicks on `register`, `lookup`,
+  `admin` are refused.
+- **Nothing stored.** No value a human typed or gave is kept. Evidence is masked (`***` in text,
+  black boxes in PNGs).
+
+## Tests
+
+No key, no browser, no network:
+
+```bash
+.venv/bin/python -m pytest -q tests     # 826 passed (2026-10-02)
+.venv/bin/mypy --strict src             # no issues (71 files)
+uvx ruff check src tests                # lint
+```
+
+The suite covers the send gates and mismatch check, the "nothing stored" rule, evidence masking,
+artifact save/load, the targeting rungs, replay's step engine, take-over evidence, the import rules,
+the `cua` CLI (monkeypatched), the model factory, and a round trip (`build_capability` ->
+`save_artifact` -> replay's `load_capability`, unchanged).
 
 ## Repo layout
 
 ```
-src/cua/               the package (see src/cua/README.md for read order and import rules)
-  config.py            SiteProfile (from configs/<site>.yaml), BrowserConfig/DiscoveryConfig/
-                       ReplayConfig, resolve_secret/secret_values, host_allowed, model env
+src/cua/               the package (src/cua/README.md: read order and import rules)
+  config.py            SiteProfile (from configs/<site>.yaml), Browser/Discovery/ReplayConfig, secrets
   llm.py               make_chat_model
   schema/              the contract: Capability, value types, results, events
   vision/              pixels -> text: screenshots, OCR, canvas math, crops, table reader
   browser/             Playwright session, site lock, input, native dropdowns
   safety/              SendGuard (Gate 1/2), mismatch check, redaction, host allow-list
-  handoff/             the "Agent control" tab, hand-back extension calls, take-over loop
-  discovery/           the agent: tools, prompt/middleware, recorder (events -> Capability), evidence
-  replay/              the engine: loader, locate (rungs), steps, run, rescue, evidence
-  eval.py              `cua eval`'s report: summarize N ReplayResults, render, save (pure)
-  cli.py               `cua discover` / `cua replay` / `cua eval`
-configs/parabank.yaml  start_url, allowed hosts, secret env names, deny/login words, outcomes,
-                       allowed_actions.
-                       The ONLY place ParaBank lives.
-artifacts/<name>.yaml  saved capabilities; artifacts/crops/<name>/ their template crops
-notebooks/discovery/   discovery.py/.ipynb (thin demo), decisions.md, discovery_architecture.md
-notebooks/replay/      replay.py/.ipynb (thin demo), DECISIONS.md, replay_architecture.md
+  handoff/             the "Agent control" tab, hand-back extension, take-over loop
+  discovery/           the agent: tools, prompt/middleware/router, recorder, evidence
+  replay/              the engine: loader, locate (rungs), steps, rescue, evidence
+  eval.py              cua eval's report (pure)
+  cli.py               cua discover / replay / eval
+configs/parabank.yaml  the ONLY place ParaBank values live
+artifacts/             saved capabilities (<name>.yaml) and their crops (crops/<name>/)
+notebooks/             discovery/ and replay/ demos, decisions, architecture notes
 extensions/handback/   Chrome toolbar extension for handing control back
-tests/
-  unit/                mirrors src/cua/; tests/fakes.py holds shared fakes
-  integration/         notebook parity checks, discovery -> replay round trip, saved artifacts
-evidence/              discovery/ and replay/ run folders (see evidence/README.md)
+tests/                 unit/ mirrors src/cua/; integration/ round trip + notebook parity
+evidence/              masked discovery/, replay/ and eval/ run folders (evidence/README.md)
+brag-output/           the intro video (brag.mp4), its looping preview (brag-preview.gif) and poster (brag.jpg)
 ```
 
 ## Rules this code keeps
 
 - Only host allowed: `parabank.parasoft.com`. Fake data only.
 - Secrets live in `.env` only: never in the YAML (names only), the logs, or the model's context.
-- No value a human typed or gave is stored. Evidence is masked (`***` in text, black boxes in PNGs).
+- No value a human typed or gave is stored. Evidence is masked.
