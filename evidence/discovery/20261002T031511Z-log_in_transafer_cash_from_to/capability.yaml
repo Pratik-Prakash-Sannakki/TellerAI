@@ -1,0 +1,170 @@
+schema_version: 2
+name: transfer_cash_between_accounts
+version: 1
+description: Transfers a specified amount of cash from one account to another account.
+  Returns confirmation that the transfer has been completed successfully.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: amount
+  type: number
+  description: The dollar amount to transfer between accounts
+- name: from_account
+  type: string
+  description: The account number to transfer funds from
+- name: to_account
+  type: string
+  description: The account number to transfer funds to
+outputs:
+- name: from_account_options
+  type: options
+  description: Available accounts to transfer from
+- name: to_account_options
+  type: options
+  description: Available accounts to transfer to
+- name: confirmation
+  type: string
+  description: Transfer confirmation message
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 10
+      - 47
+    template: crops/transfer_cash_between_accounts/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 21
+    template: crops/transfer_cash_between_accounts/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/transfer_cash_between_accounts/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Transfer Funds
+      ordinal: 1
+    anchor:
+      label: Accounts Overview
+      ordinal: 2
+      offset:
+      - -14
+      - 23
+    template: crops/transfer_cash_between_accounts/s3.png
+  cleanup: false
+- action: extract_options
+  target:
+    anchor:
+      label: 'From account #'
+      ordinal: 1
+      offset:
+      - 66
+      - 0
+    template: crops/transfer_cash_between_accounts/s4.png
+  save_as: from_account_options
+  index: 0
+- action: extract_options
+  target:
+    anchor:
+      label: 'to account #'
+      ordinal: 1
+      offset:
+      - 69
+      - 0
+    template: crops/transfer_cash_between_accounts/s5.png
+  save_as: to_account_options
+  index: 1
+- action: type
+  target:
+    anchor:
+      label: 'Amount: $'
+      ordinal: 1
+      offset:
+      - 71
+      - 0
+    template: crops/transfer_cash_between_accounts/s6.png
+  value: '{{amount}}'
+- action: select
+  target:
+    anchor:
+      label: 'From account #'
+      ordinal: 1
+      offset:
+      - 117
+      - 0
+    template: crops/transfer_cash_between_accounts/s7.png
+  option: '{{from_account}}'
+  index: 0
+- action: select
+  target:
+    anchor:
+      label: 'to account #'
+      ordinal: 1
+      offset:
+      - 90
+      - 0
+    template: crops/transfer_cash_between_accounts/s8.png
+  option: '{{to_account}}'
+  index: 1
+- action: click
+  target:
+    ocr_text:
+      text: TRANSFER
+      ordinal: 1
+    anchor:
+      label: Bill Pay.
+      ordinal: 1
+      offset:
+      - 210
+      - 4
+    template: crops/transfer_cash_between_accounts/s9.png
+  cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Transfer Complete!
+      ordinal: 1
+      offset:
+      - 119
+      - 34
+  save_as: confirmation
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/transfer_cash_between_accounts/s11.png
+  cleanup: true
+checkpoint: Transfer Complete!

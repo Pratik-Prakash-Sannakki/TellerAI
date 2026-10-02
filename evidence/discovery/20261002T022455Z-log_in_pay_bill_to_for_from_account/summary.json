@@ -1,0 +1,7 @@
+{
+  "status": "done",
+  "events": 21,
+  "take_over": false,
+  "take_overs": [],
+  "capability_saved": "artifacts/pay_bill_to_payee.yaml"
+}

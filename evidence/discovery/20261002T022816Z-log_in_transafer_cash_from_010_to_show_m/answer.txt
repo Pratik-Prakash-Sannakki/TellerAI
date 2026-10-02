@@ -1,0 +1,1 @@
+STUCK: 3 tries failed. Last: NO CHANGE after clicking (930, 355). Look again and retry.

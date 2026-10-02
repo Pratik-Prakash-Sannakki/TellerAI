@@ -1,0 +1,105 @@
+schema_version: 2
+name: get_transfer_account_options
+version: 1
+description: 'Retrieves the available account options for transferring cash between
+  accounts. Returns two option lists: the accounts that can be used as the source
+  (from) and destination (to) for a transfer.'
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: from_account_options
+  type: options
+  description: Available account options to transfer from
+- name: to_account_options
+  type: options
+  description: Available account options to transfer to
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 11
+      - 46
+    template: crops/get_transfer_account_options/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 20
+    template: crops/get_transfer_account_options/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_transfer_account_options/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Transfer Funds
+      ordinal: 1
+    anchor:
+      label: Accounts Overview
+      ordinal: 2
+      offset:
+      - -12
+      - 23
+    template: crops/get_transfer_account_options/s3.png
+  cleanup: false
+- action: extract_options
+  target:
+    anchor:
+      label: 'From account #'
+      ordinal: 1
+      offset:
+      - 106
+      - 0
+    template: crops/get_transfer_account_options/s4.png
+  save_as: from_account_options
+  index: 0
+- action: extract_options
+  target:
+    anchor:
+      label: 'to account #'
+      ordinal: 1
+      offset:
+      - 70
+      - 0
+    template: crops/get_transfer_account_options/s5.png
+  save_as: to_account_options
+  index: 1
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_transfer_account_options/s6.png
+  cleanup: true
+checkpoint: 'Amount: $'

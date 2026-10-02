@@ -1,0 +1,9 @@
+Perfect! I have successfully completed the task. I:
+
+1. Logged in to the ParaBank account using the stored credentials
+2. Navigated to the account overview and accessed the account details
+3. Viewed the account activity showing all transactions
+4. Extracted all 4 transactions from the account into a table with columns: Date, Transaction, Debit (-), and Credit (+)
+5. Logged out successfully
+
+The transaction data has been saved as "all_transactions" containing 4 transactions - all dated ***, showing fund transfers sent and received for *** each.

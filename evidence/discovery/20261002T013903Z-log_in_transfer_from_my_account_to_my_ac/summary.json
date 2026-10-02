@@ -1,0 +1,12 @@
+{
+  "status": "done",
+  "events": 18,
+  "take_over": true,
+  "take_overs": [
+    {
+      "reason": "login failed ('please enter a username and password'). Do not try again",
+      "actions": []
+    }
+  ],
+  "capability_saved": null
+}

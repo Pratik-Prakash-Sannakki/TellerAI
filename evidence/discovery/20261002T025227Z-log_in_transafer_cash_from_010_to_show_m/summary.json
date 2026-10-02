@@ -1,0 +1,12 @@
+{
+  "status": "done",
+  "events": 6,
+  "take_over": true,
+  "take_overs": [
+    {
+      "reason": "login failed ('could not be verified'). Do not try again",
+      "actions": []
+    }
+  ],
+  "capability_saved": null
+}

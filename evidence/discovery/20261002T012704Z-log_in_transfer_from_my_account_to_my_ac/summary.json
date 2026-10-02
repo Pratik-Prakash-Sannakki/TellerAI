@@ -1,0 +1,25 @@
+{
+  "status": "done",
+  "events": 17,
+  "take_over": true,
+  "take_overs": [
+    {
+      "reason": "login failed ('please enter a username and password'). Do not try again",
+      "actions": [
+        {
+          "kind": "send",
+          "path": "/parabank/login.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/overview.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/index.htm"
+        }
+      ]
+    }
+  ],
+  "capability_saved": null
+}

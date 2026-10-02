@@ -1,0 +1,112 @@
+schema_version: 2
+name: get_all_transactions
+version: 1
+description: Logs into the customer account and retrieves all transaction history.
+  Returns a complete table of all transactions with their dates and details.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: all_transactions
+  type: table
+  description: All transactions for the account
+  columns:
+  - Date
+  - Transaction
+  - "Debit (\u2212)"
+  - Credit (+)
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 11
+      - 46
+    template: crops/get_all_transactions/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 20
+    template: crops/get_all_transactions/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_all_transactions/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Accounts Overview
+      ordinal: 1
+    anchor:
+      label: Open New Account
+      ordinal: 1
+      offset:
+      - 0
+      - 25
+    template: crops/get_all_transactions/s3.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: '***677'
+      ordinal: 1
+    anchor:
+      label: Transfer Funds
+      ordinal: 1
+      offset:
+      - 169
+      - -6
+    template: crops/get_all_transactions/s4.png
+  cleanup: false
+- action: scroll
+  direction: down
+- action: scroll
+  direction: down
+- action: extract_table
+  header:
+    label: Date
+    ordinal: 1
+  columns:
+  - Date
+  - Transaction
+  - "Debit (\u2212)"
+  - Credit (+)
+  save_as: all_transactions
+  row_limit: 50
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_all_transactions/s8.png
+  cleanup: true
+checkpoint: "Debit (\u2212)"

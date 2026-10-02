@@ -1,0 +1,3 @@
+STUCK: 3 tries failed. Last: NO CHANGE after clicking (820, 355). Look again and retry.
+
+I attempted to expand the "to account #" dropdown to show the available destination account options, but was unable to successfully click and expand the dropdown after multiple attempts. The Transfer Funds page is loaded with account #*** selected as the "From account", but I could not display the list of available destination accounts for the transfer.

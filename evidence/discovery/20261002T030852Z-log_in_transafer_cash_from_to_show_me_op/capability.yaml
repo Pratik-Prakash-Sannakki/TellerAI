@@ -1,0 +1,105 @@
+schema_version: 2
+name: get_transfer_destination_options
+version: 1
+description: Logs into the banking application and navigates to the transfer funds
+  page to retrieve available account options for transferring cash from a specified
+  source account. Returns a list of destination account options that can be used for
+  the transfer.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: transfer_funds
+  type: number
+  description: The source account identifier from which funds will be transferred
+outputs:
+- name: transfer_to_account_options
+  type: options
+  description: Available destination account options for transfer
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 8
+      - 47
+    template: crops/get_transfer_destination_options/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 39
+      - 21
+    template: crops/get_transfer_destination_options/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_transfer_destination_options/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Transfer Funds
+      ordinal: 1
+    anchor:
+      label: Accounts Overview
+      ordinal: 2
+      offset:
+      - -12
+      - 23
+    template: crops/get_transfer_destination_options/s3.png
+  cleanup: false
+- action: select
+  target:
+    anchor:
+      label: Transfer Funds
+      ordinal: 2
+      offset:
+      - 192
+      - -8
+    template: crops/get_transfer_destination_options/s4.png
+  option: '{{transfer_funds}}'
+  index: 0
+- action: extract_options
+  target:
+    anchor:
+      label: 'to account #'
+      ordinal: 1
+      offset:
+      - 0
+      - 0
+    template: crops/get_transfer_destination_options/s5.png
+  save_as: transfer_to_account_options
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_transfer_destination_options/s6.png
+  cleanup: true
+checkpoint: Log Out

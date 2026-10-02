@@ -1,0 +1,219 @@
+schema_version: 2
+name: pay_bill
+version: 1
+description: Logs in and submits a bill payment to a specified payee from a selected
+  account. Returns confirmation that the bill payment has been completed.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs:
+- name: payee_name
+  type: string
+  description: The name of the person or entity receiving the bill payment
+- name: address
+  type: number
+  description: The street address of the payee
+- name: city
+  type: number
+  description: The city of the payee
+- name: state
+  type: number
+  description: The state of the payee
+- name: zip_code
+  type: number
+  description: The zip code of the payee
+- name: phone
+  type: number
+  description: The phone number of the payee
+- name: account
+  type: number
+  description: The account number where the payment should be sent
+- name: verify_account
+  type: number
+  description: Confirmation of the account number where the payment should be sent
+- name: from_account
+  type: number
+  description: The account number from which funds will be transferred
+outputs:
+- name: confirmation
+  type: string
+  description: Bill payment confirmation message
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Username
+      ordinal: 1
+      offset:
+      - 25
+      - 25
+    template: crops/pay_bill/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 25
+      - 25
+    template: crops/pay_bill/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/pay_bill/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Bill Pay.
+      ordinal: 1
+    anchor:
+      label: Transfer Funds
+      ordinal: 1
+      offset:
+      - -21
+      - 24
+    template: crops/pay_bill/s3.png
+  cleanup: false
+- action: type
+  target:
+    anchor:
+      label: 'Payee Name:'
+      ordinal: 1
+      offset:
+      - 148
+      - 0
+    template: crops/pay_bill/s4.png
+  value: '{{payee_name}}'
+- action: type
+  target:
+    anchor:
+      label: 'Address:'
+      ordinal: 1
+      offset:
+      - 137
+      - 0
+    template: crops/pay_bill/s5.png
+  value: '{{address}}'
+- action: type
+  target:
+    anchor:
+      label: 'City:'
+      ordinal: 1
+      offset:
+      - 122
+      - 0
+    template: crops/pay_bill/s6.png
+  value: '{{city}}'
+- action: type
+  target:
+    anchor:
+      label: 'State:'
+      ordinal: 1
+      offset:
+      - 126
+      - 0
+    template: crops/pay_bill/s7.png
+  value: '{{state}}'
+- action: type
+  target:
+    anchor:
+      label: 'Zip Code:'
+      ordinal: 1
+      offset:
+      - 138
+      - 0
+    template: crops/pay_bill/s8.png
+  value: '{{zip_code}}'
+- action: type
+  target:
+    anchor:
+      label: 'Phone #:'
+      ordinal: 1
+      offset:
+      - 137
+      - 0
+    template: crops/pay_bill/s9.png
+  value: '{{phone}}'
+- action: type
+  target:
+    anchor:
+      label: 'Account #:'
+      ordinal: 1
+      offset:
+      - 142
+      - 1
+    template: crops/pay_bill/s10.png
+  value: '{{account}}'
+- action: type
+  target:
+    anchor:
+      label: 'Verify Account #:'
+      ordinal: 1
+      offset:
+      - 161
+      - 0
+    template: crops/pay_bill/s11.png
+  value: '{{verify_account}}'
+- action: select
+  target:
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 124
+      - 0
+    template: crops/pay_bill/s12.png
+  option: '{{from_account}}'
+  index: 0
+- action: click
+  target:
+    ocr_text:
+      text: SEND PAYMENT
+      ordinal: 1
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 109
+      - 24
+    template: crops/pay_bill/s13.png
+  cleanup: false
+- action: extract
+  target:
+    anchor:
+      label: Bill Payment Complete
+      ordinal: 1
+      offset:
+      - 135
+      - 34
+  save_as: confirmation
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/pay_bill/s15.png
+  cleanup: true
+checkpoint: Bill Payment Complete

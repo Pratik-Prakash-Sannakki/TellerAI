@@ -1,0 +1,128 @@
+schema_version: 2
+name: get_account_transactions
+version: 1
+description: Logs into the banking system and retrieves all transactions for the user's
+  account. Returns a table containing transaction details including dates and other
+  transaction information.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: account_***010_transactions
+  type: table
+  description: All transactions for account ***010
+  columns:
+  - Date
+  - Transaction
+  - "Debit (\u2212)"
+  - Credit (+)
+secrets:
+- username
+- password
+steps:
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_account_transactions/s0.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: '***010'
+      ordinal: 1
+    anchor:
+      label: Transfer Funds
+      ordinal: 1
+      offset:
+      - 168
+      - -7
+    template: crops/get_account_transactions/s1.png
+  cleanup: false
+- action: scroll
+  direction: down
+- action: scroll
+  direction: down
+- action: scroll
+  direction: up
+- action: extract_table
+  header:
+    label: Date
+    ordinal: 1
+  columns:
+  - Date
+  - Transaction
+  - "Debit (\u2212)"
+  - Credit (+)
+  save_as: account_***010_transactions
+  row_limit: 50
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -16
+      - 24
+    template: crops/get_account_transactions/s6.png
+  cleanup: false
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 12
+      - 46
+    template: crops/get_account_transactions/s7.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 41
+      - 20
+    template: crops/get_account_transactions/s8.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_account_transactions/s9.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_account_transactions/s10.png
+  cleanup: true
+checkpoint: Account Activity

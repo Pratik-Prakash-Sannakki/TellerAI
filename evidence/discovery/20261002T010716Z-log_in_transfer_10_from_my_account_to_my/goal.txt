@@ -1,0 +1,1 @@
+Log in, transfer $10 from my account to my account, save the confirmation with extract_value as 'confirmation'. Then log out.

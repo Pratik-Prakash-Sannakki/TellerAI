@@ -1,0 +1,14 @@
+Perfect! I have successfully completed the task. I:
+
+1. Logged in to the ParaBank account
+2. Found that there is only one account (account ***010)
+3. Extracted all 16 transactions for that account into the saved table "account_***010_transactions"
+4. Logged out properly
+
+The transactions table includes:
+- Date column
+- Transaction column (showing types like "***", "***", "***", "***")
+- Debit (−) column (showing amounts like ***, ***, ***, ***)
+- Credit (+) column (showing amounts like ***, ***)
+
+Successfully logged in, retrieved all transactions for account ***010 (16 transactions total including funds transfers and bill payments), saved them to the table "account_***010_transactions", and logged out. The account has only one checking account with account number ***010.

@@ -1,0 +1,5 @@
+{"i": 0, "text": "I'll help you log in, transfer $10 between accounts, save the confirmation, and log out. Let me start by taking a look at the screen.", "tools": ["observe"]}
+{"i": 1, "text": "I can see the ParaBank login page. I need to log in first. I can see the Username and Password fields. Let me log in using the stored credentials. I'll follow the exact 3-step login sequence: type username, type password, then click LOG IN.", "tools": ["type_secret"]}
+{"i": 2, "text": "Good, the username has been typed. Now I'll type the password in the Password field.", "tools": ["type_secret"]}
+{"i": 3, "text": "Perfect! Both username and password have been typed. Now I'll click the LOG IN button to complete the login sequence.", "tools": ["click"]}
+{"i": 4, "text": "STUCK: login failed ('please enter a username and password'). Do not try again.", "tools": []}

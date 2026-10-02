@@ -1,0 +1,7 @@
+{
+  "status": "done",
+  "events": 16,
+  "take_over": false,
+  "take_overs": [],
+  "capability_saved": "artifacts/transfer_cash_between_accounts.yaml"
+}

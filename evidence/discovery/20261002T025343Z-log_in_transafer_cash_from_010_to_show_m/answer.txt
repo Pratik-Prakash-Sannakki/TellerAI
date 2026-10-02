@@ -1,0 +1,3 @@
+STUCK: login failed ('could not be verified'). Do not try again
+
+The login attempt was unsuccessful. The system indicates that the credentials could not be verified. I have been instructed to stop and not retry the login process.
