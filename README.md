@@ -44,8 +44,8 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
 
 **Business impact**
 
-- **Pay for the thinking once.** Learning bill pay took **17 model calls**. Every replay after that
-  takes **0**, so 1,000 bill payments cost 17 model calls, not 17,000.
+- **Pay for the thinking once.** Learning bill pay took **16-21 model turns** (see the
+  `evidence/discovery/*pay_bill*` transcripts). Every replay after that takes **0**.
 - **Legacy portals, as they are.** No API, no vendor integration, no DOM selectors to maintain.
 - **Same steps every time.** Replay is a fixed recipe in plain code: auditable and repeatable, with
   no model guessing.
@@ -58,11 +58,9 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
 
 ## Business use case
 
-<video src="brag-output/brag.mp4" controls autoplay muted loop playsinline width="100%">
-  <a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview"></a>
-</video>
+<a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview" width="100%"></a>
 
-*The full 46-second intro (`brag-output/brag.mp4`). Unmute for sound.*
+*Click the preview for the full 46-second intro (`brag-output/brag.mp4`, with sound).*
 
 **What Teller does.**
 
@@ -402,6 +400,24 @@ masked `evidence/discovery/<UTC>-<goal>/` folder.
 form asks every input; any send still stops at Gate 1 and Gate 2. It prints the status, outputs,
 the drift log (which rung found each step), and the evidence folder.
 
+## Evidence
+
+Masked run folders live in `evidence/` (layout: `evidence/README.md`).
+
+| Capability | Discovery run (saved it) | Replay |
+|---|---|---|
+| `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | `replay/20260930T033412Z-pay_bill` (older artifact: step-5 check failed, human took over; STUCK at step 6) |
+| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | - |
+| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | - |
+| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | - |
+| `get_all_account_balances` | `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou` | `replay/20260930T091210Z-get_all_account_balances` (SUCCESS) |
+| `transfer_money` | - (older notebook run) | `replay/20260930T223218Z-transfer_money` (SUCCESS) |
+| `transfer_funds` (retired) | `discovery/20260930T035011Z-log_in_transfer_funds` | `replay/20260930T041553Z-transfer_funds` (FAILED: site error page at step 3) |
+
+Take-overs during discovery (failed login, re-register, hand back) are recorded in
+`summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
+Replay runs predate the `cua` package (no `run.json`); no `cua eval` run is saved yet.
+
 ## Guard rails
 
 - **Every send is held.** `SendGuard` holds every non-GET request at the network layer, however it
@@ -460,7 +476,7 @@ artifacts/             saved capabilities (<name>.yaml) and their crops (crops/<
 notebooks/             discovery/ and replay/ demos, decisions, architecture notes
 extensions/handback/   Chrome toolbar extension for handing control back
 tests/                 unit/ mirrors src/cua/; integration/ round trip + notebook parity
-evidence/              masked discovery/, replay/ and eval/ run folders (evidence/README.md)
+evidence/              masked discovery/ and replay/ run folders; cua eval writes eval/ (evidence/README.md)
 brag-output/           the intro video (brag.mp4), its looping preview (brag-preview.gif) and poster (brag.jpg)
 ```
 

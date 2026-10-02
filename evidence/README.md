@@ -41,24 +41,20 @@ Everything is masked before it is written:
 
 ## Kept runs
 
-These runs predate the package (written by the old notebooks). None of them has a `run.json`.
+| Capability | Discovery run (saved it) | Replay |
+|---|---|---|
+| `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | `replay/20260930T033412Z-pay_bill` (older artifact: step-5 check failed, human took over; STUCK at step 6) |
+| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | - |
+| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | - |
+| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | - |
+| `get_all_account_balances` | `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou` | `replay/20260930T091210Z-get_all_account_balances` (SUCCESS) |
+| `transfer_money` | - (older notebook run) | `replay/20260930T223218Z-transfer_money` (SUCCESS) |
+| `transfer_funds` (retired) | `discovery/20260930T035011Z-log_in_transfer_funds` | `replay/20260930T041553Z-transfer_funds` (FAILED: site error page at step 3) |
 
-replay/:
+Take-overs during discovery (failed login, re-register, hand back) are recorded in
+`summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
+Replay runs predate the `cua` package (no `run.json`).
 
-- `20260930T223218Z-transfer_money`: SUCCESS. Files: `capability.yaml`, `drift.jsonl`, `summary.json`.
-- `20260930T091210Z-get_all_account_balances`: SUCCESS, with a multi-account table output. Same files.
-- `20260930T041553Z-transfer_funds`: FAILED. The site showed an error page on the step-3 click. Files: `capability.yaml`, `drift.jsonl`, `failure.json`, `final.png`, `summary.json`.
-- `20260930T033412Z-pay_bill`: STUCK, then a human took over. The step-5 check failed; the human took over at step 6. Files: as above, plus `take_over_0_before.png`, `take_over_0_after.png`.
-
-discovery/:
-
-- `20260930T035011Z-log_in_transfer_funds`: done, saved `transfer_funds.yaml`. Files: `answer.txt`, `capability.yaml`, `events.jsonl`, `goal.txt`, `summary.json`, `transcript.jsonl`, `crops/`.
-- `20260930T055623Z-log_in_get_account_balance_for_all_accou`: done, saved `get_all_account_balances.yaml`. Same files.
-
-A fresh package run is pending the user:
-
-1. `cua discover` (writes a discovery folder and an artifact).
-2. `cua replay <artifact> --evidence` for a success.
-3. `cua replay <artifact> --evidence` for an error case (e.g. a declined send or a mistyped input).
+Discovery runs on the package are done; replay and eval runs on the new artifacts are pending.
 
 Runs whose files held an unmasked account number or a typed name were deleted, not committed.
