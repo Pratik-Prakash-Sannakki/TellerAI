@@ -10,6 +10,7 @@ Moved from discovery.py 501-518 (human_help), 530-573 (take_over, built from cua
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Callable
 from urllib.parse import urlparse
@@ -171,14 +172,37 @@ async def _enter(ctx: Ctx, look: Look | None, field: Field, value: str, is_dropd
     return True
 
 
+MONEY_WORDS = ("amount", "$")  # a field label meaning "money": the goal's one amount fills it
+_AMOUNT = re.compile(r"\$\s?([\d,]+(?:\.\d{1,2})?)")
+
+
+def goal_value(goal: str, label: str, options: list[str]) -> str | None:
+    """The value the goal already gives for this field, or None. Code backstop for the prompt
+    rule "only ask for what the goal does not give". Never a guess:
+    - a dropdown: the one live option the goal names as a whole word ('#14010' -> '14010');
+    - a money field: the goal's single $ amount ('$100' -> '100'); two amounts -> None."""
+    if options:
+        named = [o for o in options if re.search(rf"(?<![\w]){re.escape(o)}(?![\w])", goal)]
+        return named[0] if len(named) == 1 else None
+    if any(w in label.casefold() for w in MONEY_WORDS):
+        amounts = _AMOUNT.findall(goal)
+        return amounts[0].replace(",", "") if len(amounts) == 1 else None
+    return None
+
+
 async def human_fills(
     ctx: Ctx, fields: list[Field], dropdown: bool = False, dropdowns: list[bool] | None = None
 ) -> str:
     """Q16/D34/D55: the human answers in the control window's form; our code enters every value.
-    The site stays locked throughout. Values are never logged and never reach the model."""
-    look, hints = ctx.run.look, ", ".join(h for _, h in fields)
+    The site stays locked throughout. Values are never logged and never reach the model.
+    Fields the goal already gives are entered first and never put in the form."""
+    look = ctx.run.look
     flags = dropdowns or [dropdown] * len(fields)
     options, kinds = await _options(ctx, fields, flags)
+    fields, options, kinds, done = await _from_goal(ctx, look, fields, options, kinds)
+    if not fields:
+        return f"From the goal: {done}. Our code entered them. Do not type them again. Continue."
+    hints = ", ".join(h for _, h in fields)
     words = ctx.session.cfg.sensitive_words
     answers = await ctx.control.form(
         f"Please fill in: {hints}",
@@ -194,6 +218,22 @@ async def human_fills(
     if failed:
         return guard.mark_stuck(ctx, f"not in the list: {', '.join(failed)}")
     return f"A human gave: {hints}. Our code entered them. Do not type them again. Continue."
+
+
+async def _from_goal(
+    ctx: Ctx, look: Look | None, fields: list[Field], options: list[list[str]], kinds: list[bool]
+) -> tuple[list[Field], list[list[str]], list[bool], str]:
+    """Enter what the goal already gives; return only what is still the human's to fill."""
+    left: tuple[list[Field], list[list[str]], list[bool]] = ([], [], [])
+    done: list[str] = []
+    for f, opts, kind in zip(fields, options, kinds, strict=False):
+        value = goal_value(ctx.run.goal, f[1], opts)
+        if value is not None and await _enter(ctx, look, f, value, kind):
+            done.append(f[1])
+            continue
+        for bucket, item in zip(left, (f, opts, kind), strict=False):
+            bucket.append(item)  # type: ignore[attr-defined]
+    return left[0], left[1], left[2], ", ".join(done)
 
 
 def start_page_refusal(ctx: Ctx) -> str | None:

@@ -368,3 +368,52 @@ async def test_human_fills_with_no_values_skips(entry: list[str]) -> None:
     ctx.run.look = Look(b"", b"", (), "u")
     assert (await _fill(ctx, None, [((5, 5), "Zip")])).startswith("SKIPPED")
     assert entry == []
+
+
+# --- values already in the goal are never asked (the live Pay Bill / Transfer case) ---
+
+
+def test_goal_value_picks_the_dropdown_option_the_goal_names() -> None:
+    goal = "Log in, pay bill to sean for $100 from account #14010. Then log out."
+    assert human.goal_value(goal, "From account #:", ["13344", "14010"]) == "14010"
+    assert human.goal_value(goal, "From account #:", ["13344", "15120"]) is None   # not named
+    assert human.goal_value("from 140100", "From account #:", ["14010"]) is None     # whole only
+
+
+def test_goal_value_fills_a_money_field_from_the_one_amount_in_the_goal() -> None:
+    goal = "Log in, pay bill to sean for $100 from account #14010."
+    assert human.goal_value(goal, "Amount: $", []) == "100"
+    assert human.goal_value("pay $5 and $10", "Amount: $", []) is None               # ambiguous
+    assert human.goal_value(goal, "Payee Name:", []) is None                         # never guess
+
+
+@pytest.mark.asyncio
+async def test_fields_the_goal_already_gives_are_entered_and_not_asked(
+    entry: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live: goal said 'from account #14010', and the form still asked for From account #."""
+
+    async def options(ctx: object, point: tuple[int, int]) -> list[str]:
+        return ["13344", "14010"] if point == (5, 9) else []
+
+    async def chosen(ctx: object, point: tuple[int, int], value: str) -> int:
+        entry.append(f"select {value}")
+        return 1
+
+    monkeypatch.setattr(human, "list_options", options)
+    monkeypatch.setattr(human, "choose_option", chosen)
+    ctx = make_ctx()
+    ctx.run.goal = "Log in, pay bill to sean for $100 from account #14010."
+    ctx.run.look = Look(b"", b"", (), "u")
+    fields = [((5, 5), "Address:"), ((5, 9), "From account #:"), ((5, 13), "Amount: $")]
+    task = asyncio.create_task(human_fills(ctx, fields, dropdowns=[False, True, False]))
+    await _until(lambda: _modes(ctx) == ["form"])
+    form = ctx.control.win.html                          # what the human was shown
+    ctx.control.on_reply('["12 Main St"]')
+    out = await asyncio.wait_for(task, 1)
+    assert out.startswith("A human gave: Address:")
+    assert "select 14010" in entry                       # the dropdown the goal named, picked
+    assert entry.count("act") == len(["amount from goal", "address from human"])
+    assert "Address:" in form
+    assert "From account" not in form                    # never asked: the goal gave it
+    assert "Amount" not in form

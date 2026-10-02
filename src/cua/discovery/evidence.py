@@ -15,6 +15,8 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import yaml
+
 from cua.discovery.agent.prompt import PROMPT_VERSION
 from cua.discovery.context import Ctx
 from cua.discovery.recorder.events import input_name
@@ -90,6 +92,30 @@ def _folder(out_dir: Path, run: DiscoveryRun, redact: Redact) -> Path:
     return folder
 
 
+TEXT_KEYS = {"name", "description", "label", "text", "option", "value", "checkpoint",
+             "row_key", "column", "save_as", "columns"}  # where a typed value could hide
+
+
+def artifact_texts(yml: str) -> list[str]:
+    """The artifact's free-text fields only. Structural numbers (``version: 1``, a viewport, an
+    offset, ``s1.png``) are not values a person typed, and a one-character form value such as
+    '1' matches them, so the whole-file check refused clean artifacts."""
+    out: list[str] = []
+
+    def walk(node: object, key: str = "") -> None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, str(k))
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, key)
+        elif key in TEXT_KEYS and isinstance(node, str):
+            out.append(node)
+
+    walk(yaml.safe_load(yml) if yml.strip() else {})
+    return out
+
+
 def save_evidence(
     ctx: Ctx,
     out_dir: Path,
@@ -105,8 +131,8 @@ def save_evidence(
     redact = redactor(run.redact | {v for v in ctx.secrets.values() if v})
     capability = Path(capability) if capability else None
     yml = capability.read_text() if capability else ""
-    if redact(yml) != yml:  # the artifact must hold names only: never copy a leak
-        raise ValueError("a run value is in the artifact")
+    if leaked := [t for t in artifact_texts(yml) if redact(t) != t]:  # names only: never a leak
+        raise ValueError(f"a run value is in the artifact ({len(leaked)} text field(s))")
     folder = _folder(Path(out_dir), run, redact)
     lines, takeovers = _events(run, folder, redact, ocr_fn)
     (folder / "goal.txt").write_text(redact(run.goal) + "\n")

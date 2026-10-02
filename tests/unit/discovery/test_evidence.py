@@ -85,14 +85,18 @@ def masked(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
 
 
 def _save(
-    tmp_path: Path, answer: str = ANSWER, shot: bytes | None = None, capability: Path | None = None
+    tmp_path: Path,
+    answer: str = ANSWER,
+    shot: bytes | None = None,
+    capability: Path | None = None,
+    extra_redact: frozenset[str] | set[str] = frozenset(),
 ) -> Path:
     ctx = make_ctx(secrets={"username": "jdoe", "password": SECRET})
     run = DiscoveryRun(
         goal=f"Log in, pay {NAME} $100000",
         answer=answer,
         log=[dict(e) for e in LOG],  # type: ignore[misc]
-        redact={"100000", ACCOUNT, NAME, "jdoe"},
+        redact={"100000", ACCOUNT, NAME, "jdoe", *extra_redact},
         messages=list(MESSAGES),
         final_shot=shot,
     )
@@ -182,7 +186,7 @@ def test_capability_yaml_and_crops_are_copied(tmp_path: Path, masked: list[bytes
 
 
 def test_an_artifact_holding_a_run_value_is_refused(tmp_path: Path, masked: list[bytes]) -> None:
-    yml = _artifact(tmp_path, f"name: pay\npayee: {NAME}\n")
+    yml = _artifact(tmp_path, f"name: pay\nsteps:\n- target:\n    anchor:\n      label: {NAME}\n")
     with pytest.raises(ValueError, match="a run value is in the artifact"):
         _save(tmp_path, capability=yml)
     assert not list((tmp_path / "ev").rglob("capability.yaml"))
@@ -199,3 +203,19 @@ def test_run_json_has_provenance_and_no_values(tmp_path: Path, masked: list[byte
     assert info["git_sha"]
     for value in (SECRET, ACCOUNT, NAME, "100000", "jdoe"):
         assert value not in raw
+
+
+def test_a_short_number_typed_this_run_does_not_flag_the_artifacts_own_numbers(
+    tmp_path: Path, masked: list[bytes]
+) -> None:
+    """Live: a form value of '1' made 'version: 1' and 's1.png' look like a leak, so a clean
+    artifact crashed the evidence save. Only the artifact's TEXT fields can hold a value."""
+    yml = _artifact(
+        tmp_path,
+        "schema_version: 2\nname: pay\nversion: 1\nviewport:\n- 1280\n- 800\n"
+        "device_scale_factor: 1.0\nsteps:\n- action: type\n  target:\n    anchor:\n"
+        "      label: 'Address:'\n      offset:\n      - 1\n      - 0\n"
+        "    template: crops/pay/s1.png\n  value: '{{address}}'\n",
+    )
+    run = _save(tmp_path, capability=yml, extra_redact={"1", "0.00"})
+    assert (run / "capability.yaml").exists()
