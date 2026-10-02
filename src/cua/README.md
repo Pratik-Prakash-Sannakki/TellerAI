@@ -11,6 +11,9 @@ step (see `docs/PRODUCTIONIZE_PLAN.md`); later steps append their folders here.
    events). Pure, no I/O.
 3. `llm.py` - `make_chat_model`, the one place a chat model is built (direct Anthropic; an optional
    Anthropic-compatible gateway via env vars).
+4. `eval.py` - `cua eval`'s report: `summarize` N `ReplayResult`s into a frozen `EvalReport`
+   (status counts, rung histogram, `fallback_steps`, output stability as bools), `render`,
+   `save_report`. Pure, no browser; `cli.py` runs the replays.
 
 ## Rules
 - No site value (host, URL, words, env-var names) in `src/`: they live in `configs/<site>.yaml`

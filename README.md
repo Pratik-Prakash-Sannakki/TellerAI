@@ -108,17 +108,25 @@ Saved examples from earlier runs: `artifacts/` (`transfer_money.yaml`, `pay_bill
 
 ### CLI
 
-The same two flows as one command each, once `uv sync` installs `cua` as a script:
+The same flows as one command each, once `uv sync` installs `cua` as a script:
 
 ```bash
 .venv/bin/cua discover "Log in and read the first account's balance" --out artifacts
 .venv/bin/cua replay artifacts/get_all_account_balances.yaml --evidence
 .venv/bin/cua replay artifacts/transfer_money.yaml \
   --input amount=10 --input from_account=12345 --input to_account=67890
+.venv/bin/cua eval artifacts/get_all_account_balances.yaml --runs 3
 ```
 
 `--site` picks a profile from `configs/` (defaults to the only one there: `parabank`).
 `cua replay` exits 1 unless the result is `SUCCESS`.
+
+`cua eval` replays one capability N times (`--runs`, default 3) in one browser session and prints
+a stability table: status counts, success rate, human-assisted runs, a rung histogram per step,
+the steps that fell back from their first-choice rung, and whether the outputs matched across
+runs (a yes/no per output, never the values). It writes `evidence/eval/<UTC>-<name>/report.json`
+(+ `run.json`); `--evidence` also saves each run's replay folder. Every input must be given with
+`--input` (the runs are unattended), and it exits 1 unless every run is `SUCCESS`.
 
 ## Repo layout
 
@@ -134,7 +142,8 @@ src/cua/               the package (see src/cua/README.md for read order and imp
   handoff/             the "Agent control" tab, hand-back extension calls, take-over loop
   discovery/           the agent: tools, prompt/middleware, recorder (events -> Capability), evidence
   replay/              the engine: loader, locate (rungs), steps, run, rescue, evidence
-  cli.py               `cua discover` / `cua replay`
+  eval.py              `cua eval`'s report: summarize N ReplayResults, render, save (pure)
+  cli.py               `cua discover` / `cua replay` / `cua eval`
 configs/parabank.yaml  start_url, allowed hosts, secret env names, deny/login words, outcomes,
                        allowed_actions.
                        The ONLY place ParaBank lives.

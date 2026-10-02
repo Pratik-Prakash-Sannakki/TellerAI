@@ -100,7 +100,8 @@ src/cua/
     rescue.py          rescue, hand_back, re-login recovery
     evidence.py        save_evidence (replay folder layout)
   evidence.py          shared: _clean, _png, transcript masking helpers
-  cli.py               `cua discover`, `cua replay` (+ stretch `cua eval`)
+  eval.py              `cua eval`'s report: summarize, render, save (pure)
+  cli.py               `cua discover`, `cua replay`, `cua eval`
 configs/parabank.yaml  start_url, allowed_hosts, secret env names, deny/login words, login
                        failure texts, outcome rules. The ONLY place ParaBank lives
 ```
@@ -218,11 +219,11 @@ tests + folder README, run `uv run pytest`, `mypy`, `ruff`, `graphify update .`,
 | 9 | `replay/` run, steps, engine, rescue, evidence; shared `cua/evidence.py` | rest of src/cua/replay/, cua/evidence.py |
 | 10 | Thin notebooks + `cli.py` + `[project.scripts] cua`; integration tests | notebooks/*/*.py+.ipynb, cli.py, tests/integration/ |
 | 11 | Docs: root README/REPORT paths, CLAUDE.md section, delete `tests/discovery|replay` leftovers | README.md, REPORT.md, CLAUDE.md |
-| 12 | **DEFERRED (user, 2026-10-01): do after the migration.** `cua eval` | cli.py, src/cua/eval.py |
+| 12 | **DONE (2026-10-01).** `cua eval --runs N`: status counts + rung histogram + fallback steps | cli.py, src/cua/eval.py |
 The user runs the browser cells after step 10 (live check of both notebooks) before step 11.
 
-**Status (2026-10-01): steps 0-11 done, committed.** Step 12 (`cua eval`) stays deferred, per the
-decision above.
+**Status (2026-10-01): steps 0-12 done, committed.** Step 12 (`cua eval`) was built after the
+migration, as decided.
 
 ## 9. Risks
 | Risk | Guard |
@@ -264,8 +265,8 @@ decision above.
 4. `models.py` → **`llm.py`**, with a 1-line `models.py` re-export shim.
 5. Prompt/model version: **evidence only** (`run.json`); schema stays v2.
 6. Artifacts: **top-level `artifacts/`** (`artifacts/<name>.yaml`, `artifacts/crops/<name>/`).
-7. `cua eval --runs N`: **DEFERRED**. Not in this migration. Reminder kept in REPORT.md Cuts and
-   here (step 12). Design: replay a capability N times, report status counts + rung histogram.
+7. `cua eval --runs N`: **DONE** (step 12, after the migration). Replays a capability N times in
+   one session, reports status counts + rung histogram + fallback steps (`src/cua/eval.py`).
 
 ## Restore: TypeSafe tool selection + model routing (user, 2026-10-01)
 Planned in `notebooks/discovery/PLAN.md` (D50/D52/D76) but never wired into the visual notebook, then

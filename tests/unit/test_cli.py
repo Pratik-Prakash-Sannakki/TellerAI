@@ -12,11 +12,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from cua import cli
 from cua.schema import ReplayResult
 
 SRC = Path(__file__).parents[2] / "src/cua"
+RUNS = 3
 
 
 def test_discover_args_and_defaults() -> None:
@@ -68,9 +70,18 @@ def test_a_command_is_required() -> None:
         cli.parse_args([])
 
 
-def test_there_is_no_eval_command() -> None:
+def test_eval_args_and_defaults() -> None:
+    a = cli.parse_args(["eval", "cap.yaml", "--runs", "3", "--input", "a=1"])
+    assert (a.command, a.capability, a.runs, a.inputs, a.evidence) == (
+        "eval", Path("cap.yaml"), 3, ["a=1"], False,
+    )  # fmt: skip
+    assert cli.parse_args(["eval", "cap.yaml"]).runs == RUNS
+
+
+@pytest.mark.parametrize("bad", ["0", "-2", "x"])
+def test_eval_refuses_a_run_count_below_one(bad: str) -> None:
     with pytest.raises(SystemExit):
-        cli.parse_args(["eval", "c.yaml"])
+        cli.parse_args(["eval", "cap.yaml", "--runs", bad])
 
 
 def test_inputs_split_on_the_first_equals_only() -> None:
@@ -313,3 +324,112 @@ def test_a_run_that_cannot_be_saved_prints_why_and_never_asks_the_model(
     assert "not saved: a human take-over happened" in out
     assert "Traceback" not in out
     assert asked == []                                 # refused before the model was asked
+
+
+# --- cua eval ---------------------------------------------------------------------------------
+
+T = {"anchor": {"label": "L", "offset": [0, 0]}}
+
+
+def _cap_file(tmp_path: Path, inputs: list[str], sends: bool = False) -> Path:
+    steps: list[dict[str, object]] = [
+        {"action": "type", "target": T, "value": "{{secret:username}}"},
+        {"action": "click", "target": T},
+    ]
+    steps += [{"action": "type", "target": T, "value": f"{{{{{n}}}}}"} for n in inputs]
+    if sends:
+        steps.append({"action": "click", "target": T})
+    data = {
+        "name": "cap_x", "description": "d", "base_url": "https://parabank.parasoft.com/parabank",
+        "viewport": [1280, 800], "inputs": [{"name": n} for n in inputs], "steps": steps,
+        "checkpoint": "ok",
+    }  # fmt: skip
+    path = tmp_path / "cap_x.yaml"
+    path.write_text(yaml.safe_dump(data))
+    return path
+
+
+def test_eval_stops_on_a_missing_input_before_any_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    names = _record_run(monkeypatch)
+    cap = _cap_file(tmp_path, ["amount", "to_account"])
+    with pytest.raises(SystemExit, match=r"missing \['to_account'\]") as e:
+        cli.main(["eval", str(cap), "--input", "amount=5"])
+    assert "unattended" in str(e.value)
+    assert names == []
+
+
+@pytest.mark.parametrize(("statuses", "code"), [(["SUCCESS"] * 2, 0), (["SUCCESS", "STUCK"], 1)])
+def test_main_runs_eval_through_asyncio_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, statuses: list[str], code: int
+) -> None:
+    seen: list[tuple[object, ...]] = []
+
+    async def run_eval(
+        cap: Path, inputs: dict[str, str], site: str, runs: int, evidence: bool
+    ) -> object:
+        seen.append((cap, inputs, site, runs, evidence))
+        return cli.summarize([_result(s) for s in statuses])
+
+    names = _record_run(monkeypatch)
+    monkeypatch.setattr(cli, "run_eval", run_eval)
+    cap = _cap_file(tmp_path, ["amount"])
+    assert cli.main(["eval", str(cap), "--runs", "2", "--input", "amount=5"]) == code
+    assert names == ["run_eval"]
+    assert seen == [(cap, {"amount": "5"}, "parabank", 2, False)]
+
+
+def test_eval_warns_when_the_capability_sends_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run_eval(*a: object) -> object:
+        return cli.summarize([_result("SUCCESS")])
+
+    _record_run(monkeypatch)
+    monkeypatch.setattr(cli, "run_eval", run_eval)
+    cli.main(["eval", str(_cap_file(tmp_path, ["amount"], sends=True)), "--input", "amount=5"])
+    assert "each run will stop at the two gates" in capsys.readouterr().out
+    cli.main(["eval", str(_cap_file(tmp_path, [])), "--runs", "1"])
+    assert "gates" not in capsys.readouterr().out
+
+
+def test_eval_replays_n_times_in_one_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[tuple[object, ...]] = []
+    _patch_session(monkeypatch, calls)
+    secret_out = "987.65"
+    cfg = SimpleNamespace()
+
+    async def attach(session: object, site: object, c: object) -> object:
+        calls.append(("attach",))
+        last = SimpleNamespace(values={"5"})
+        return SimpleNamespace(last=last, secrets={"username": "u"}, bcfg=cfg, cfg=cfg, site=site)
+
+    async def replay(ctx: object, path: Path, inputs: dict[str, str]) -> ReplayResult:
+        calls.append(("replay", inputs))
+        return ReplayResult("SUCCESS", {"bal": secret_out}, [{"step": 0, "rung": "rung1"}])
+
+    monkeypatch.setattr(cli, "replay_attach", attach)
+    monkeypatch.setattr(cli, "replay", replay)
+    monkeypatch.setattr(cli, "EVIDENCE", tmp_path)
+    monkeypatch.setattr(cli, "run_info", lambda *a: {"git_sha": "x"})
+    monkeypatch.setattr(
+        cli, "save_replay_evidence", lambda ctx, r, cap, out: calls.append(("evidence", out)) or out
+    )
+    cap = _cap_file(tmp_path, ["amount"])
+    report = asyncio.run(cli.run_eval(cap, {"amount": "5"}, "parabank", 3, True))
+    assert (report.runs, report.all_success) == (RUNS, True)
+    assert [c[0] for c in calls] == [
+        "open_session", *["attach", "replay", "evidence"] * 3, "close", "stop",
+    ]  # fmt: skip
+    assert calls[0][2] == {"profile_prefix": "cua-eval-"}
+    assert calls[3] == ("evidence", tmp_path / "replay")
+    out = capsys.readouterr().out
+    assert "runs: 3" in out
+    assert secret_out not in out
+    (folder,) = (tmp_path / "eval").iterdir()
+    assert folder.name.endswith("-cap_x")
+    assert secret_out not in (folder / "report.json").read_text()
+    assert (folder / "run.json").exists()

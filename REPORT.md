@@ -109,6 +109,14 @@ defaults.
   after a send.
 - **Hard failure:** "error", "access denied", a second expiry. Stop as `FAILED`.
 
+**Multi-run stability (built).** `cua eval cap.yaml --runs N` replays a capability N times in one
+session (`src/cua/eval.py`) and reports status counts, success rate, `flaky` (not every run had
+the same status), human-assisted runs, a per-step rung histogram (cleanup rows kept apart), and
+whether each output matched across the successful runs (a bool per name, never the value). The
+drift signal is `fallback_steps`: a step whose first-choice rung (`rung1` or `table`) was not used
+in every run. A capability can still pass while a step silently slides to an anchor or template;
+that step is the one to re-discover before it breaks.
+
 **Rescue (built).** A step that still misses opens the help panel: take over or stop (P2).
 
 **Drift log and evidence (built, R18/P11).** Per step: rung, point, attempt, check result, no
@@ -170,9 +178,6 @@ control. CDP `Input.setIgnoreInputEvents` blocks human input on the site except 
 
 ## Cuts
 
-0. **`cua eval --runs N` (planned next, deferred 2026-10-01).** Replay a capability N times and
-   report a stability score (status counts + rung per step). Design in
-   `docs/PRODUCTIONIZE_PLAN.md` step 12.
 1. **Per-keystroke take-over capture (cut).** A take-over stays unreplayable; the save refuses it.
 2. **Desktop surfaces (cut).** Browser only.
 3. **Whole-screen OCR for OS-drawn menus (cut).** Needs OS permissions.
