@@ -375,3 +375,35 @@ async def test_describe_asks_the_given_model_with_labels_and_input_names_only() 
     (prompt,) = model.prompts
     assert "Inputs a caller fills in: amount." in prompt
     assert "type_text Amount" in prompt
+
+
+def _logout() -> dict:
+    return _ev("click", REF, "Clicked 'Log Out'.", "Request Loan", "Log Out", text="Log Out")
+
+
+def _read() -> dict:
+    args = {"save_as": "balance", "value_type": "currency", "description": "the balance"}
+    return _ev("extract_value", args, "Saved.", label="Balance", table=None)
+
+
+def test_a_second_login_never_moves_the_secrets_after_the_first_logout() -> None:
+    """Live (get_account_transactions.yaml): log in, read, log out, log in again, log out. The
+    'last success per field' rule kept the SECOND login's secrets, which landed after the first
+    logout: replay clicked LOG IN on empty boxes and failed on the site's error page."""
+    log = [*LOGIN, _read(), _logout(), *LOGIN[1:], _logout()]
+    cap = build_capability(log, _meta(name="read_balance"))
+    actions = [(s.action, getattr(s, "value", None)) for s in cap.steps]
+    first_click = next(i for i, (a, _) in enumerate(actions) if a == "click")
+    typed = [i for i, (_, v) in enumerate(actions) if v and "{{secret:" in v]
+    assert typed
+    assert all(i < first_click for i in typed)   # secrets come before the login click
+
+
+def test_secrets_typed_after_the_login_click_are_refused() -> None:
+    """A guard on the result: replay must never click Log In before the boxes are filled."""
+    from cua.discovery.recorder import NotSaved  # noqa: PLC0415
+    from cua.discovery.recorder.build import _check_login_order  # noqa: PLC0415
+    steps = build_capability([*LOGIN, SENT], _meta()).steps
+    _check_login_order(steps)                                   # in order: fine
+    with pytest.raises(NotSaved, match="login"):
+        _check_login_order([steps[2], steps[0], steps[1]])

@@ -117,6 +117,7 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
     events, name = step_events(log), input_name(meta.name)
     _refuse(log, events)
     steps = [to_step(ev, f"crops/{name}/s{i}.png") for i, ev in enumerate(events)]
+    _check_login_order(steps)
     names, types = step_inputs(steps), input_types(succeeded(log))  # every value, retries too
     return Capability(
         name=name,
@@ -139,6 +140,18 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
         steps=steps,
         checkpoint=checkpoint(log, meta.success_text),
     )
+
+
+def _check_login_order(steps: list[Step]) -> None:
+    """Every secret is typed before the first click (the login). Replay clicking Log In on empty
+    boxes fails on the site's error page, so a capability in that order is never saved."""
+    clicks = [i for i, s in enumerate(steps) if s.action == "click"]
+    secrets = [i for i, s in enumerate(steps) if "{{secret:" in (getattr(s, "value", "") or "")]
+    if clicks and secrets and max(secrets) > clicks[0]:
+        raise NotSaved(
+            "the login steps are out of order (a secret is typed after the first click). "
+            "Re-run discovery."
+        )
 
 
 def check_savable(log: list[Event]) -> None:

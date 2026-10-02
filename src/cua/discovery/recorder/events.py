@@ -104,11 +104,25 @@ class NotSaved(ValueError):
     """A run that must not become a capability. The message says why, for a person to read."""
 
 
+def is_logout(ev: Event) -> bool:
+    own = ev.get("own")
+    text = norm(str(ev.get("text") or (own.get("text") if isinstance(own, dict) else "") or ""))
+    return ev["tool"] == "click" and text in LOGOUT_WORDS
+
+
+def first_session(events: list[Event]) -> list[Event]:
+    """Up to and including the first logout. A run that logs out and back in (a retry, or the
+    agent wandering) is not part of the capability, and "last success per field" across that
+    boundary moved the second login's secrets AFTER the first logout (live)."""
+    cut = next((i for i, ev in enumerate(events) if is_logout(ev)), None)
+    return events if cut is None else events[: cut + 1]
+
+
 def step_events(log: list[Event]) -> list[Event]:
     """R16: drop failures, keep the last success per field. Refuse a take-over."""
     if any(ev.get("recordable") is False for ev in log):
         raise NotSaved("a human take-over happened in this run: it has steps the agent never saw.")
-    ok = succeeded(log)
+    ok = first_session(succeeded(log))
     key = lambda ev: (urlparse(ev["url"]).path, ev.get("label") or ev["point"])  # noqa: E731
     last = {key(ev): i for i, ev in enumerate(ok) if ev["tool"] in FIELD_TOOLS}  # type: ignore[no-untyped-call]
     later_select = lambda i: any(  # noqa: E731
