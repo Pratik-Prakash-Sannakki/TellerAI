@@ -265,8 +265,56 @@ re-logs in once. Cleanup (logout) always runs.
 | `FAILED` | bad YAML, wrong screen size, host blocked, action not allowed, checkpoint or output missing |
 | `BUSINESS_OUTCOME` | a known answer, e.g. "not found", "insufficient funds" |
 
-Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*) and
-`notebooks/replay/DECISIONS.md` (R*).
+## The agent
+
+Discovery is one **deep agent** built with LangChain's [`deepagents`](https://github.com/langchain-ai/deepagents)
+(`create_deep_agent`, on LangGraph), in `src/cua/discovery/agent/build.py`. It gets the visual
+system prompt, 13 tools (`observe`, `click`, `type_text`, `type_secret`, `select_option`, `scroll`,
+`open_path`, `extract_value`, `extract_table`, `extract_options`, `request_missing_values`,
+`ask_human`, `finish_business_outcome`) and a checkpointer, so a run paused for a human resumes
+where it stopped. Middleware wraps every model call:
+
+- `RecordWhy`: logs the model's one-line reason for each tool call (masked) into the evidence.
+- `LatestScreenshotOnly`: only the newest screenshot stays in context, which keeps every turn small.
+- The TypeSafe tool router and model router below, when switched on.
+
+**Models.** Claude only, called directly through Anthropic (`cua.llm.make_chat_model`):
+
+| Role | Model | When |
+|---|---|---|
+| Powerful (default) | Claude Sonnet (`claude-sonnet-5`) | every step when routing is off; any step the router isn't sure about |
+| Fast | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) | a simple, unambiguous step, and only when the router is confident |
+
+Replay uses no model at all.
+
+### Confidence-driven tool selection and model routing (TypeSafe)
+
+Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`), else the agent runs Sonnet
+with every tool. Code: `src/cua/discovery/agent/routing.py`.
+
+Before **each** model call, a [TypeSafe](https://typesafe.ai) classifier answers two multiple-choice
+questions about the current step. Each answer comes back with a **confidence** score, and the
+confidence decides whether we act on it:
+
+1. **Which job is this step?** One of `login`, `fill_form`, `read_value`, `navigate`, `need_human`,
+   `finish`. At confidence **≥ 0.8**, the tool list is narrowed to that job's tools plus four that
+   are always kept (`observe`, `click`, `type_secret`, `ask_human`). For example, a `fill_form` step
+   sees `type_text`, `select_option` and `scroll`, not the extract or finish tools. Below 0.8, all
+   13 tools stay.
+2. **Fast or powerful model?** Haiku is used only when the answer is `fast` **and** confidence is
+   ≥ 0.8. Otherwise the step goes to Sonnet.
+
+Design rules:
+
+- **Fails open.** A low-confidence answer, a timeout or any classifier error changes nothing: all
+  tools, Sonnet. Routing can only save cost; it can never block a step.
+- **Per step, not per run.** TypeSafe's stock model router decides once per run from the goal, so a
+  multi-step goal never reached Haiku. Ours asks again at every step.
+- **Minimal data out.** The classifier sees only the page name, the last tool's name and its status
+  word (`OK`, `REFUSED`, `Saved`). Never screen text, URL tokens or values.
+
+Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*, routing
+is Q22) and `notebooks/replay/DECISIONS.md` (R*).
 
 ## Setup
 
@@ -354,7 +402,6 @@ outcomes:                                               # text seen after a step
    .venv/bin/cua discover "Log in and read the first account's balance" --site mybank --out artifacts/mybank
    .venv/bin/cua replay artifacts/mybank/get_account_balance.yaml --site mybank
    ```
-   In the notebooks, change `site = load_site("parabank")` in the setup cell.
 4. **Re-discover the tasks.** Capabilities are per site. Each one stores its `base_url` and crops,
    and replay refuses one whose host isn't in the chosen profile's `allowed_hosts`. Keep each bank's
    artifacts in their own folder (`--out artifacts/<site>`).
@@ -385,20 +432,13 @@ the code touches the page's script; everything else is screenshots, mouse and ke
   writes `evidence/eval/<UTC>-<name>/report.json`. Every input must be given with `--input`, and it
   exits 1 unless every run is `SUCCESS`.
 
-### Notebooks
-
-Both are jupytext pairs (the `.py` is the source, open the `.ipynb`), thin demos over `src/cua/`.
-
-**Discover.** Open `notebooks/discovery/discovery.ipynb`, kernel **"BankerAgent (.venv)"**, Run
-all. Chromium opens with the ParaBank tab and an "Agent control" tab. When the agent needs you, the
-control tab comes to the front: answer a question, fill a form, or approve/edit a send at the two
-gates. If you take over, the site unlocks; click **Done** (or the toolbar hand-back icon) to hand
-back. `## Save artifact` writes the YAML + crops (refused after a take-over); `## Evidence` writes a
-masked `evidence/discovery/<UTC>-<goal>/` folder.
-
-**Replay.** Open `notebooks/replay/replay.ipynb`, point the `## Run` cell at a YAML, Run all. One
-form asks every input; any send still stops at Gate 1 and Gate 2. It prints the status, outputs,
-the drift log (which rung found each step), and the evidence folder.
+**What you'll see.** Chromium opens with the bank tab and an "Agent control" tab. When the agent
+(or replay) needs you, the control tab comes to the front: answer a question, fill a form, or
+approve/edit a send at the two gates. If you take over, the site unlocks; click **Done** (or the
+toolbar hand-back icon) to hand back. Discovery saves the YAML + crops (refused after a take-over)
+and a masked `evidence/discovery/<UTC>-<goal>/` folder. Replay asks every input in one form, stops
+any send at Gate 1 and Gate 2, and prints the status, outputs and drift log (which rung found each
+step).
 
 ## Evidence
 
