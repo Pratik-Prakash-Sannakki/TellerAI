@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlparse
 from cua.discovery.recorder.checkpoint import checkpoint
 from cua.discovery.recorder.events import (
     READ_TOOLS,
+    NotSaved,
     input_name,
     is_select,
     step_events,
@@ -140,22 +141,27 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
     )
 
 
+def check_savable(log: list[Event]) -> None:
+    """Raise NotSaved before any model call when this run cannot become a capability."""
+    _refuse(log, step_events(log))
+
+
 def _refuse(log: list[Event], events: list[Event]) -> None:
     """``build_capability``'s refusals, unchanged: a leaked value, a blind dropdown, no outcome."""
     if leaks := [i for i, ev in enumerate(events) if ev.get("leak")]:
-        raise ValueError(
+        raise NotSaved(
             f"steps {leaks}: a label or target text is a value typed this run. "
             "Not saved (it would store the value). Re-run discovery."
         )
     if blind := [i for i, ev in enumerate(events) if is_select(ev) and not ev.get("anchor")]:
-        raise ValueError(
+        raise NotSaved(
             f"steps {blind}: a dropdown with no label to find it by (only its crop). "
             "Not saved (replay would guess between dropdowns). Re-run discovery."
         )
     if not any(ev["tool"] == "send" for ev in log) and not any(
         ev["tool"] in READ_TOOLS for ev in events
     ):
-        raise ValueError(
+        raise NotSaved(
             "nothing was read or sent: re-run and save the values with extract_value "
             "(a table: extract_table). "
             "Not saved (a caller would get SUCCESS with no data)."

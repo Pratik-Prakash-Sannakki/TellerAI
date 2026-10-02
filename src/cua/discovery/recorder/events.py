@@ -100,10 +100,14 @@ def succeeded(log: list[Event]) -> list[Event]:
     ]
 
 
+class NotSaved(ValueError):
+    """A run that must not become a capability. The message says why, for a person to read."""
+
+
 def step_events(log: list[Event]) -> list[Event]:
     """R16: drop failures, keep the last success per field. Refuse a take-over."""
     if any(ev.get("recordable") is False for ev in log):
-        raise ValueError("a human take-over happened: steps we cannot see. Not saved.")
+        raise NotSaved("a human take-over happened in this run: it has steps the agent never saw.")
     ok = succeeded(log)
     key = lambda ev: (urlparse(ev["url"]).path, ev.get("label") or ev["point"])  # noqa: E731
     last = {key(ev): i for i, ev in enumerate(ok) if ev["tool"] in FIELD_TOOLS}  # type: ignore[no-untyped-call]

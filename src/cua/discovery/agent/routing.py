@@ -114,7 +114,7 @@ class ToolRouter(AgentMiddleware):
 def _typesafe() -> ModuleType:
     import langchain_typesafe  # noqa: PLC0415 (optional extra: imported only when switched on)
 
-    return langchain_typesafe  # type: ignore[no-any-return]
+    return langchain_typesafe
 
 
 def _model_router() -> AgentMiddleware:
@@ -124,7 +124,7 @@ def _model_router() -> AgentMiddleware:
         ModelRouterMiddleware,
     )
 
-    router: AgentMiddleware = ModelRouterMiddleware(
+    router: AgentMiddleware = ModelRouterMiddleware(  # type: ignore[assignment]  # untyped third-party middleware
         choices={
             "fast": ModelChoice(
                 model=make_chat_model("haiku"),

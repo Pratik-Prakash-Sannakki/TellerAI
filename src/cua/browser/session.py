@@ -69,6 +69,13 @@ async def _launch(pw: Playwright, cfg: BrowserConfig, profile_prefix: str) -> Br
     )
 
 
+async def close_session(session: Session) -> None:
+    """Close the browser window and stop Playwright. The notebooks keep it open between runs on
+    purpose (re-running a cell reuses it), so they call this from their own Close cell."""
+    await session.context.close()
+    await session.pw.stop()
+
+
 async def _extension(context: BrowserContext) -> Worker | None:
     try:
         return (

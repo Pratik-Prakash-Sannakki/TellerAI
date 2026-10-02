@@ -129,8 +129,8 @@ async def act(ctx: Ctx, *steps: Step) -> Look:
     )
 
 
-def into_box(ctx: Ctx, point: tuple[int, int], value: str) -> tuple[Step, Step, Step, Step]:
-    """Click the box, clear what is in it, type. Retries replace instead of doubling up."""
+def into_box(ctx: Ctx, point: tuple[int, int], value: str) -> tuple[Step, Step, Step, Step, Step]:
+    """Focus the site tab, click the box, clear it, type (see ``browser.input.into_box``)."""
     return browser_input.into_box(ctx.page, ctx.run.look, point, value)
 
 

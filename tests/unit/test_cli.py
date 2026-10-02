@@ -217,6 +217,7 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr(cli, "build_agent", lambda c, m: "AGENT")
     monkeypatch.setattr(cli, "run_goal", run_goal)
     monkeypatch.setattr(cli, "describe", describe)
+    monkeypatch.setattr(cli, "check_savable", lambda log: None)
     monkeypatch.setattr(cli, "build_capability", lambda log, meta: "CAP")
     monkeypatch.setattr(cli, "crops_for", lambda log, cap: {})
     monkeypatch.setattr(cli, "save_artifact", lambda cap, crops, out: out / "c.yaml")
@@ -292,3 +293,23 @@ def test_replay_without_evidence_saves_none(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(cli, "save_replay_evidence", lambda *a: calls.append(("evidence",)))
     asyncio.run(cli.run_replay(Path("c.yaml"), {}, "parabank", False))
     assert ("evidence",) not in calls
+
+
+def test_a_run_that_cannot_be_saved_prints_why_and_never_asks_the_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Live: a take-over run crashed with a traceback after a wasted describe() call."""
+    asked: list[str] = []
+
+    async def describe(*_: object) -> None:
+        asked.append("describe")
+
+    monkeypatch.setattr(cli, "describe", describe)
+    log = [{"tool": "start", "args": {}, "result": "", "url": "", "point": None},
+           {"tool": "take_over", "args": {}, "result": "handed back", "url": "", "point": None,
+            "recordable": False}]
+    assert asyncio.run(cli._save(log, "g", object(), tmp_path)) is None   # type: ignore[arg-type]
+    out = capsys.readouterr().out
+    assert "not saved: a human take-over happened" in out
+    assert "Traceback" not in out
+    assert asked == []                                 # refused before the model was asked

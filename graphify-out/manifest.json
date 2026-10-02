@@ -1,6 +1,6 @@
 {
   "pyproject.toml": {
-    "mtime": 1790898225.927865,
+    "mtime": 1790902631.1130104,
     "ast_hash": "7baccbfd9c182bdf7adb078818651e45",
     "semantic_hash": ""
   },
@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "notebooks/discovery/discovery.py": {
-    "mtime": 1790891954.6738617,
-    "ast_hash": "31696c064d1debdd1587821855a12f12",
+    "mtime": 1790904822.316117,
+    "ast_hash": "1d1fc34b0fb61732fd36e7d3061ffa01",
     "semantic_hash": ""
   },
   "notebooks/discovery/PLAN.md": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "notebooks/replay/replay.py": {
-    "mtime": 1790891954.6754277,
-    "ast_hash": "7f1957528d0f8cc1849c44a72603f5fc",
+    "mtime": 1790904822.635661,
+    "ast_hash": "4e191170d7dddb03c82b9cb76c18a3bb",
     "semantic_hash": ""
   },
   "notebooks/replay/PLAN.md": {
@@ -485,8 +485,8 @@
     "semantic_hash": ""
   },
   "src/cua/browser/__init__.py": {
-    "mtime": 1790881672.2811441,
-    "ast_hash": "0b0da14ca76fe1999ba4e2a40a49694d",
+    "mtime": 1790903646.9641187,
+    "ast_hash": "05373c44af4bc88f366c85c4e7ea8b6a",
     "semantic_hash": ""
   },
   "src/cua/browser/dropdown.py": {
@@ -495,13 +495,13 @@
     "semantic_hash": ""
   },
   "src/cua/browser/input.py": {
-    "mtime": 1790881769.9652522,
-    "ast_hash": "7ffb9963e0e50b81bce9bd79363bd24e",
+    "mtime": 1790904770.6154654,
+    "ast_hash": "9929763b958ca8919de42dc294e58aec",
     "semantic_hash": ""
   },
   "src/cua/browser/session.py": {
-    "mtime": 1790881572.369334,
-    "ast_hash": "3c0db4977bef1515ce28d5a3fd8726d1",
+    "mtime": 1790903646.9634166,
+    "ast_hash": "40521445a4f220ac234fccf0364b625d",
     "semantic_hash": ""
   },
   "src/cua/browser/site_lock.py": {
@@ -515,13 +515,13 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/recorder/__init__.py": {
-    "mtime": 1790896868.2557962,
-    "ast_hash": "923d88112938a2e7e5bf794553a8e3cc",
+    "mtime": 1790903282.4588454,
+    "ast_hash": "108c1dc2959fbd7d0244b62c64a4acdd",
     "semantic_hash": ""
   },
   "src/cua/discovery/recorder/build.py": {
-    "mtime": 1790896822.7046266,
-    "ast_hash": "ccbb1aa490ed30c42a43d2104928892b",
+    "mtime": 1790903210.706434,
+    "ast_hash": "05a3a65a3f1ca83a0ce242e66ede71c7",
     "semantic_hash": ""
   },
   "src/cua/discovery/recorder/checkpoint.py": {
@@ -530,8 +530,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/recorder/events.py": {
-    "mtime": 1790896822.7043602,
-    "ast_hash": "4f6112206f77af2c63179dd47efd56d0",
+    "mtime": 1790903470.305448,
+    "ast_hash": "2ef1c31661d6d27d4d6cc6e252f35f4d",
     "semantic_hash": ""
   },
   "src/cua/discovery/recorder/save.py": {
@@ -630,8 +630,8 @@
     "semantic_hash": ""
   },
   "tests/unit/browser/test_input.py": {
-    "mtime": 1790881788.7552676,
-    "ast_hash": "75886ae17b739c6fc04736c599c8e235",
+    "mtime": 1790904719.629024,
+    "ast_hash": "140112868bfa43976daa88db04a05a82",
     "semantic_hash": ""
   },
   "tests/unit/browser/test_session.py": {
@@ -740,8 +740,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/context.py": {
-    "mtime": 1790886730.2895103,
-    "ast_hash": "d069489f027d58e2cb1454ae96b61df5",
+    "mtime": 1790904662.0514724,
+    "ast_hash": "f4f440451789638cdbe988e0e9f7ddd5",
     "semantic_hash": ""
   },
   "src/cua/discovery/run.py": {
@@ -985,8 +985,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/agent/routing.py": {
-    "mtime": 1790890097.689586,
-    "ast_hash": "3bd50a50b6d64642096dd70b017e007a",
+    "mtime": 1790903298.6028504,
+    "ast_hash": "54b03d91f26a50c3e686e99caf9405d0",
     "semantic_hash": ""
   },
   "src/cua/discovery/evidence.py": {
@@ -1035,8 +1035,8 @@
     "semantic_hash": ""
   },
   "src/cua/cli.py": {
-    "mtime": 1790891954.6758325,
-    "ast_hash": "20fa9d2a1819353a681e45a71bcbd770",
+    "mtime": 1790903646.9645276,
+    "ast_hash": "9c2d5aa1182b981dac739135264636fc",
     "semantic_hash": ""
   },
   "tests/integration/test_notebooks.py": {
@@ -1050,8 +1050,8 @@
     "semantic_hash": ""
   },
   "tests/unit/test_cli.py": {
-    "mtime": 1790891341.1262028,
-    "ast_hash": "b859517fe0d31f569738d195dcf56f98",
+    "mtime": 1790903428.0713782,
+    "ast_hash": "d053cedf2d71320983e3559877f1d8d1",
     "semantic_hash": ""
   },
   "tests/unit/test_import_rules.py": {
@@ -1317,6 +1317,276 @@
   "tests/unit/discovery/recorder/test_recorder_types.py": {
     "mtime": 1790896668.438466,
     "ast_hash": "f3ae5737fbb7a9d33d0f1d03e14e3b90",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T005633Z-value/answer.txt": {
+    "mtime": 1790902593.6250763,
+    "ast_hash": "68b329da9893e34099c7d8ad5cb9c940",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T005633Z-value/goal.txt": {
+    "mtime": 1790902593.624702,
+    "ast_hash": "68b329da9893e34099c7d8ad5cb9c940",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/answer.txt": {
+    "mtime": 1790902977.248632,
+    "ast_hash": "6fb6a7860f777a4bc84bf666a5289e4b",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/goal.txt": {
+    "mtime": 1790902977.248423,
+    "ast_hash": "749abf7b597aad6b060d82d8284d3055",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010627Z-log_in_transfer_10_from_my_account_to_my/answer.txt": {
+    "mtime": 1790903188.4093747,
+    "ast_hash": "68b329da9893e34099c7d8ad5cb9c940",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010627Z-log_in_transfer_10_from_my_account_to_my/goal.txt": {
+    "mtime": 1790903188.4092457,
+    "ast_hash": "552bae4a18b86d5f541a70b3f7943534",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010716Z-log_in_transfer_10_from_my_account_to_my/answer.txt": {
+    "mtime": 1790903237.7135746,
+    "ast_hash": "59579deca2d2e227b57be6cb5f3e4d4c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010716Z-log_in_transfer_10_from_my_account_to_my/goal.txt": {
+    "mtime": 1790903237.7134335,
+    "ast_hash": "552bae4a18b86d5f541a70b3f7943534",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_1.png": {
+    "mtime": 1790902971.7984467,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_10.png": {
+    "mtime": 1790902975.466365,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_11.png": {
+    "mtime": 1790902975.6548398,
+    "ast_hash": "96c32afbb9cd0e4e99034aa4292d1a08",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_12.png": {
+    "mtime": 1790902975.82359,
+    "ast_hash": "96c32afbb9cd0e4e99034aa4292d1a08",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_13.png": {
+    "mtime": 1790902976.242393,
+    "ast_hash": "1253b77d61f8702b29d605a86bc65af2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_15.png": {
+    "mtime": 1790902976.5620148,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_16.png": {
+    "mtime": 1790902976.9854498,
+    "ast_hash": "f7787492e01efbf8b743b6858702c7ce",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_17.png": {
+    "mtime": 1790902977.2480662,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_2.png": {
+    "mtime": 1790902972.2090998,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_3.png": {
+    "mtime": 1790902972.34051,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_6.png": {
+    "mtime": 1790902974.1402106,
+    "ast_hash": "c70540170211913a73f4f4ad2fa8052c",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_7.png": {
+    "mtime": 1790902974.537815,
+    "ast_hash": "2df95337e907eef97d4cec388b8b4915",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_8.png": {
+    "mtime": 1790902974.6640673,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/step_9.png": {
+    "mtime": 1790902975.0487907,
+    "ast_hash": "9eee1481b1baeb6b4b82f963321db439",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_after.png": {
+    "mtime": 1790902973.6779106,
+    "ast_hash": "ce4dca37be3035a1c7b9f50f4be4b5ef",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010251Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_before.png": {
+    "mtime": 1790902972.9022882,
+    "ast_hash": "fe340b23425f4cc43624a7e08a7219a6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010627Z-log_in_transfer_10_from_my_account_to_my/step_1.png": {
+    "mtime": 1790903187.847211,
+    "ast_hash": "d61c9f4faea59400dd56f3ed91938755",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010627Z-log_in_transfer_10_from_my_account_to_my/step_2.png": {
+    "mtime": 1790903188.2737906,
+    "ast_hash": "5c8443f22883bd9bdde5fed6acab1947",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010627Z-log_in_transfer_10_from_my_account_to_my/step_3.png": {
+    "mtime": 1790903188.408852,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010716Z-log_in_transfer_10_from_my_account_to_my/step_1.png": {
+    "mtime": 1790903237.0597606,
+    "ast_hash": "afd2074eec98db0af78e6f57e592ed46",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010716Z-log_in_transfer_10_from_my_account_to_my/step_2.png": {
+    "mtime": 1790903237.5759838,
+    "ast_hash": "403f8988aba92b0301634a10e5118a9f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T010716Z-log_in_transfer_10_from_my_account_to_my/step_3.png": {
+    "mtime": 1790903237.71297,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/answer.txt": {
+    "mtime": 1790904430.4150627,
+    "ast_hash": "016e540bd366ba155c675a77beb7c5e9",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/goal.txt": {
+    "mtime": 1790904430.4148312,
+    "ast_hash": "749abf7b597aad6b060d82d8284d3055",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/answer.txt": {
+    "mtime": 1790904541.4706717,
+    "ast_hash": "68b329da9893e34099c7d8ad5cb9c940",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/goal.txt": {
+    "mtime": 1790904541.4704833,
+    "ast_hash": "552bae4a18b86d5f541a70b3f7943534",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_1.png": {
+    "mtime": 1790904425.2405071,
+    "ast_hash": "afd2074eec98db0af78e6f57e592ed46",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_10.png": {
+    "mtime": 1790904428.6842675,
+    "ast_hash": "158020395f4d1d1c1a26776e2e42f4be",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_11.png": {
+    "mtime": 1790904429.0773606,
+    "ast_hash": "f6233c5eea5d88f0432f400bd66941f1",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_12.png": {
+    "mtime": 1790904429.4724064,
+    "ast_hash": "bb7d737bbb3100f8db55a6081ca2f97f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_14.png": {
+    "mtime": 1790904429.727703,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_15.png": {
+    "mtime": 1790904430.1544147,
+    "ast_hash": "f7787492e01efbf8b743b6858702c7ce",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_16.png": {
+    "mtime": 1790904430.4144416,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_2.png": {
+    "mtime": 1790904425.6777215,
+    "ast_hash": "403f8988aba92b0301634a10e5118a9f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_3.png": {
+    "mtime": 1790904425.80512,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_6.png": {
+    "mtime": 1790904427.3898804,
+    "ast_hash": "dbe2f01e8c056a5f718f180d59507bbb",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_7.png": {
+    "mtime": 1790904427.84345,
+    "ast_hash": "4753bbbbfce8dcab0342063b1765a3b4",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_8.png": {
+    "mtime": 1790904427.9648032,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/step_9.png": {
+    "mtime": 1790904428.2787306,
+    "ast_hash": "02ef1ab1317b7fa40006e31aebe7902f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_after.png": {
+    "mtime": 1790904426.9825227,
+    "ast_hash": "075fec6b5899dd31adc535d4eb239601",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012704Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_before.png": {
+    "mtime": 1790904426.301169,
+    "ast_hash": "ff9de6c4177aafdfa8b0cc8e66c8a257",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_1.png": {
+    "mtime": 1790904540.0986438,
+    "ast_hash": "5b1a4b8fabee4aadb3dafd68d40bf08a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_2.png": {
+    "mtime": 1790904540.531472,
+    "ast_hash": "1bbaccfbf9d0ec92cd7aa4df7f7a3105",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_3.png": {
+    "mtime": 1790904540.9345715,
+    "ast_hash": "2d6918a17538666c4d1c9bd2cf176bf5",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_4.png": {
+    "mtime": 1790904541.329332,
+    "ast_hash": "966baf0ef40a272121b77d3352adbac6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_5.png": {
+    "mtime": 1790904541.4700768,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
     "semantic_hash": ""
   }
 }

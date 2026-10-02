@@ -31,7 +31,7 @@
 # OFFLINE
 from pathlib import Path
 
-from cua.browser import open_session
+from cua.browser import close_session, open_session
 from cua.config import BrowserConfig, ReplayConfig, load_site, secret_values
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence
@@ -72,3 +72,13 @@ for row in result.drift:
 # %%
 # BROWSER
 print(save_evidence(ctx, result, cap_path, ROOT / "evidence" / "replay"))
+
+# %% [markdown]
+# ## Close
+# Closes the browser window. Run it when you are done; Setup opens a fresh one next time.
+
+# %%
+# BROWSER
+await close_session(session)
+del session
+print("browser closed")

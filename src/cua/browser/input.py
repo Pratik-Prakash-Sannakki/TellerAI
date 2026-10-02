@@ -68,9 +68,12 @@ async def act(  # noqa: PLR0913 (constraints allow 6)
 
 def into_box(
     page: Page, look: Look | None, point: tuple[int, int], value: str
-) -> tuple[Step, Step, Step, Step]:
-    """Click the box, clear what is in it, type. Retries replace instead of doubling up."""
+) -> tuple[Step, Step, Step, Step, Step]:
+    """Focus the site tab, click the box, clear what is in it, type. Retries replace instead of
+    doubling up. The focus step matters: with the control tab open, keystrokes otherwise reach
+    whichever tab holds the keyboard, and the box stays empty."""
     return (
+        lambda: page.bring_to_front(),
         lambda: page.mouse.click(*to_page(look, point)),
         lambda: page.keyboard.press("ControlOrMeta+A"),
         lambda: page.keyboard.press("Backspace"),

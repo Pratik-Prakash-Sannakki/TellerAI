@@ -16,10 +16,17 @@ from cua.browser.dropdown import (
     read_dropdowns,
 )
 from cua.browser.input import act, into_box, wait_for_change
-from cua.browser.session import Session, check_viewport, handback_dir, open_session
+from cua.browser.session import (
+    Session,
+    check_viewport,
+    close_session,
+    handback_dir,
+    open_session,
+)
 from cua.browser.site_lock import SiteLock
 
 __all__ = [
+    "close_session",
     "DROPDOWNS_JS",
     "DROPDOWNS_WITH_BOX_JS",
     "SELECT_AT_INDEX_JS",

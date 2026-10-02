@@ -12,7 +12,9 @@ import asyncio
 from collections.abc import Sequence
 from pathlib import Path
 
-from cua.browser import Session, check_viewport, open_session
+from langchain_core.language_models import BaseChatModel
+
+from cua.browser import Session, check_viewport, close_session, open_session
 from cua.config import (
     BrowserConfig,
     DiscoveryConfig,
@@ -24,13 +26,20 @@ from cua.config import (
 from cua.discovery.agent.build import build_agent
 from cua.discovery.evidence import save_evidence as save_discovery_evidence
 from cua.discovery.goal import run_goal
-from cua.discovery.recorder import build_capability, crops_for, describe, save_artifact
+from cua.discovery.recorder import (
+    NotSaved,
+    build_capability,
+    check_savable,
+    crops_for,
+    describe,
+    save_artifact,
+)
 from cua.discovery.wiring import attach as discovery_attach
 from cua.llm import make_chat_model
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence as save_replay_evidence
 from cua.replay.wiring import attach as replay_attach
-from cua.schema import ReplayResult
+from cua.schema import Event, ReplayResult
 
 EVIDENCE = Path("evidence")
 SITE_HELP = "site profile name in configs/ (default: the only one there)"
@@ -74,8 +83,7 @@ def parse_inputs(pairs: Sequence[str]) -> dict[str, str]:
 
 
 async def _close(session: Session) -> None:
-    await session.context.close()
-    await session.pw.stop()
+    await close_session(session)
 
 
 async def discover(goal: str, site_name: str, out: Path) -> Path | None:
@@ -91,10 +99,7 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
         try:
             agent = build_agent(ctx, model)  # a CompiledStateGraph; run_goal types it as Agent
             print(await run_goal(ctx, agent, goal))  # type: ignore[arg-type]
-            meta = await describe(ctx.run.goal, ctx.run.log, model)
-            cap = build_capability(ctx.run.log, meta)
-            path = save_artifact(cap, crops_for(ctx.run.log, cap), out)
-            print("saved:", path)
+            path = await _save(ctx.run.log, ctx.run.goal, model, out)
         finally:  # evidence after any run, successful or not
             folder = save_discovery_evidence(
                 ctx, EVIDENCE / "discovery", capability=path, model=getattr(model, "model", None)
@@ -102,6 +107,20 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
             print("evidence:", folder)
     finally:
         await _close(session)
+    return path
+
+
+async def _save(log: list[Event], goal: str, model: BaseChatModel, out: Path) -> Path | None:
+    """Save the run as a capability, or say plainly why not. Checked before the model is asked."""
+    try:
+        check_savable(log)
+        cap = build_capability(log, await describe(goal, log, model))
+    except NotSaved as e:
+        print(f"not saved: {e}")
+        print("The run's evidence is still written below. Fix the cause and run again.")
+        return None
+    path = save_artifact(cap, crops_for(log, cap), out)
+    print("saved:", path)
     return path
 
 

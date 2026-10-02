@@ -2,6 +2,7 @@
 
 from cua.discovery.recorder.build import (
     build_capability,
+    check_savable,
     output,
     step_inputs,
     target,
@@ -15,6 +16,7 @@ from cua.discovery.recorder.events import (
     LOGOUT_WORDS,
     READ_TOOLS,
     STEP_TOOLS,
+    NotSaved,
     field_area,
     flag_leaks,
     goes_to_a_page,
@@ -35,6 +37,8 @@ from cua.discovery.recorder.save import crops_for, describe, save_artifact
 from cua.discovery.recorder.types import input_types, pick_type, shapes_of
 
 __all__ = [
+    "NotSaved",
+    "check_savable",
     "FIELD_GAP",
     "FIELD_TOOLS",
     "LOGOUT_WORDS",

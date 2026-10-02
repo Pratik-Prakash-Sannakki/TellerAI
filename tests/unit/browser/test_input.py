@@ -29,6 +29,9 @@ class FakeBox:
     async def click(self, *_: float) -> None:
         self.selected = False
 
+    async def bring_to_front(self) -> None:
+        pass
+
     async def press(self, key: str) -> None:
         if key == "ControlOrMeta+A":
             self.selected = True
@@ -57,7 +60,7 @@ async def test_into_box_clicks_at_the_page_point_of_the_look() -> None:
         clicks.append(p)
 
     page.click = click  # type: ignore[method-assign]
-    await into_box(page, Look(b"", b"", (), "u", 2.0), (10, 5), "x")[0]()  # type: ignore[arg-type]
+    await into_box(page, Look(b"", b"", (), "u", 2.0), (10, 5), "x")[1]()  # type: ignore[arg-type]  # [0] focuses
     assert clicks == [(20.0, 10.0)]
 
 
@@ -196,3 +199,34 @@ async def test_wait_for_change_gives_up_after_the_budget() -> None:
     page = ShotsPage([_png(0)])
     await wait_for_change(page, _png(0), 20, BrowserConfig(settle_ms=1))  # type: ignore[arg-type]
     assert page.waits >= 1
+
+
+class FocusPage:
+    """Records the order of calls: keystrokes must come after the site tab is brought to front."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.mouse, self.keyboard = self, self
+
+    async def bring_to_front(self) -> None:
+        self.calls.append("front")
+
+    async def click(self, *_: float) -> None:
+        self.calls.append("click")
+
+    async def press(self, key: str) -> None:
+        self.calls.append(f"press {key}")
+
+    async def type(self, text: str) -> None:
+        self.calls.append("type")
+
+
+@pytest.mark.asyncio
+async def test_the_site_tab_is_focused_before_any_keystroke() -> None:
+    """Live: login typed into nothing ('please enter a username and password') until a take-over
+    had brought the site tab to the front; the control tab held the keyboard."""
+    page = FocusPage()
+    for step in into_box(page, None, (10, 10), "x"):  # type: ignore[arg-type]
+        await step()
+    assert page.calls[0] == "front"
+    assert page.calls.index("front") < page.calls.index("type")

@@ -32,7 +32,7 @@
 # OFFLINE
 from pathlib import Path
 
-from cua.browser import check_viewport, open_session
+from cua.browser import check_viewport, close_session, open_session
 from cua.config import BrowserConfig, DiscoveryConfig, load_site, secret_values
 from cua.discovery.agent.build import build_agent
 from cua.discovery.evidence import save_evidence
@@ -89,3 +89,13 @@ print(path := save_artifact(cap, crops_for(ctx.run.log, cap), ROOT / "artifacts"
 # BROWSER
 print(save_evidence(ctx, ROOT / "evidence" / "discovery", capability=globals().get("path"),
                     model=model.model))
+
+# %% [markdown]
+# ## Close
+# Closes the browser window. Run it when you are done; Setup opens a fresh one next time.
+
+# %%
+# BROWSER
+await close_session(session)
+del session
+print("browser closed")
