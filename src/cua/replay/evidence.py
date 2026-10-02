@@ -24,10 +24,17 @@ from cua.schema import ReplayResult
 from cua.vision import ocr
 
 
-def masked_outputs(outputs: dict[str, str | list[dict[str, str]]]) -> dict[str, JsonValue]:
-    """Names and shape only: a value is ***, a table keeps its rows and columns, every cell ***."""
+def masked_outputs(
+    outputs: dict[str, str | list[dict[str, str]] | list[str]],
+) -> dict[str, JsonValue]:
+    """Names and shape only: a value is ***, a table keeps its rows and columns, every cell ***,
+    an option list keeps its length, every option ***."""
     return {
-        k: [dict.fromkeys(r, "***") for r in v] if isinstance(v, list) else "***"
+        k: (
+            [dict.fromkeys(r, "***") if isinstance(r, dict) else "***" for r in v]
+            if isinstance(v, list)
+            else "***"
+        )
         for k, v in outputs.items()
     }
 

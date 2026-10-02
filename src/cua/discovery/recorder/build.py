@@ -25,6 +25,7 @@ from cua.schema import (
     Click,
     Event,
     Extract,
+    ExtractOptions,
     ExtractTable,
     Header,
     Input,
@@ -78,6 +79,10 @@ def to_step(ev: Event, template: str) -> Step:  # noqa: PLR0911
             columns=args["columns"],  # type: ignore[arg-type]
             save_as=args["save_as"],  # type: ignore[arg-type]
             row_limit=args["row_limit"],  # type: ignore[arg-type]
+        )
+    if tool == "extract_options":  # found like a select: its label, never an option
+        return ExtractOptions(
+            target=target(ev, template), save_as=args["save_as"], index=ev.get("index")  # type: ignore[arg-type]
         )
     if tool == "click":
         return Click(target=target(ev, template), cleanup=bool(ev.get("cleanup")))
@@ -176,7 +181,7 @@ def _refuse(log: list[Event], events: list[Event]) -> None:
     ):
         raise NotSaved(
             "nothing was read or sent: re-run and save the values with extract_value "
-            "(a table: extract_table). "
+            "(a table: extract_table; a dropdown's options: extract_options). "
             "Not saved (a caller would get SUCCESS with no data)."
         )
 
@@ -187,4 +192,6 @@ def output(ev: Event) -> Output:
         return Output(
             name=a["save_as"], type="table", description=a["description"], columns=a["columns"]  # type: ignore[arg-type]
         )
+    if ev["tool"] == "extract_options":  # a list of the dropdown's option texts
+        return Output(name=a["save_as"], type="options", description=a["description"])  # type: ignore[arg-type]
     return Output(name=a["save_as"], type=a["value_type"], description=a["description"])  # type: ignore[arg-type]

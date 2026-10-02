@@ -15,7 +15,7 @@ from cua.safety.redact import norm, redactor
 from cua.schema import Event
 
 FIELD_TOOLS = {"type_text", "type_secret", "select_option", "request_value"}
-READ_TOOLS = {"extract_value", "extract_table"}
+READ_TOOLS = {"extract_value", "extract_table", "extract_options"}
 STEP_TOOLS = FIELD_TOOLS | READ_TOOLS | {"click", "scroll", "open_path"}
 LOGOUT_WORDS = {"log out", "logout", "sign out", "sign off"}
 FIELD_GAP = (40, 12)  # a dropdown is wide and short: points this close (x, y) are the same one

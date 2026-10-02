@@ -19,7 +19,7 @@ from cua.vision.look import Look
 
 DECLINED = "DECLINED by a human. Do not retry or work around it. Reply 'DECLINED: <why>' and stop."
 
-Saved = dict[str, str | list[dict[str, str]]]
+Saved = dict[str, str | list[dict[str, str]] | list[str]]  # a table: rows; a dropdown: options
 
 
 @dataclass
@@ -74,11 +74,15 @@ def run_values(run: DiscoveryRun, secrets: Mapping[str, str]) -> set[str]:
 
 
 def saved_texts(saved: Saved) -> set[str]:
-    """Every saved text, table cells included (evidence masking only)."""
+    """Every saved text, table cells and dropdown options included (evidence masking only)."""
     return {
         t
         for v in saved.values()
-        for t in ([v] if isinstance(v, str) else [c for r in v for c in r.values()])
+        for t in (
+            [v]
+            if isinstance(v, str)
+            else [c for r in v for c in (r.values() if isinstance(r, dict) else [r])]
+        )
         if t
     }
 

@@ -11,6 +11,7 @@ import re
 
 import pytest
 
+from cua.browser.dropdown import SELECT_UNDER_POINT_JS
 from cua.discovery.context import Ctx
 from cua.discovery.tools import read
 from cua.discovery.tools.read_helpers import (
@@ -22,10 +23,21 @@ from cua.discovery.tools.read_helpers import (
 )
 from cua.vision.look import Box, Look
 from cua.vision.table import read_rows, table_columns
-from tests.fakes import COLS, FOOTER, HEADER, ROWS, make_ctx, make_look
+from tests.fakes import (
+    COLS,
+    FOOTER,
+    HEADER,
+    ROWS,
+    ActTab,
+    blank_png,
+    make_ctx,
+    make_look,
+    make_session,
+)
 
 Items = list[tuple[str, tuple[int, int, int, int]]]
 ACTIVITY = "https://example.test/app/activity.htm"
+TRANSFER = "https://example.test/app/transfer.htm"
 
 
 @pytest.fixture(autouse=True)
@@ -313,3 +325,64 @@ def test_a_two_column_table_with_no_menu_keeps_its_row_key() -> None:
         ("$25.00", (300, 126, 355, 142)),
     ]
     assert _cell(*texts, value="$25.00") == {"row_key": "Savings", "column": "Balance"}
+
+
+# --- extract_options ---
+
+TRANSFER_FORM = [
+    ("From account #:", (480, 345, 590, 365)),
+    ("Transfer Funds", (300, 100, 500, 130)),
+]
+ACCOUNTS = ["14010", "14232", "15120"]
+
+
+def _options_ctx(options: list[str] | None, index: int | None = 0) -> Ctx:
+    """A transfer page whose dropdown at (720, 355) lists ``options`` (None: no dropdown there)."""
+    page = ActTab(TRANSFER)
+
+    def answer(script: str, arg: object) -> object:
+        if script == SELECT_UNDER_POINT_JS:
+            return index if options is not None else None
+        return options
+
+    page.answer = answer  # type: ignore[method-assign]
+    ctx = make_ctx(make_session(page))
+    ctx.run.look = make_look(TRANSFER_FORM, url=TRANSFER, png=blank_png())
+    return ctx
+
+
+async def _extract_options(ctx: Ctx) -> str:
+    args = {"x": 720, "y": 355, "save_as": "from_accounts", "description": "From accounts"}
+    return await _tool("extract_options", ctx).ainvoke(args)  # type: ignore[no-any-return]
+
+
+@pytest.mark.asyncio
+async def test_extract_options_saves_the_list_and_logs_no_option() -> None:
+    ctx = _options_ctx(ACCOUNTS)
+    msg = await _extract_options(ctx)
+    assert msg.startswith("Saved 3 options to from_accounts.")
+    assert ctx.run.saved["from_accounts"] == ACCOUNTS
+    ev = ctx.run.log[-1]
+    assert ev["tool"] == "extract_options"
+    assert ev["label"] == "From account #:"
+    assert ev["anchor"]["text"] == "From account #:"  # type: ignore[index]
+    assert ev["index"] == 0
+    assert ev["point"] == (720, 355)
+    assert ev["args"] == {
+        "ref": None,
+        "x": 720,
+        "y": 355,
+        "save_as": "from_accounts",
+        "description": "From accounts",
+    }
+    for v in ACCOUNTS:
+        assert v not in str(ev)
+        assert v not in msg
+
+
+@pytest.mark.asyncio
+async def test_extract_options_off_a_dropdown_is_refused() -> None:
+    ctx = _options_ctx(None)
+    msg = await _extract_options(ctx)
+    assert msg.startswith("REFUSED: no dropdown at (720, 355)")
+    assert "from_accounts" not in ctx.run.saved

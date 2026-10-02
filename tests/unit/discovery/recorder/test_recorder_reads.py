@@ -21,7 +21,7 @@ from cua.discovery.recorder import (
     save_artifact,
 )
 from cua.discovery.tools.read_helpers import read_target, where
-from cua.schema import Select
+from cua.schema import ExtractOptions, Select
 from tests.fakes import COLS, make_look
 from tests.unit.discovery.recorder.test_recorder import SENT, START, _ev, _FakeModel, _meta
 from tests.unit.discovery.tools.test_read import BALANCE, OVERVIEW
@@ -319,3 +319,50 @@ async def test_describe_names_the_table_outputs() -> None:
     model = _FakeModel()
     await describe("goal", [START, _table_ev("transactions_1")], model)  # type: ignore[list-item]
     assert "Tables it returns (rows): transactions_1." in model.prompts[0]
+
+
+# --- extract_options: a dropdown's options are the output ---
+
+
+def _options_log() -> list[dict]:
+    args = {
+        "ref": None,
+        "x": 720,
+        "y": 355,
+        "save_as": "from_accounts",
+        "description": "Accounts it can send from",
+    }
+    ev = {
+        **_ev("extract_options", args, "Saved 3 options.", label="From account #:"),
+        "url": TRANSFER,
+        "index": 0,
+        "page_texts": ["Transfer Funds", "From account #:"],
+        "headings": ["Transfer Funds"],
+    }
+    return [{**START, "start_texts": LOGIN_PAGE}, ev]
+
+
+def test_extract_options_is_an_extract_options_step_and_an_options_output() -> None:
+    cap = build_capability(_options_log(), _meta(name="options"))  # type: ignore[arg-type]
+    assert [s.action for s in cap.steps] == ["extract_options"]
+    step = cap.steps[0]
+    assert isinstance(step, ExtractOptions)
+    assert step.save_as == "from_accounts"
+    assert step.index == 0
+    assert step.target.anchor.label == "From account #:"  # type: ignore[union-attr]
+    assert [(o.name, o.type) for o in cap.outputs] == [("from_accounts", "options")]
+    assert cap.checkpoint == "Transfer Funds"  # a read: its page's heading
+
+
+def test_a_run_whose_only_read_is_extract_options_is_saved(tmp_path: Path) -> None:
+    log = _options_log()
+    cap = build_capability(log, _meta(name="options"))  # type: ignore[arg-type]
+    path = save_artifact(cap, crops_for(log, cap), tmp_path)  # type: ignore[arg-type]
+    assert yaml.safe_load(path.read_text())["steps"][0]["action"] == "extract_options"
+
+
+@pytest.mark.asyncio
+async def test_describe_names_the_options_outputs() -> None:
+    model = _FakeModel()
+    await describe("goal", _options_log(), model)  # type: ignore[arg-type]
+    assert "Option lists it returns: from_accounts." in model.prompts[0]

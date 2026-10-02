@@ -104,7 +104,12 @@ def test_page_name_is_the_last_path_segment() -> None:
 async def test_confident_job_narrows_the_tools() -> None:
     clf = FakeClassifier("read_value", 0.95)
     kept = await _names(_router(clf), FakeRequest(TOOLS, "x" * 500))
-    assert set(kept) == set(NEVER_HIDE) | {"extract_value", "extract_table", "scroll"}
+    assert set(kept) == set(NEVER_HIDE) | {
+        "extract_value",
+        "extract_table",
+        "extract_options",
+        "scroll",
+    }
     assert clf.states == [f"page='transfer.htm'. last result: {'x' * 400!r}"]
 
 

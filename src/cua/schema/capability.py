@@ -84,6 +84,13 @@ class Extract(Strict):
     pattern: str | None = None
 
 
+class ExtractOptions(Strict):  # a native dropdown's live option texts, read like a select
+    action: Literal["extract_options"] = "extract_options"
+    target: Target
+    save_as: Name
+    index: int | None = None  # Nth <select> on the page (document order); None = by point
+
+
 class Header(Strict):  # a table's first asked column header, found like a rung 2 label
     label: str
     ordinal: int = 1
@@ -98,7 +105,7 @@ class ExtractTable(Strict):
 
 
 Step = Annotated[
-    Navigate | Click | Type | Select | Scroll | Extract | ExtractTable,
+    Navigate | Click | Type | Select | Scroll | Extract | ExtractTable | ExtractOptions,
     Field(discriminator="action"),
 ]
 
@@ -111,7 +118,7 @@ class Input(Strict):
 
 class Output(Strict):
     name: Name
-    type: str  # a value type, or "table": a list of {column: text} rows
+    type: str  # a value type, "table" (a list of {column: text} rows) or "options" (a list)
     description: str
     columns: list[str] | None = None  # a table's columns
 

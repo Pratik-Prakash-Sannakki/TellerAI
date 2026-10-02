@@ -72,3 +72,7 @@ def test_after_wipe_the_run_holds_no_given_text_entered_values_or_look(with_tabl
     assert run.log[0].get("leak") is True  # flagged before the values were dropped
     assert {"jane", "42", "john"} <= run.redact
     assert ("Jane Doe" if with_table else "$99.00") in run.redact
+
+
+def test_saved_texts_includes_saved_options() -> None:
+    assert saved_texts({"accounts": ["14010", "14232"]}) == {"14010", "14232"}

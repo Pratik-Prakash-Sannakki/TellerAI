@@ -35,6 +35,7 @@ TOOL_ACTIONS: dict[str, str | None] = {
     "open_path": "navigate",
     "extract_value": "extract",
     "extract_table": "extract_table",
+    "extract_options": "extract",  # a read, allowed wherever extract_value is
     "finish_business_outcome": None,
     "request_missing_values": None,
     "ask_human": None,

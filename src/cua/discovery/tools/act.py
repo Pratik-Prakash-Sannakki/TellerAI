@@ -15,7 +15,17 @@ from dataclasses import dataclass
 
 from langchain_core.tools import BaseTool, tool
 
-from cua.discovery.context import Ctx, act, canvas, choose_option, crop, into_box, look, to_page
+from cua.discovery.context import (
+    Ctx,
+    act,
+    canvas,
+    choose_option,
+    crop,
+    dropdown_under,
+    into_box,
+    look,
+    to_page,
+)
 from cua.discovery.recorder.types import shapes_of
 from cua.discovery.run import run_values
 from cua.discovery.tools.guard import (
@@ -111,6 +121,23 @@ async def _press(ctx: Ctx, before: Look, t: _Target) -> Result:
     return blocks(ctx, msg, after)
 
 
+DROPDOWN_CLICK = (
+    "REFUSED: that is a dropdown. Clicking cannot open it here. Use select_option to choose an "
+    "option, or extract_options to save the list of options."
+)
+
+
+async def _dropdown_refusal(
+    ctx: Ctx, lk: Look, point: tuple[int, int], args: dict[str, object], cut: bytes
+) -> Result | None:
+    """A native <select>'s list is drawn by the OS, outside every screenshot: a click there only
+    ever reads NO CHANGE. Refuse it, unclicked (a REFUSED, like the others). None: click."""
+    if (index := await dropdown_under(ctx, point)) is None:
+        return None
+    log(ctx, "click", args, DROPDOWN_CLICK, point, cut, dropdown=True, index=index)
+    return blocks(ctx, DROPDOWN_CLICK, lk)
+
+
 def _make_click(ctx: Ctx) -> BaseTool:
     @tool(parse_docstring=True)
     @one_at_a_time(ctx)
@@ -137,6 +164,8 @@ def _make_click(ctx: Ctx) -> BaseTool:
             )
             log(ctx, "click", args, msg, point, cut)
             return blocks(ctx, msg, before)
+        if refused := await _dropdown_refusal(ctx, before, point, args, cut):
+            return refused
         spots = where(before, point, run_values(ctx.run, ctx.secrets), own=el)
         if refusal := await gate_click(ctx, text, cut):
             log(ctx, "click", args, refusal, point, cut, text=text, **spots)

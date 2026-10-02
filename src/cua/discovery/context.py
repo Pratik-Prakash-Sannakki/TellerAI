@@ -7,8 +7,8 @@ the agent built from them) always see the current run. Nothing is hidden at modu
 
 The wrappers are the notebook's own page helpers with ``ctx`` first: ``look`` (take_look,
 discovery.py 238-252), ``canvas``/``to_page`` (269-279), ``snap`` (521-527), ``act`` (973-985),
-``into_box`` (988-991), ``list_options``/``choose_option`` (1020-1035), and ``crop`` (cut_crop at
-the current canvas size).
+``into_box`` (988-991), ``list_options``/``choose_option`` (1020-1035), ``dropdown_under`` (is a
+native <select> right under a point), and ``crop`` (cut_crop at the current canvas size).
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from cua.browser.dropdown import (
     DROPDOWNS_WITH_BOX_JS,
     choose_option_at_point,
     read_dropdowns,
+    select_under,
 )
 from cua.browser.dropdown import (
     list_options as page_options,
@@ -137,6 +138,11 @@ def into_box(ctx: Ctx, point: tuple[int, int], value: str) -> tuple[Step, Step, 
 async def list_options(ctx: Ctx, point: tuple[int, int]) -> list[str]:
     """Every option of the dropdown at this point ([] if it is not a dropdown)."""
     return await page_options(ctx.page, to_page(ctx, point), lambda t: hide_secrets(t, ctx.secrets))
+
+
+async def dropdown_under(ctx: Ctx, point: tuple[int, int]) -> int | None:
+    """The index of the native <select> right under this point, or None (bounded; None on error)."""
+    return await select_under(ctx.page, to_page(ctx, point), ctx.cfg.snap_ms / 1000)
 
 
 async def choose_option(ctx: Ctx, point: tuple[int, int], option: str) -> int | None:

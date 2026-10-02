@@ -46,9 +46,13 @@ def error_page(ctx: Ctx, after: str) -> Stop | None:
     return None
 
 
+READS = ("extract", "extract_table", "extract_options")
+SITE_ACTION = {"extract_options": "extract"}  # a dropdown's options are a read, like extract
+
+
 def action_allowed(ctx: Ctx, step: Step) -> Stop | None:
     """Assignment 3.4: a step whose action type the site does not allow FAILS before acting."""
-    if step.action in ctx.site.allowed_actions:
+    if SITE_ACTION.get(step.action, step.action) in ctx.site.allowed_actions:
         return None
     return Stop("FAILED", f"action '{step.action}' is not in allowed_actions")
 
@@ -165,7 +169,7 @@ def read_only_done(ctx: Ctx, cap: Capability, missing: list[str]) -> bool:
     """R17: a read-only run whose last main step read the last output, and every output was read.
     Its checkpoint was picked after the cleanup (e.g. the login page after Log Out): accept it."""
     main = [s for s in cap.steps if not is_cleanup(s)]
-    last_reads = bool(main) and main[-1].action in ("extract", "extract_table")
+    last_reads = bool(main) and main[-1].action in READS
     return bool(cap.outputs) and not missing and not ctx.run.gated and last_reads
 
 

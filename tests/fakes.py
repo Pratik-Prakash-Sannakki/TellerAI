@@ -284,6 +284,13 @@ class ActTab(FakeTab):
         self.inputs: list[tuple[str, tuple[object, ...]]] = []
         self.mouse, self.keyboard = FakeInput(self.inputs), FakeInput(self.inputs)
         self.status = status
+        self.evaluated: list[tuple[str, object]] = []
+        self.answer: Callable[[str, object], object] = lambda script, arg: None  # no <select>
+
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        """A page script: recorded, answered by ``answer`` (default: no dropdown anywhere)."""
+        self.evaluated.append((script, arg))
+        return self.answer(script, arg)
 
     async def goto(self, url: str) -> SimpleNamespace:  # type: ignore[override]
         self.calls.append("goto")

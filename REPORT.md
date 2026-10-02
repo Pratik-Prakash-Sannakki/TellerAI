@@ -25,11 +25,14 @@ Status words: **built** (in the code and tested), **designed** (decided, not in 
 No DOM reads, no accessibility tree. Things with no text are pointed at by x,y (Q7).
 
 **One exception: native `<select>` (built).** macOS draws its list outside the page, so
-`SELECT_AT_JS` sets the option under the point; OCR confirms it.
+`SELECT_AT_JS` sets the option under the point; OCR confirms it. Clicking one only ever reads
+NO CHANGE, so the `click` tool refuses a point on a `<select>` unclicked (`REFUSED: that is a
+dropdown`); `select_option` chooses, and `extract_options` saves its option list as an
+`options` output (a list, masked in evidence) that replay reads live by the recorded index.
 
-**The agent (built).** A LangChain deep agent with 12 tools (`observe`, `click`, `type_text`,
+**The agent (built).** A LangChain deep agent with 13 tools (`observe`, `click`, `type_text`,
 `type_secret`, `select_option`, `scroll`, `open_path`, `extract_value`, `extract_table`,
-`finish_business_outcome`, `request_missing_values`, `ask_human`).
+`extract_options`, `finish_business_outcome`, `request_missing_values`, `ask_human`).
 
 - Model: Sonnet via direct Anthropic (`ANTHROPIC_API_KEY`) by default (`cua.llm.make_chat_model`).
   An optional Anthropic-compatible gateway is opt-in via env vars `ILIAD_BASE_URL` + `ILIAD_API_KEY`.
@@ -58,7 +61,8 @@ import (R1).
 
 **Shape** (`Capability`, strict): `name`, `version`, `description`, `base_url`, `viewport`,
 `device_scale_factor`, `inputs`, `outputs`, `secrets` (names only), `steps`, `checkpoint`.
-Step types: `navigate | click | type | select | scroll | extract | extract_table`. A `type` value
+Step types: `navigate | click | type | select | scroll | extract | extract_table |
+extract_options` (`extract_options` runs under the site's `extract` permission). A `type` value
 is always `{{input}}` or `{{secret:name}}`, never a literal.
 
 **Targeting: three rungs, never raw x,y (built, R2/R13).**

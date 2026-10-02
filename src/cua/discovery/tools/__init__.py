@@ -1,6 +1,6 @@
-"""Discovery's agent tools. ``build_tools(ctx)`` returns the 12 @tool functions in the notebook's
-TOOLS order (discovery.py 1706-1707), each a closure over ``ctx`` (it reads ``ctx.run`` at call
-time, so one tool set serves every run of a session).
+"""Discovery's agent tools. ``build_tools(ctx)`` returns the notebook's 12 @tool functions in its
+TOOLS order (discovery.py 1706-1707), plus ``extract_options`` after extract_table, each a closure
+over ``ctx`` (it reads ``ctx.run`` at call time, so one tool set serves every run of a session).
 
 This package's ``__init__`` stays import-light: ``recorder.events`` imports ``tools.failed`` while
 ``cua.discovery.context`` is still loading, so the tool modules are imported inside
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 def build_tools(ctx: Ctx) -> list[BaseTool]:
     """observe, click, type_text, type_secret, select_option, scroll, open_path, extract_value,
-    extract_table, finish_business_outcome, request_missing_values, ask_human."""
+    extract_table, extract_options, finish_business_outcome, request_missing_values, ask_human."""
     from cua.discovery.tools.act import make_act_tools  # noqa: PLC0415 (see the module docstring)
     from cua.discovery.tools.human import make_human_tools  # noqa: PLC0415
     from cua.discovery.tools.nav import make_nav_tools  # noqa: PLC0415

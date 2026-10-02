@@ -26,9 +26,12 @@ that replay runs without an LLM. Built up step by step (`docs/PRODUCTIONIZE_PLAN
    `label_near`, `spot`, `merged_label`, `where`, `is_word`, `headings`, `page_texts`,
    `column_header`, `row_block`, `table_cell`, `read_target`, `value_in_box`, `is_header`,
    `off_table`; the run's values are an explicit `values` argument).
-6. `tools/` @tools (step 8b) - `build_tools(ctx)` returns the notebook's 12 tools in TOOLS order:
+6. `tools/` @tools (step 8b) - `build_tools(ctx)` returns the notebook's 12 tools in TOOLS order
+   (+ extract_options):
    `observe.py` (`blocks`, `reply`, observe), `act.py` (`landed`, click, type_text, type_secret,
-   select_option), `nav.py` (scroll, open_path), `read.py` (extract_value, extract_table),
+   select_option; click refuses a native `<select>` unclicked), `nav.py` (scroll, open_path),
+   `read.py` (extract_value, extract_table, and the new extract_options: a dropdown's options,
+   saved as a list, logged by label/anchor/point/index only),
    `human.py` (finish_business_outcome, request_missing_values, ask_human, `start_page_refusal`).
    Each module has `make_<group>_tools(ctx)`. Names, signatures and docstrings are the notebook's
    (the model reads them; `tests/unit/discovery/tools/test_build_tools.py` pins them).

@@ -8,6 +8,8 @@ Each side keeps its own scripts (user decision 2):
 - discovery: ``DROPDOWNS_WITH_BOX_JS`` (discovery.py 641-647, also returns each select's centre
   ``at`` and ``box``), ``SELECT_AT_POINT_JS`` (997-1017: the select at a point, option matched by
   "contains"), ``list_options``/``choose_option_at_point`` (1020-1035).
+- both: ``SELECT_UNDER_POINT_JS``/``select_under`` (the <select> right under a point, if any:
+  discovery's click refuses it, its extract_options records the index).
 - replay: ``DROPDOWNS_JS`` (replay.py 354-356, values only), ``SELECT_AT_INDEX_JS`` (650-671: the
   Nth select when an index is recorded, option matched exactly), ``choose_option_at_index``
   (697-705).
@@ -67,6 +69,11 @@ SELECT_AT_POINT_JS = """([x, y, want]) => {
   return [r.left + r.width / 2, r.top + r.height / 2, [...document.querySelectorAll('select')].indexOf(el)];
 }"""
 
+SELECT_UNDER_POINT_JS = """([x, y]) => {
+  const el = document.elementFromPoint(x, y)?.closest('select');
+  return el ? [...document.querySelectorAll('select')].indexOf(el) : null;
+}"""
+
 SELECT_AT_INDEX_JS = """([x, y, want, index]) => {
   let el = index === null ? document.elementFromPoint(x, y)?.closest('select')
                           : document.querySelectorAll('select')[index];
@@ -99,6 +106,17 @@ async def read_dropdowns(page: Page, script: str, timeout_s: float) -> list[Drop
         return found
     except (TimeoutError, PlaywrightError):
         return []
+
+
+async def select_under(page: Page, point: tuple[float, float], timeout_s: float) -> int | None:
+    """The index (among the page's <select>s) of the native dropdown right under this page point,
+    else None. Never next to it: a click beside a dropdown is a real click. Bounded: None on a
+    timeout or any page error, so the caller just clicks as before."""
+    try:
+        found = await asyncio.wait_for(page.evaluate(SELECT_UNDER_POINT_JS, [*point]), timeout_s)
+    except (TimeoutError, PlaywrightError):
+        return None
+    return found if isinstance(found, int) and not isinstance(found, bool) else None
 
 
 async def list_options(
@@ -157,8 +175,10 @@ __all__ = [
     "DROPDOWNS_WITH_BOX_JS",
     "SELECT_AT_INDEX_JS",
     "SELECT_AT_POINT_JS",
+    "SELECT_UNDER_POINT_JS",
     "choose_option_at_index",
     "choose_option_at_point",
     "list_options",
     "read_dropdowns",
+    "select_under",
 ]

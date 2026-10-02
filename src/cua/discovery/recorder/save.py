@@ -43,16 +43,16 @@ async def describe(goal: str, log: list[Event], model: BaseChatModel) -> Capabil
     """R11: name, description, input descriptions, success text. Labels only, no values."""
     lines = [f"{ev['tool']} {ev.get('label') or ev.get('text') or ''}" for ev in step_events(log)]
     names = used_inputs(log)
-    tables = list(
-        dict.fromkeys(
-            ev["args"]["save_as"] for ev in step_events(log) if ev["tool"] == "extract_table"
-        )
+    tables, options = (
+        list(dict.fromkeys(ev["args"]["save_as"] for ev in step_events(log) if ev["tool"] == t))
+        for t in ("extract_table", "extract_options")
     )
     prompt = (
         f"Goal: {goal}\nSteps (tool, field label):\n"
         + "\n".join(lines)
         + f"\nInputs a caller fills in: {', '.join(names) or 'none'}.\n"
         f"Tables it returns (rows): {', '.join(tables) or 'none'}.\n"  # type: ignore[arg-type]
+        f"Option lists it returns: {', '.join(options) or 'none'}.\n"  # type: ignore[arg-type]
         "You write ONLY metadata for this recorded capability; the steps are already fixed.\n"
         "- name: snake_case verb_object named after the GOAL, what the caller gets done (e.g. "
         "get_account_balance), not the pages it passes through.\n"

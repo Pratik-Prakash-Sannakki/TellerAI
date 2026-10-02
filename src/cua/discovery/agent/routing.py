@@ -25,7 +25,7 @@ NEVER_HIDE = frozenset({"observe", "click", "type_secret", "ask_human"})  # what
 JOB_EXTRA_TOOLS: dict[str, frozenset[str]] = {
     "login": frozenset({"type_secret"}),
     "fill_form": frozenset({"type_text", "select_option", "scroll"}),
-    "read_value": frozenset({"extract_value", "extract_table", "scroll"}),
+    "read_value": frozenset({"extract_value", "extract_table", "extract_options", "scroll"}),
     "navigate": frozenset({"open_path", "scroll"}),
     "need_human": frozenset({"request_missing_values", "ask_human"}),
     "finish": frozenset({"finish_business_outcome"}),
@@ -34,7 +34,7 @@ JOB_CRITERIA = {
     "login": "The page shows a username or password field, or we have not logged in yet.",
     "fill_form": "A form is on screen and a field still needs a value typed or a dropdown chosen.",
     "read_value": "We need to read a value or a table already on the page, such as a balance, a "
-    "list of transactions or a confirmation message.",
+    "list of transactions, a dropdown's options or a confirmation message.",
     "navigate": "We need to reach another page of this site, or scroll to find something.",
     "need_human": "We are unsure which element to use, or a value we need was not given by the "
     "user.",

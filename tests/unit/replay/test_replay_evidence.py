@@ -177,3 +177,7 @@ def test_evidence_masks_every_cell(tmp_path: Path) -> None:
 @pytest.mark.parametrize("rows", [[], WANT])
 def test_masked_outputs_keep_the_shape(rows: list[dict[str, str]]) -> None:
     assert masked_outputs({"t": rows}) == {"t": [dict.fromkeys(r, "***") for r in rows]}
+
+
+def test_masked_outputs_hide_every_option() -> None:
+    assert masked_outputs({"accounts": ["14010", "14232"]}) == {"accounts": ["***", "***"]}

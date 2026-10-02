@@ -12,7 +12,7 @@ from cua.config import ReplayConfig
 from cua.replay import engine, steps
 from cua.replay.context import Ctx
 from cua.replay.locate import locate
-from cua.schema import TYPES, Capability, Stop
+from cua.schema import TYPES, Capability, ExtractOptions, Stop
 from tests.unit._snapshots import DISCOVERY as SNAP_DISCOVERY
 from tests.unit._snapshots import REPLAY as SNAP_REPLAY
 from tests.unit.replay.helpers import (
@@ -210,3 +210,53 @@ async def test_an_old_artifact_without_a_pattern_is_unchanged() -> None:
     assert await _extract(ctx, cp, rows) is True and ctx.run.outputs["v"] == "$515.50"
     with pytest.raises(Stop):
         await _extract(ctx, _pcap("phone"), PROWS)
+
+
+# --- extract_options: the dropdown's live options are the output ---
+
+
+class OptionsPage:
+    def __init__(self, options: object) -> None:
+        self.options, self.args = options, []  # type: ignore[var-annotated]
+
+    async def evaluate(self, js: str, args: list[object]) -> object:
+        self.args.append(args)
+        return self.options
+
+
+def _options_cap(index: int | None) -> Capability:
+    step = ExtractOptions.model_validate(
+        {
+            "save_as": "from_accounts",
+            "index": index,
+            "target": {"anchor": {"label": "From account #:", "offset": [130, 0]}},
+        }
+    )
+    return cap(
+        [step],
+        "Transfer Funds",
+        outputs=[{"name": "from_accounts", "type": "options", "description": "accounts"}],
+    )
+
+
+@pytest.mark.asyncio
+async def test_extract_options_reads_the_live_options_of_the_recorded_dropdown() -> None:
+    page = OptionsPage(["14010", "14232"])
+    ctx = make_replay_ctx(page)
+    cp = _options_cap(1)
+    assert await steps.do_extract_options(ctx, cp.steps[0], (720, 355), cp) is True
+    assert ctx.run.outputs == {"from_accounts": ["14010", "14232"]}
+    assert page.args == [[720.0, 355.0, None, 1]]  # read only (want=None), by its index
+
+
+@pytest.mark.asyncio
+async def test_extract_options_with_no_dropdown_there_fails_its_check() -> None:
+    ctx = make_replay_ctx(OptionsPage(None))
+    cp = _options_cap(None)
+    assert await steps.do_extract_options(ctx, cp.steps[0], (720, 355), cp) is False
+    assert ctx.run.outputs == {}
+
+
+def test_extract_options_dispatches_and_counts_as_a_read() -> None:
+    assert steps.ACTIONS["extract_options"] is steps.do_extract_options
+    assert engine.read_only_done(make_replay_ctx(), _options_cap(0), []) is True

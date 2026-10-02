@@ -274,6 +274,18 @@ async def do_extract_table(ctx: Ctx, step: Step, point: Point, cap: Capability) 
     return True
 
 
+async def do_extract_options(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool:
+    """Read the live options of the dropdown found like a select (its recorded index, else the
+    point) through the dropdown exception; the list is the output. No dropdown there: the check
+    fails. Never selects anything."""
+    js_args = [*to_page(ctx, point), None, step.index]  # type: ignore[union-attr]
+    options = await ctx.page.evaluate(SELECT_AT_INDEX_JS, js_args)
+    if not isinstance(options, list):
+        return False
+    ctx.run.outputs[step.save_as] = [hide_secrets(str(o), ctx.secrets) for o in options]  # type: ignore[union-attr]
+    return True
+
+
 ACTIONS: dict[str, Action] = {
     "navigate": do_navigate,
     "click": do_click,
@@ -282,4 +294,5 @@ ACTIONS: dict[str, Action] = {
     "scroll": do_scroll,
     "extract": do_extract,
     "extract_table": do_extract_table,
+    "extract_options": do_extract_options,
 }

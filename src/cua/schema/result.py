@@ -30,7 +30,7 @@ class Stop(Exception):
 @dataclass(frozen=True)
 class ReplayResult:
     status: str  # SUCCESS | BUSINESS_OUTCOME | DECLINED | STUCK | FAILED (R17), see Status
-    outputs: dict[str, str | list[dict[str, str]]]  # a table output is its list of rows
+    outputs: dict[str, str | list[dict[str, str]] | list[str]]  # a table: rows; options: list
     drift: list[dict[str, JsonValue]]  # per step: rung, point, attempt. No values (R18)
     reason: str = ""
     human: list[dict[str, JsonValue]] = field(default_factory=list)  # R17: take-overs; [] = alone

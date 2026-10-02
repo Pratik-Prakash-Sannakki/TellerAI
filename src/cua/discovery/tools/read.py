@@ -1,19 +1,21 @@
-"""The tools that read values off the page: extract_value and extract_table.
+"""The tools that read values off the page: extract_value, extract_table and extract_options.
 
 Moved from discovery.py 1567-1592 (extract_value) and 1612-1650 (extract_table). Each tool keeps
 its checks; the rest is ``_saved_value`` / ``_columns`` + ``_saved_rows`` + ``_log_table``, bodies
 otherwise unchanged. The pure helpers they use
 (value_in_box, read_target, is_header, off_table, ...) are in ``read_helpers``; the shared table
 reader is ``cua.vision.table``. Tool names, signatures and docstrings are the notebook's.
+``extract_options`` (new, 2026-10-02) reads a native dropdown's options through the dropdown
+exception (``list_options``): its list never shows in a screenshot, so it cannot be read by OCR.
 """
 
 from __future__ import annotations
 
 from langchain_core.tools import BaseTool, tool
 
-from cua.discovery.context import Ctx, crop
+from cua.discovery.context import Ctx, crop, dropdown_under, list_options
 from cua.discovery.run import run_values
-from cua.discovery.tools.guard import Result, log, one_at_a_time
+from cua.discovery.tools.guard import Result, log, one_at_a_time, resolve_point
 from cua.discovery.tools.read_helpers import (
     headings,
     is_header,
@@ -23,7 +25,9 @@ from cua.discovery.tools.read_helpers import (
     read_target,
     spot,
     value_in_box,
+    where,
 )
+from cua.safety.redact import norm
 from cua.vision.look import Element, Look
 from cua.vision.table import append_rows, read_rows, same_line, table_columns
 
@@ -179,6 +183,63 @@ def _make_extract_table(ctx: Ctx) -> BaseTool:
     return extract_table
 
 
+async def _saved_options(
+    ctx: Ctx, lk: Look, point: tuple[int, int], options: list[str], args: dict[str, object]
+) -> str:
+    """extract_options' body once the dropdown is found: save its options, log only where it is
+    (its label, anchor, point and index), never an option. The crop keeps no text (the dropdown
+    shows its current option, a value)."""
+    save_as = str(args["save_as"])
+    ctx.run.saved[save_as] = options
+    values = run_values(ctx.run, ctx.secrets) | {norm(o) for o in options}
+    log(
+        ctx,
+        "extract_options",
+        args,
+        "saved",
+        point,
+        crop(ctx, lk, point, None),
+        index=await dropdown_under(ctx, point),
+        page_texts=page_texts(lk, values),
+        headings=headings(lk, values),
+        **where(lk, point, values),
+    )
+    return f"Saved {len(options)} options to {save_as}."
+
+
+def _make_extract_options(ctx: Ctx) -> BaseTool:
+    @tool(parse_docstring=True)
+    @one_at_a_time(ctx)
+    async def extract_options(
+        save_as: str,
+        description: str,
+        ref: int | None = None,
+        x: int | None = None,
+        y: int | None = None,
+    ) -> Result:
+        """Save the list of options of a dropdown the goal asks about. Our code reads them.
+
+        Args:
+            save_as: Name to save the list under, e.g. 'from_accounts'.
+            description: What the options are, in plain words.
+            ref: Number of the dropdown, or leave empty and give x and y.
+            x: Pixel x of the dropdown.
+            y: Pixel y of the dropdown.
+        """
+        point = resolve_point(ctx, ref, x, y)
+        if isinstance(point, str):
+            return point
+        lk = ctx.run.look
+        assert lk is not None  # resolve_point refused a missing look
+        if not (options := await list_options(ctx, point)):
+            return f"REFUSED: no dropdown at {point}. Point at the dropdown itself."
+        args: dict[str, object] = {"ref": ref, "x": x, "y": y, "save_as": save_as}
+        args["description"] = description
+        return await _saved_options(ctx, lk, point, options, args)
+
+    return extract_options
+
+
 def make_read_tools(ctx: Ctx) -> list[BaseTool]:
-    """extract_value, extract_table (the notebook's TOOLS order)."""
-    return [_make_extract_value(ctx), _make_extract_table(ctx)]
+    """extract_value, extract_table (the notebook's TOOLS order), then extract_options."""
+    return [_make_extract_value(ctx), _make_extract_table(ctx), _make_extract_options(ctx)]

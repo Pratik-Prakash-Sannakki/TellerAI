@@ -12,7 +12,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from playwright.async_api import Error as PlaywrightError
 
+from cua.browser.dropdown import SELECT_UNDER_POINT_JS
 from cua.discovery.context import Ctx
 from cua.discovery.tools import act, human, nav, observe
 from cua.discovery.tools.act import landed
@@ -221,6 +223,57 @@ async def test_a_denied_word_is_refused_without_clicking(monkeypatch: pytest.Mon
     assert out.startswith("REFUSED: 'Register'")
     assert d.acts == 0
     assert d.ctx.run.log[-1]["text"] == "Register"
+
+
+def _select_box(script: str, arg: object) -> object:
+    """A native <select> fills page box (600, 340)-(900, 370): index 1 there, None elsewhere."""
+    if script != SELECT_UNDER_POINT_JS:
+        return None
+    x, y = arg  # type: ignore[misc]
+    return 1 if 600 <= x <= 900 and 340 <= y <= 370 else None  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
+async def test_a_click_on_a_dropdown_is_refused_without_clicking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    d = _driven(monkeypatch, make_look(BUTTONS, png=PNG))
+    d.ctx.page.answer = _select_box  # type: ignore[attr-defined]
+    out = _head(await _tool(d.ctx, "click").ainvoke({"x": 640, "y": 355}))
+    assert out.startswith("REFUSED: that is a dropdown. Clicking cannot open it here.")
+    assert "select_option" in out
+    assert "extract_options" in out
+    assert d.acts == 0
+    assert d.ctx.page.inputs == []  # type: ignore[attr-defined]
+    ev = d.ctx.run.log[-1]
+    assert ev["tool"] == "click"
+    assert ev["dropdown"] is True
+    assert ev["result"].startswith("REFUSED")
+    assert d.ctx.run.fails == 1  # one refusal is one miss, like every REFUSED; not the end
+
+
+@pytest.mark.asyncio
+async def test_a_click_beside_a_dropdown_still_clicks(monkeypatch: pytest.MonkeyPatch) -> None:
+    after = make_look([*BUTTONS, ("Welcome", (10, 10, 90, 30))], png=DARK)
+    d = _driven(monkeypatch, make_look(BUTTONS, png=PNG), after)
+    d.ctx.page.answer = _select_box  # type: ignore[attr-defined]
+    out = _head(await _tool(d.ctx, "click").ainvoke({"x": 500, "y": 500}))
+    assert out.startswith("Clicked (500, 500)")
+    assert d.ctx.page.inputs == [("click", (500.0, 500.0))]  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_dropdown_check_falls_through_to_the_click(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    d = _driven(monkeypatch, make_look(BUTTONS, png=PNG))
+
+    def broken(script: str, arg: object) -> object:
+        raise PlaywrightError("Execution context was destroyed")
+
+    d.ctx.page.answer = broken  # type: ignore[attr-defined]
+    await _tool(d.ctx, "click").ainvoke({"x": 640, "y": 355})
+    assert d.ctx.page.inputs == [("click", (640.0, 355.0))]  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio

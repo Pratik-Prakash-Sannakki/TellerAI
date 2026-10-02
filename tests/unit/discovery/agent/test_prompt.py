@@ -18,8 +18,8 @@ SRC = SNAP_DISCOVERY
 PROMPT = " ".join(VISUAL_SYSTEM_PROMPT.split())
 DESCRIBE = " ".join(inspect.getsource(save.describe).split())
 # A prompt edit changes this hash: bump PROMPT_VERSION, then record the new hash here.
-PROMPT_SHA256 = "f50a929fa6493be1dd7916950a91b981cf1ee8951c581685114c051d5bc08346"
-RECORDED_VERSION = "visual-2026-10-01b"
+PROMPT_SHA256 = "2ea91ae3d2c5d54bbc5f16d93dba51efb85c8b2ec100af7793abca8d930a2388"
+RECORDED_VERSION = "visual-2026-10-02a"
 # The one rule added after the port (2026-10-01): save the send's confirmation before finishing.
 CONFIRMATION_RULE = (
     "- After a send is approved and the confirmation page shows, call extract_value on the"
@@ -27,16 +27,29 @@ CONFIRMATION_RULE = (
     " confirmation message (value_type 'string'), with save_as e.g. confirmation, BEFORE"
     " finish_business_outcome. NEVER invent one.\n"
 )
+# Added 2026-10-02 (a live run clicked dropdowns open 3 times, NO CHANGE each time, then STUCK).
+DROPDOWN_RULE = (
+    "- NEVER click a dropdown to open it: its list does not show in the screenshot. To choose,"
+    " use select_option. To see or save its options, use extract_options.\n"
+)
+OPTIONS_TOOL = (
+    "- extract_options(save_as, description, ref or x,y): save the list of a dropdown's options"
+    " (our code reads them; you never see them). Use it when the goal asks what the options"
+    " are.\n"
+)
+ADDED = (CONFIRMATION_RULE, DROPDOWN_RULE, OPTIONS_TOOL)
 
 
-def test_the_prompt_is_the_notebooks_verbatim_plus_the_confirmation_rule() -> None:
+def test_the_prompt_is_the_notebooks_verbatim_plus_the_added_rules() -> None:
     node = next(
         n
         for n in ast.parse(SRC.read_text()).body
         if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "VISUAL_SYSTEM_PROMPT"
     )
-    assert CONFIRMATION_RULE in VISUAL_SYSTEM_PROMPT
-    ported = VISUAL_SYSTEM_PROMPT.replace(CONFIRMATION_RULE, "")
+    ported = VISUAL_SYSTEM_PROMPT
+    for added in ADDED:
+        assert added in ported, added
+        ported = ported.replace(added, "")
     assert node.value.value == ported  # type: ignore[attr-defined]
 
 
@@ -77,6 +90,16 @@ def test_the_prompt_saves_the_send_confirmation() -> None:
         "else on the confirmation message (value_type 'string')",
         "save_as e.g. confirmation, BEFORE finish_business_outcome",
         "NEVER invent one",
+    ):
+        assert rule in PROMPT, rule
+
+
+def test_the_prompt_never_clicks_a_dropdown_open() -> None:
+    for rule in (
+        "NEVER click a dropdown to open it",
+        "its list does not show in the screenshot",
+        "To choose, use select_option",
+        "To see or save its options, use extract_options",
     ):
         assert rule in PROMPT, rule
 

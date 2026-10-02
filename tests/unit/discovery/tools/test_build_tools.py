@@ -1,5 +1,6 @@
 """build_tools(ctx): the notebook's 12 tools, in its TOOLS order, with its names, signatures and
-docstrings (the model reads them, so they are behaviour)."""
+docstrings (the model reads them, so they are behaviour), plus extract_options (new, after
+extract_table: a dropdown's options, which no screenshot shows)."""
 
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ NAMES = [
     "request_missing_values",
     "ask_human",
 ]
+BUILT = [*NAMES[:9], "extract_options", *NAMES[9:]]  # the notebook's 12 + extract_options
 
 
 def _notebook_tools() -> dict[str, ast.AsyncFunctionDef]:
@@ -55,20 +57,20 @@ def test_the_notebooks_tools_list_is_the_one_we_build() -> None:
     assert [e.id for e in tools.value.elts] == NAMES  # type: ignore[attr-defined]
 
 
-def test_build_tools_returns_the_twelve_tools_in_order() -> None:
-    assert [t.name for t in build_tools(make_ctx())] == NAMES
+def test_build_tools_returns_the_notebooks_tools_plus_extract_options_in_order() -> None:
+    assert [t.name for t in build_tools(make_ctx())] == BUILT
 
 
 def test_each_docstring_is_the_notebooks() -> None:
     nb = _notebook_tools()
-    for t in build_tools(make_ctx()):
+    for t in (t for t in build_tools(make_ctx()) if t.name in NAMES):
         want = inspect.cleandoc(ast.get_docstring(nb[t.name], clean=False) or "")
         assert inspect.cleandoc(t.coroutine.__doc__ or "") == want, t.name  # type: ignore[attr-defined]
 
 
 def test_each_signature_is_the_notebooks() -> None:
     nb = _notebook_tools()
-    for t in build_tools(make_ctx()):
+    for t in (t for t in build_tools(make_ctx()) if t.name in NAMES):
         sig = inspect.signature(t.coroutine)  # type: ignore[arg-type]
         got = [
             (
@@ -93,7 +95,7 @@ def test_the_model_sees_each_args_description() -> None:
 @pytest.mark.asyncio
 async def test_tools_built_once_see_the_run_swapped_in_later() -> None:
     ctx = make_ctx(goal="first")
-    finish = build_tools(ctx)[NAMES.index("finish_business_outcome")]
+    finish = build_tools(ctx)[BUILT.index("finish_business_outcome")]
     new_run(ctx, "second")
     out = await finish.ainvoke({"outcome": "x", "proof_text": "nothing"})
     assert out.startswith("REFUSED")

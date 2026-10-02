@@ -15,6 +15,8 @@ Playwright, no decisions: the open browser, the site lock, our own input, native
 4. `dropdown.py` - the one non-visual exception (D-B). Discovery uses `DROPDOWNS_WITH_BOX_JS`,
    `SELECT_AT_POINT_JS`, `list_options`, `choose_option_at_point`; replay uses `DROPDOWNS_JS`,
    `SELECT_AT_INDEX_JS`, `choose_option_at_index`. Both sides use `read_dropdowns(page, script)`.
+   `select_under(page, point, timeout_s)` (`SELECT_UNDER_POINT_JS`): the index of the `<select>`
+   right under a point, else None (bounded; None on any error) - discovery's click refuses it.
 
 ## How it fits
 The screenshot path itself is `cua.vision.screenshot.take_look`; callers pass their own

@@ -16,7 +16,7 @@ No LLM, deterministic: runs a capability discovery saved, step by step, on the l
    replay control window, `cuaReply`), and the page wrappers `look`/`canvas`/`to_page`/`snap`/
    `act`/`stash_dropdowns`/`note_response`.
 6. `steps.py` - `find` (rungs, then scroll), `shows`, `do_navigate` ... `do_extract_table`,
-   `ACTIONS`.
+   `do_extract_options` (the dropdown's live options, by its recorded index), `ACTIONS`.
 7. `rescue.py` - `rescue` (help panel -> take-over, built from `cua.handoff` pieces).
 8. `engine.py` - `judge` (R17), `run_step` (one retry, never a send or a secret), `walk`,
    `run_cleanup`, `finish`, `open_start`, `replay(ctx, path, inputs)`.

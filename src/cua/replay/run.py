@@ -26,7 +26,7 @@ class ReplayRun:
     look: Look | None = None
     values: dict[str, str] = field(default_factory=dict)
     given: list[str] = field(default_factory=list)  # input values + human edits (mismatch check)
-    outputs: dict[str, str | list[dict[str, str]]] = field(default_factory=dict)  # table: rows
+    outputs: dict[str, str | list[dict[str, str]] | list[str]] = field(default_factory=dict)
     allow_send: bool = False  # set only around a login click
     sent: bool = False  # a non-GET request went out during this action
     gated: bool = False  # this run sent something through the human gates (not the login)
