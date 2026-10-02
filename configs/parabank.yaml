@@ -18,6 +18,8 @@ login_failure_texts:
   - could not be verified
   - user does not exist
   - invalid username or password
+# The site says the boxes were empty: the typing missed. One more try, not a failure.
+login_empty_texts:
   - please enter a username and password
 # R17 taxonomy: text seen after a step -> status. First match wins; a capability's own
 # `outcomes:` list replaces these. RECOVER = log in again once and retry the step.

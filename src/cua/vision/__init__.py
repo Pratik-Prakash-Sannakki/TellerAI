@@ -9,7 +9,16 @@ Importing this package must never load the OCR model -- ``ocr.ocr_engine()`` bui
 from __future__ import annotations
 
 from cua.vision.canvas import canvas_size, to_canvas, to_page
-from cua.vision.crops import crop_box, cut_crop, element_at, read_near, screens_same, spot_changed
+from cua.vision.crops import (
+    crop_box,
+    cut_crop,
+    element_at,
+    input_box,
+    read_near,
+    screens_same,
+    spot_changed,
+    typed_into_box,
+)
 from cua.vision.look import Box, Element, Look, decode, encode
 from cua.vision.ocr import RefCounter, draw_numbered, number, ocr, ocr_engine
 from cua.vision.table import (
@@ -53,6 +62,8 @@ __all__ = [
     "same_line",
     "screens_same",
     "spot_changed",
+    "typed_into_box",
+    "input_box",
     "table_columns",
     "text_lines",
     "to_canvas",

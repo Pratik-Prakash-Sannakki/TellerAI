@@ -39,6 +39,7 @@ from cua.vision import (
     screens_same,
     spot_changed,
     table_columns,
+    typed_into_box,
 )
 
 Point = tuple[int, int]
@@ -180,7 +181,7 @@ async def do_type(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool:
     if is_sensitive(name, ctx.bcfg.sensitive_words) and value in read_field(ctx, after, point):
         ctx.run.look = None
         raise Stop("FAILED", f"secret '{name}' shows as plain text")
-    return spot_changed(before, after, point, size, ctx.bcfg)  # type: ignore[arg-type]
+    return typed_into_box(before, after, point, size, ctx.bcfg)  # type: ignore[arg-type]
 
 
 async def do_select(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool:

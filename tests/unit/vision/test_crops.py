@@ -7,7 +7,14 @@ import cv2
 import numpy as np
 
 from cua.config import BrowserConfig
-from cua.vision.crops import crop_box, cut_crop, element_at, read_near, screens_same
+from cua.vision.crops import (
+    crop_box,
+    cut_crop,
+    element_at,
+    read_near,
+    screens_same,
+    typed_into_box,
+)
 from cua.vision.look import Box, Element, Look
 
 CFG = BrowserConfig(viewport=(200, 100), crop_pad=6, point_crop=(60, 30), same_screen_mad=1.0)
@@ -68,3 +75,28 @@ def test_screens_same_is_true_for_identical_images_and_false_for_different_ones(
     a, b = cv2.imencode(".png", blank)[1].tobytes(), cv2.imencode(".png", blank.copy())[1].tobytes()
     assert screens_same(a, b, CFG)
     assert not screens_same(a, cv2.imencode(".png", dotted)[1].tobytes(), CFG)
+
+
+def _png(img: np.ndarray) -> bytes:
+    return bytes(cv2.imencode(".png", img)[1])
+
+
+def _form(dots: bool, ring: bool) -> Look:
+    """A 200x60 page: one bordered input box at (20,20)-(167,39), optionally with typed dots
+    inside it, optionally with only its focus ring thickened (what a click alone changes)."""
+    img = np.full((60, 200, 3), 255, np.uint8)
+    colour, width = ((200, 80, 0), 2) if ring else ((80, 80, 200), 1)
+    cv2.rectangle(img, (20, 20), (167, 39), colour, width)
+    if dots:
+        for x in range(30, 90, 9):
+            cv2.circle(img, (x, 29), 2, (0, 0, 0), -1)
+    return Look(_png(img), b"", (), "u")
+
+
+def test_typed_into_box_needs_new_ink_inside_the_box_not_just_a_focus_ring() -> None:
+    """Live: a click changed the focus ring, so the old pixel check said 'typed', but the box
+    stayed empty and login failed with 'please enter a username and password'."""
+    before = _form(dots=False, ring=False)
+    cfg, at, size = BrowserConfig(), (60, 29), (200, 60)
+    assert typed_into_box(before, _form(dots=True, ring=True), at, size, cfg)
+    assert not typed_into_box(before, _form(dots=False, ring=True), at, size, cfg)

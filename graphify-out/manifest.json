@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "src/cua/config.py": {
-    "mtime": 1790896561.8848639,
-    "ast_hash": "85e6d15716b02d3c0922dc7763ea7fc4",
+    "mtime": 1790905825.124717,
+    "ast_hash": "f0ddf1e62291dd4d40023ebde37169d3",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -390,8 +390,8 @@
     "semantic_hash": ""
   },
   "tests/unit/test_config.py": {
-    "mtime": 1790896996.942292,
-    "ast_hash": "d762dad98e6ac2908304d37fa1580b40",
+    "mtime": 1790905970.0765553,
+    "ast_hash": "d96597388f54853a5227285fe9134151",
     "semantic_hash": ""
   },
   "tests/unit/test_llm.py": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "configs/parabank.yaml": {
-    "mtime": 1790896220.8396676,
-    "ast_hash": "963a29e511dba0e23912d9438e1de6e6",
+    "mtime": 1790905825.1253574,
+    "ast_hash": "1bed46502488011100fdf97f47a90ec1",
     "semantic_hash": ""
   },
   "src/cua/README.md": {
@@ -420,8 +420,8 @@
     "semantic_hash": ""
   },
   "src/cua/vision/__init__.py": {
-    "mtime": 1790881808.6250782,
-    "ast_hash": "f3c9331224e66047d621688cb349c7d6",
+    "mtime": 1790906249.9857914,
+    "ast_hash": "7a805964e0621ec81b747b995570c7b1",
     "semantic_hash": ""
   },
   "src/cua/vision/canvas.py": {
@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "src/cua/vision/crops.py": {
-    "mtime": 1790878680.8153589,
-    "ast_hash": "5fba73e8ce35594d1c77ba5db37d16f1",
+    "mtime": 1790906300.1995945,
+    "ast_hash": "f8e4ad066eee669f66e2b65543cce36e",
     "semantic_hash": ""
   },
   "src/cua/vision/look.py": {
@@ -455,8 +455,8 @@
     "semantic_hash": ""
   },
   "tests/unit/vision/test_crops.py": {
-    "mtime": 1790879616.06739,
-    "ast_hash": "9f8ee45f081efdb7a0a1d6bfd44716bd",
+    "mtime": 1790906300.2003288,
+    "ast_hash": "1e57ef9f734c6eecf5b5ade8b20abfc7",
     "semantic_hash": ""
   },
   "tests/unit/vision/test_look.py": {
@@ -545,8 +545,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/tools/guard.py": {
-    "mtime": 1790896921.5895317,
-    "ast_hash": "788cbc7e71d7a72eaaf842917a2db41d",
+    "mtime": 1790906021.140105,
+    "ast_hash": "1857d97a02690db5c874f44960c25278",
     "semantic_hash": ""
   },
   "src/cua/handoff/__init__.py": {
@@ -805,8 +805,8 @@
     "semantic_hash": ""
   },
   "src/cua/replay/steps.py": {
-    "mtime": 1790886595.927946,
-    "ast_hash": "0f2ea2ba56233657774d18dcdae4288e",
+    "mtime": 1790906229.2074492,
+    "ast_hash": "feedf11008c397e1a1fb052bba80adfa",
     "semantic_hash": ""
   },
   "src/cua/replay/wiring.py": {
@@ -825,8 +825,8 @@
     "semantic_hash": ""
   },
   "tests/unit/discovery/test_guard.py": {
-    "mtime": 1790896897.2026732,
-    "ast_hash": "5600e4147d1f12302fd6e0e5595b4286",
+    "mtime": 1790905895.6697958,
+    "ast_hash": "4800b843db5d72d649bd25d6cb073f11",
     "semantic_hash": ""
   },
   "tests/unit/discovery/test_human.py": {
@@ -920,8 +920,8 @@
     "semantic_hash": ""
   },
   "src/cua/discovery/tools/act.py": {
-    "mtime": 1790896868.256101,
-    "ast_hash": "834e93ddc67599d32a2232cd07876a1b",
+    "mtime": 1790906188.5156436,
+    "ast_hash": "8b3a6ef031d4d0be1b1f02422880483d",
     "semantic_hash": ""
   },
   "src/cua/discovery/tools/nav.py": {
@@ -1587,6 +1587,381 @@
   "evidence/discovery/20261002T012859Z-log_in_transfer_10_from_my_account_to_my/step_5.png": {
     "mtime": 1790904541.4700768,
     "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "artifacts/transfer_funds_between_accounts.yaml": {
+    "mtime": 1790905931.6188965,
+    "ast_hash": "6a2759fd28ee0d1ceb263dff3a19a976",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/answer.txt": {
+    "mtime": 1790905149.8949978,
+    "ast_hash": "fffb718e3d99ddf73818cf22f8b41cd9",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/goal.txt": {
+    "mtime": 1790905149.8948085,
+    "ast_hash": "749abf7b597aad6b060d82d8284d3055",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/answer.txt": {
+    "mtime": 1790905936.2533593,
+    "ast_hash": "fafaf12ddc79e4f50a5226b521e6e3e4",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/capability.yaml": {
+    "mtime": 1790905936.2546523,
+    "ast_hash": "6a2759fd28ee0d1ceb263dff3a19a976",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/goal.txt": {
+    "mtime": 1790905936.2531385,
+    "ast_hash": "749abf7b597aad6b060d82d8284d3055",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/answer.txt": {
+    "mtime": 1790906255.374207,
+    "ast_hash": "3b9d0252051d0f80d19176eec95288ff",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/goal.txt": {
+    "mtime": 1790906255.373981,
+    "ast_hash": "236228d3c765eb93ae18c73c91af2cec",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s0.png": {
+    "mtime": 1790905931.6135826,
+    "ast_hash": "c639ae4a57fff75c0682dbf32a3942a3",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s1.png": {
+    "mtime": 1790905931.6137526,
+    "ast_hash": "95a40f095a9a39c27fdd00107f57e658",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s2.png": {
+    "mtime": 1790905931.6138816,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s3.png": {
+    "mtime": 1790905931.6140249,
+    "ast_hash": "2c389585b4f2abf6b3a501342b433669",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s4.png": {
+    "mtime": 1790905931.6141589,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s5.png": {
+    "mtime": 1790905931.614286,
+    "ast_hash": "ba8bdc1a297e3616a47ee55aeeddd64b",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s6.png": {
+    "mtime": 1790905931.614406,
+    "ast_hash": "187779c3de83144fe696477bb53decd5",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s7.png": {
+    "mtime": 1790905931.6145236,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "artifacts/crops/transfer_funds_between_accounts/s9.png": {
+    "mtime": 1790905931.6146438,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_1.png": {
+    "mtime": 1790905144.1162531,
+    "ast_hash": "afd2074eec98db0af78e6f57e592ed46",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_10.png": {
+    "mtime": 1790905147.7111237,
+    "ast_hash": "96c32afbb9cd0e4e99034aa4292d1a08",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_11.png": {
+    "mtime": 1790905148.12936,
+    "ast_hash": "1253b77d61f8702b29d605a86bc65af2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_12.png": {
+    "mtime": 1790905148.5473218,
+    "ast_hash": "f6233c5eea5d88f0432f400bd66941f1",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_13.png": {
+    "mtime": 1790905148.9510553,
+    "ast_hash": "bb7d737bbb3100f8db55a6081ca2f97f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_15.png": {
+    "mtime": 1790905149.2060668,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_16.png": {
+    "mtime": 1790905149.6363328,
+    "ast_hash": "f7787492e01efbf8b743b6858702c7ce",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_17.png": {
+    "mtime": 1790905149.8944461,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_2.png": {
+    "mtime": 1790905144.5979307,
+    "ast_hash": "403f8988aba92b0301634a10e5118a9f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_3.png": {
+    "mtime": 1790905144.8140812,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_5.png": {
+    "mtime": 1790905146.2578576,
+    "ast_hash": "c639ae4a57fff75c0682dbf32a3942a3",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_6.png": {
+    "mtime": 1790905146.6724668,
+    "ast_hash": "2e16e219834578d2b6d244f79018ef30",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_7.png": {
+    "mtime": 1790905146.7958972,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_8.png": {
+    "mtime": 1790905147.1189384,
+    "ast_hash": "02ef1ab1317b7fa40006e31aebe7902f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/step_9.png": {
+    "mtime": 1790905147.5160306,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_after.png": {
+    "mtime": 1790905145.8556206,
+    "ast_hash": "ff9de6c4177aafdfa8b0cc8e66c8a257",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T013903Z-log_in_transfer_from_my_account_to_my_ac/take_over_0_before.png": {
+    "mtime": 1790905145.3625855,
+    "ast_hash": "ff9de6c4177aafdfa8b0cc8e66c8a257",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s0.png": {
+    "mtime": 1790905931.6135826,
+    "ast_hash": "c639ae4a57fff75c0682dbf32a3942a3",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s1.png": {
+    "mtime": 1790905931.6137526,
+    "ast_hash": "95a40f095a9a39c27fdd00107f57e658",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s2.png": {
+    "mtime": 1790905931.6138816,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s3.png": {
+    "mtime": 1790905931.6140249,
+    "ast_hash": "2c389585b4f2abf6b3a501342b433669",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s4.png": {
+    "mtime": 1790905931.6141589,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s5.png": {
+    "mtime": 1790905931.614286,
+    "ast_hash": "ba8bdc1a297e3616a47ee55aeeddd64b",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s6.png": {
+    "mtime": 1790905931.614406,
+    "ast_hash": "187779c3de83144fe696477bb53decd5",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s7.png": {
+    "mtime": 1790905931.6145236,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/crops/transfer_funds_between_accounts/s9.png": {
+    "mtime": 1790905931.6146438,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_1.png": {
+    "mtime": 1790905932.1526875,
+    "ast_hash": "c639ae4a57fff75c0682dbf32a3942a3",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_10.png": {
+    "mtime": 1790905935.5326953,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_11.png": {
+    "mtime": 1790905935.9796734,
+    "ast_hash": "f7787492e01efbf8b743b6858702c7ce",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_12.png": {
+    "mtime": 1790905936.2524931,
+    "ast_hash": "ec8a09bb5d380cb9066f55287ee0cea6",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_2.png": {
+    "mtime": 1790905933.5572205,
+    "ast_hash": "95a40f095a9a39c27fdd00107f57e658",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_3.png": {
+    "mtime": 1790905933.7050188,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_4.png": {
+    "mtime": 1790905934.098919,
+    "ast_hash": "2c389585b4f2abf6b3a501342b433669",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_5.png": {
+    "mtime": 1790905934.479577,
+    "ast_hash": "47d22e9b47a85ac0dca42e3f8261a899",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_6.png": {
+    "mtime": 1790905934.6675742,
+    "ast_hash": "96c32afbb9cd0e4e99034aa4292d1a08",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_7.png": {
+    "mtime": 1790905934.8560483,
+    "ast_hash": "96c32afbb9cd0e4e99034aa4292d1a08",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015211Z-log_in_transfer_from_my_account_to_my_ac/step_8.png": {
+    "mtime": 1790905935.26897,
+    "ast_hash": "1253b77d61f8702b29d605a86bc65af2",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_1.png": {
+    "mtime": 1790906247.8281996,
+    "ast_hash": "d61c9f4faea59400dd56f3ed91938755",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_10.png": {
+    "mtime": 1790906251.0638888,
+    "ast_hash": "bb7d737bbb3100f8db55a6081ca2f97f",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_12.png": {
+    "mtime": 1790906251.3296945,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_16.png": {
+    "mtime": 1790906253.1627886,
+    "ast_hash": "2a01c4ba31d6a661194074be7d32fc9a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_17.png": {
+    "mtime": 1790906253.5606222,
+    "ast_hash": "c5e2e725e4980821b94f929a4a4bbf82",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_18.png": {
+    "mtime": 1790906253.6874926,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_19.png": {
+    "mtime": 1790906254.026443,
+    "ast_hash": "7964969a1fbc1110aca93315981564de",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_2.png": {
+    "mtime": 1790906248.283094,
+    "ast_hash": "5c8443f22883bd9bdde5fed6acab1947",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_20.png": {
+    "mtime": 1790906254.4395971,
+    "ast_hash": "d2e25ecdf57428a485491a1c8ce325a4",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_22.png": {
+    "mtime": 1790906254.669186,
+    "ast_hash": "cc305af3ae4fc266832d1336624cad54",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_23.png": {
+    "mtime": 1790906255.1094906,
+    "ast_hash": "f7787492e01efbf8b743b6858702c7ce",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_24.png": {
+    "mtime": 1790906255.3735602,
+    "ast_hash": "9b3d4803832d6033230abb61edcc6183",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_3.png": {
+    "mtime": 1790906248.4199846,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_4.png": {
+    "mtime": 1790906248.8297386,
+    "ast_hash": "2a01c4ba31d6a661194074be7d32fc9a",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_5.png": {
+    "mtime": 1790906249.290629,
+    "ast_hash": "c5e2e725e4980821b94f929a4a4bbf82",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_6.png": {
+    "mtime": 1790906249.426044,
+    "ast_hash": "696e142aafc4011d146171f73c1e7716",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_7.png": {
+    "mtime": 1790906249.845106,
+    "ast_hash": "2c389585b4f2abf6b3a501342b433669",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_8.png": {
+    "mtime": 1790906250.2569454,
+    "ast_hash": "d2e25ecdf57428a485491a1c8ce325a4",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/step_9.png": {
+    "mtime": 1790906250.6469116,
+    "ast_hash": "f6233c5eea5d88f0432f400bd66941f1",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/take_over_0_after.png": {
+    "mtime": 1790906252.7415233,
+    "ast_hash": "ce4dca37be3035a1c7b9f50f4be4b5ef",
+    "semantic_hash": ""
+  },
+  "evidence/discovery/20261002T015727Z-log_in_transfer_from_1410_to_1410_save_t/take_over_0_before.png": {
+    "mtime": 1790906252.0311084,
+    "ast_hash": "7751254e2028f2b11faa34a479665e28",
     "semantic_hash": ""
   }
 }

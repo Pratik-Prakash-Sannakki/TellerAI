@@ -43,8 +43,8 @@ def test_site_values(site: SiteProfile) -> None:
         "could not be verified",
         "user does not exist",
         "invalid username or password",
-        "please enter a username and password",
     )
+    assert site.login_empty_texts == ("please enter a username and password",)
 
 
 def test_outcomes_in_order(site: SiteProfile) -> None:

@@ -32,7 +32,7 @@ from cua.discovery.tools.human import human_fills
 from cua.discovery.tools.observe import blocks, reply
 from cua.discovery.tools.read_helpers import Spot, label_near, page_texts, where
 from cua.safety import host_allowed, is_sensitive, norm
-from cua.vision.crops import element_at, read_near, screens_same, spot_changed
+from cua.vision.crops import element_at, read_near, screens_same, typed_into_box
 from cua.vision.look import Look
 
 
@@ -223,7 +223,7 @@ async def _secret_typed(ctx: Ctx, name: str, point: tuple[int, int]) -> Result:
         ctx.run.look = None
         log(ctx, "type_secret", {"secret_name": name}, "STOP: secret visible", point, cut, **spots)
         return "STOP: the box shows the secret as plain text. Call ask_human; do not observe."
-    if typed := spot_changed(before, after, point, canvas(ctx), cfg):
+    if typed := typed_into_box(before, after, point, canvas(ctx), cfg):  # ink inside the box
         ctx.run.typed_secrets.add(name)
     msg = (
         f"Typed secret '{name}' at {point}."

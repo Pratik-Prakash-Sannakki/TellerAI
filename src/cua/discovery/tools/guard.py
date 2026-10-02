@@ -102,8 +102,16 @@ def refuse_action(ctx: Ctx, tool: str, args: dict[str, object]) -> str | None:
 def after_login_click(ctx: Ctx, screen_text: str) -> str | None:
     """D69: at most N login tries; a failure text on screen stops login for the run."""
     ctx.run.login_tries += 1
+    seen, tries_left = screen_text.casefold(), ctx.run.login_tries < ctx.cfg.login_limit
+    if tries_left and any(t in seen for t in ctx.site.login_empty_texts):
+        ctx.run.typed_secrets.clear()  # the boxes were empty: they must be typed again
+        return (
+            "RETRY: the site says the login boxes were empty, so the typing missed. Call "
+            "observe, then type_secret both again, aiming at the middle of each empty box, "
+            "then click Log In."
+        )
     texts = ctx.site.login_failure_texts
-    failed = next((t for t in texts if t in screen_text.casefold()), None)
+    failed = next((t for t in texts if t in seen), None)
     if failed or ctx.run.login_tries >= ctx.cfg.login_limit:
         ctx.run.login_blocked = True
     if failed:

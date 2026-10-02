@@ -49,6 +49,7 @@ class SiteProfile:
     deny_words: frozenset[str] = frozenset()  # refused outright (D33)
     login_words: frozenset[str] = frozenset()
     login_failure_texts: tuple[str, ...] = ()
+    login_empty_texts: tuple[str, ...] = ()  # "the boxes were empty": a missed type, retry once
     outcomes: tuple[OutcomeRule, ...] = ()
     allowed_actions: frozenset[str] = STEP_ACTIONS  # 3.4; yaml omits the key = all allowed
 
@@ -153,6 +154,7 @@ def load_site(name: str, root: Path | None = None) -> SiteProfile:
         deny_words=frozenset(data.get("deny_words") or ()),
         login_words=frozenset(data.get("login_words") or ()),
         login_failure_texts=tuple(data.get("login_failure_texts") or ()),
+        login_empty_texts=tuple(data.get("login_empty_texts") or ()),
         outcomes=_outcomes(data.get("outcomes") or [], path),
         allowed_actions=_actions(data.get("allowed_actions"), path),
     )

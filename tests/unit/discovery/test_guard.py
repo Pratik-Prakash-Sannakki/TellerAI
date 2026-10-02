@@ -69,6 +69,19 @@ def test_a_login_failure_text_blocks_login_for_the_run() -> None:
     assert ctx.run.login_blocked
 
 
+def test_empty_fields_on_login_is_a_retry_not_a_failure() -> None:
+    """Live: the site answered 'Please enter a username and password' (the boxes were empty: the
+    typing missed). That is not a wrong password; one more try typing the secrets is right."""
+    site = dataclasses.replace(SITE, login_empty_texts=("please enter a username and password",))
+    ctx = make_ctx(dataclasses.replace(make_session(), site=site))
+    ctx.run.typed_secrets = {"username", "password"}
+    out = after_login_click(ctx, "Error! Please enter a username and password.")
+    assert out is not None
+    assert out.startswith("RETRY:")
+    assert not ctx.run.login_blocked
+    assert ctx.run.typed_secrets == set()           # the secrets must be typed again
+
+
 def test_login_is_blocked_after_the_limit() -> None:
     ctx = make_ctx(cfg=DiscoveryConfig(login_limit=2))
     assert after_login_click(ctx, "") is None

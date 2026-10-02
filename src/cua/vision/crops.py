@@ -72,6 +72,40 @@ def spot_changed(
     return float(np.mean(cv2.absdiff(a, z))) >= cfg.same_screen_mad
 
 
+FIELD_MIN = (40, 12)  # px: the smallest drawn rectangle that counts as an input box
+INSET = 3            # px: ignore the border itself (a focus ring thickens it on a click)
+INK = 128            # grey level below which a pixel is ink (text, dots)
+
+
+def input_box(look: Look, point: tuple[int, int]) -> Box | None:
+    """The smallest drawn rectangle containing the point: the input's own border, or None."""
+    edges = cv2.Canny(cv2.cvtColor(decode(look.png), cv2.COLOR_BGR2GRAY), 30, 90)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    rects = [cv2.boundingRect(c) for c in contours]
+    fw, fh = FIELD_MIN
+    boxes = [Box(x, y, x + w, y + h) for x, y, w, h in rects if w >= fw and h >= fh]
+    hits = [b for b in boxes if b.contains(*point)]
+    return min(hits, key=lambda b: (b.x2 - b.x1) * (b.y2 - b.y1)) if hits else None
+
+
+def _ink(look: Look, b: Box) -> int:
+    grey = cv2.cvtColor(decode(look.png), cv2.COLOR_BGR2GRAY)
+    inner = grey[b.y1 + INSET : b.y2 - INSET, b.x1 + INSET : b.x2 - INSET]
+    return int((inner < INK).sum())
+
+
+def typed_into_box(
+    before: Look, after: Look, point: tuple[int, int], size: tuple[int, int], cfg: BrowserConfig
+) -> bool:
+    """New ink appeared INSIDE the input box (text, or a password's dots). A click alone only
+    redraws the box's border (a focus ring), which ``spot_changed`` mistook for typing. No box
+    found at the point: fall back to the old pixel check."""
+    box = input_box(after, point) or input_box(before, point)
+    if box is None:
+        return spot_changed(before, after, point, size, cfg)
+    return _ink(after, box) > _ink(before, box)
+
+
 def screens_same(a: bytes, b: bytes, cfg: BrowserConfig) -> bool:
     ga, gb = (cv2.cvtColor(decode(p), cv2.COLOR_BGR2GRAY) for p in (a, b))
     return float(np.mean(cv2.absdiff(ga, gb))) < cfg.same_screen_mad
