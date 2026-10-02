@@ -60,6 +60,59 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
 - **New tenant = one config file.** Another bank on the same product needs a YAML profile, not a
   code change.
 
+## The agent
+
+Discovery is one **deep agent** built with LangChain's [`deepagents`](https://github.com/langchain-ai/deepagents)
+(`create_deep_agent`, on LangGraph), in `src/cua/discovery/agent/build.py`. It gets the visual
+system prompt, 13 tools (`observe`, `click`, `type_text`, `type_secret`, `select_option`, `scroll`,
+`open_path`, `extract_value`, `extract_table`, `extract_options`, `request_missing_values`,
+`ask_human`, `finish_business_outcome`) and a checkpointer, so a run paused for a human resumes
+where it stopped. Middleware wraps every model call:
+
+- `RecordWhy`: logs the model's one-line reason for each tool call (masked) into the evidence.
+- `LatestScreenshotOnly`: only the newest screenshot stays in context, which keeps every turn small.
+- The TypeSafe tool router and model router below, when switched on.
+
+**Models.** Claude only, called directly through Anthropic (`cua.llm.make_chat_model`):
+
+| Role | Model | When |
+|---|---|---|
+| Powerful (default) | Claude Sonnet (`claude-sonnet-5`) | every step when routing is off; any step the router isn't sure about |
+| Fast | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) | a simple, unambiguous step, and only when the router is confident |
+
+Replay uses no model at all.
+
+### Confidence-driven tool selection and model routing (TypeSafe)
+
+Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`), else the agent runs Sonnet
+with every tool. Code: `src/cua/discovery/agent/routing.py`.
+
+Before **each** model call, a [TypeSafe](https://typesafe.ai) classifier answers two multiple-choice
+questions about the current step. Each answer comes back with a **confidence** score, and the
+confidence decides whether we act on it.
+
+Why trust that score: TypeSafe's models are trained with **RLCD** (Reinforcement Learning for
+Calibrated Decisions), which rewards confidence that matches real accuracy rather than answers people
+prefer. A calibrated "0.9" is right about 90% of the time, so a fixed threshold is a meaningful
+cut-off, not a guess:
+
+1. **Which job is this step?** One of `login`, `fill_form`, `read_value`, `navigate`, `need_human`,
+   `finish`. At confidence **≥ 0.8**, the tool list is narrowed to that job's tools plus four that
+   are always kept (`observe`, `click`, `type_secret`, `ask_human`). For example, a `fill_form` step
+   sees `type_text`, `select_option` and `scroll`, not the extract or finish tools. Below 0.8, all
+   13 tools stay.
+2. **Fast or powerful model?** Haiku is used only when the answer is `fast` **and** confidence is
+   ≥ 0.8. Otherwise the step goes to Sonnet.
+
+Design rules:
+
+- **Fails open.** A low-confidence answer, a timeout or any classifier error changes nothing: all
+  tools, Sonnet. Routing can only save cost; it can never block a step.
+- **Per step, not per run.** TypeSafe's stock model router decides once per run from the goal, so a
+  multi-step goal never reached Haiku. Ours asks again at every step.
+- **Minimal data out.** The classifier sees only the page name, the last tool's name and its status
+  word (`OK`, `REFUSED`, `Saved`). Never screen text, URL tokens or values.
+
 ## Business use case
 
 **What Teller does.**
@@ -264,59 +317,6 @@ re-logs in once. Cleanup (logout) always runs.
 | `STUCK` | a human stopped it, rejected Gate 1, or an input was blank or wrong |
 | `FAILED` | bad YAML, wrong screen size, host blocked, action not allowed, checkpoint or output missing |
 | `BUSINESS_OUTCOME` | a known answer, e.g. "not found", "insufficient funds" |
-
-## The agent
-
-Discovery is one **deep agent** built with LangChain's [`deepagents`](https://github.com/langchain-ai/deepagents)
-(`create_deep_agent`, on LangGraph), in `src/cua/discovery/agent/build.py`. It gets the visual
-system prompt, 13 tools (`observe`, `click`, `type_text`, `type_secret`, `select_option`, `scroll`,
-`open_path`, `extract_value`, `extract_table`, `extract_options`, `request_missing_values`,
-`ask_human`, `finish_business_outcome`) and a checkpointer, so a run paused for a human resumes
-where it stopped. Middleware wraps every model call:
-
-- `RecordWhy`: logs the model's one-line reason for each tool call (masked) into the evidence.
-- `LatestScreenshotOnly`: only the newest screenshot stays in context, which keeps every turn small.
-- The TypeSafe tool router and model router below, when switched on.
-
-**Models.** Claude only, called directly through Anthropic (`cua.llm.make_chat_model`):
-
-| Role | Model | When |
-|---|---|---|
-| Powerful (default) | Claude Sonnet (`claude-sonnet-5`) | every step when routing is off; any step the router isn't sure about |
-| Fast | Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) | a simple, unambiguous step, and only when the router is confident |
-
-Replay uses no model at all.
-
-### Confidence-driven tool selection and model routing (TypeSafe)
-
-Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`), else the agent runs Sonnet
-with every tool. Code: `src/cua/discovery/agent/routing.py`.
-
-Before **each** model call, a [TypeSafe](https://typesafe.ai) classifier answers two multiple-choice
-questions about the current step. Each answer comes back with a **confidence** score, and the
-confidence decides whether we act on it.
-
-Why trust that score: TypeSafe's models are trained with **RLCD** (Reinforcement Learning for
-Calibrated Decisions), which rewards confidence that matches real accuracy rather than answers people
-prefer. A calibrated "0.9" is right about 90% of the time, so a fixed threshold is a meaningful
-cut-off, not a guess:
-
-1. **Which job is this step?** One of `login`, `fill_form`, `read_value`, `navigate`, `need_human`,
-   `finish`. At confidence **≥ 0.8**, the tool list is narrowed to that job's tools plus four that
-   are always kept (`observe`, `click`, `type_secret`, `ask_human`). For example, a `fill_form` step
-   sees `type_text`, `select_option` and `scroll`, not the extract or finish tools. Below 0.8, all
-   13 tools stay.
-2. **Fast or powerful model?** Haiku is used only when the answer is `fast` **and** confidence is
-   ≥ 0.8. Otherwise the step goes to Sonnet.
-
-Design rules:
-
-- **Fails open.** A low-confidence answer, a timeout or any classifier error changes nothing: all
-  tools, Sonnet. Routing can only save cost; it can never block a step.
-- **Per step, not per run.** TypeSafe's stock model router decides once per run from the goal, so a
-  multi-step goal never reached Haiku. Ours asks again at every step.
-- **Minimal data out.** The classifier sees only the page name, the last tool's name and its status
-  word (`OK`, `REFUSED`, `Saved`). Never screen text, URL tokens or values.
 
 Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*, routing
 is Q22) and `notebooks/replay/DECISIONS.md` (R*).
