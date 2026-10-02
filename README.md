@@ -294,7 +294,12 @@ with every tool. Code: `src/cua/discovery/agent/routing.py`.
 
 Before **each** model call, a [TypeSafe](https://typesafe.ai) classifier answers two multiple-choice
 questions about the current step. Each answer comes back with a **confidence** score, and the
-confidence decides whether we act on it:
+confidence decides whether we act on it.
+
+Why trust that score: TypeSafe's models are trained with **RLCD** (Reinforcement Learning for
+Calibrated Decisions), which rewards confidence that matches real accuracy rather than answers people
+prefer. A calibrated "0.9" is right about 90% of the time, so a fixed threshold is a meaningful
+cut-off, not a guess:
 
 1. **Which job is this step?** One of `login`, `fill_form`, `read_value`, `navigate`, `need_human`,
    `finish`. At confidence **≥ 0.8**, the tool list is narrowed to that job's tools plus four that
