@@ -1,5 +1,9 @@
 # Teller: learn a banking task once, replay it forever
 
+<img src="brag-output/brag.gif" alt="Teller: 46-second intro" width="100%">
+
+*The full 46-second intro. With sound: [`brag-output/brag.mp4`](brag-output/brag.mp4).*
+
 ## The problem
 
 Banks and credit unions still run their daily work on **legacy web portals**: bill pay, transfers,
@@ -57,10 +61,6 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
   code change.
 
 ## Business use case
-
-<a href="brag-output/brag.mp4"><img src="brag-output/brag-preview.gif" alt="Teller: intro preview" width="100%"></a>
-
-*Click the preview for the full 46-second intro (`brag-output/brag.mp4`, with sound).*
 
 **What Teller does.**
 
@@ -477,7 +477,7 @@ notebooks/             discovery/ and replay/ demos, decisions, architecture not
 extensions/handback/   Chrome toolbar extension for handing control back
 tests/                 unit/ mirrors src/cua/; integration/ round trip + notebook parity
 evidence/              masked discovery/ and replay/ run folders; cua eval writes eval/ (evidence/README.md)
-brag-output/           the intro video (brag.mp4), its looping preview (brag-preview.gif) and poster (brag.jpg)
+brag-output/           the intro video (brag.mp4), its full-length GIF (brag.gif), a short preview (brag-preview.gif) and poster (brag.jpg)
 ```
 
 ## Rules this code keeps
