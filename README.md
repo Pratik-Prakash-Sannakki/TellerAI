@@ -47,69 +47,53 @@ cua replay artifacts/get_all_account_balances.yaml --evidence
 ### 1. Main architecture
 
 ```mermaid
-flowchart LR
-    G([Goal in plain words]) --> D
-    subgraph D[Discovery: learn once]
-        A[Deep agent<br/>Sonnet / Haiku] -->|one tool call| T[Tools + guards]
-        T -->|screenshot + OCR| A
-    end
-    D -->|event log| R[Recorder]
-    R --> C[(Capability<br/>YAML + crops)]
-    C --> P
-    subgraph P[Replay: run many times, no LLM]
-        E[Step engine] --> L[Find the target<br/>3 ways]
-    end
-    P --> O([Typed outputs + status])
-    H((Human)) <-->|questions, take-over,<br/>2 send gates| D
-    H <-->|inputs, 2 send gates,<br/>rescue| P
-    B[[ParaBank<br/>browser tab]] <--> D
-    B <--> P
-```
-
-- Discovery uses a model; replay never does. The capability file is the only thing between them.
-- A human is in the loop on both sides: questions, take-over, and the two send gates.
-
-### 2. Abstract architecture
-
-The package is `src/cua/`. One row per layer; each layer imports only the layers below it.
-
-```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 25, "rankSpacing": 40}}}%%
+%%{init: {"flowchart": {"nodeSpacing": 30, "rankSpacing": 45, "wrappingWidth": 260}}}%%
 flowchart TB
-    subgraph ENTRY["ENTRY"]
-        direction LR
-        CLI["cli.py<br/>cua discover · replay · eval"]
-        NOTE1["config.py ← configs/&lt;site&gt;.yaml + .env<br/>eval.py · stability report"]:::note
-    end
-    subgraph SIDES["TWO SIDES · never import each other"]
-        direction LR
-        DISC["discovery/<br/>agent · tools · recorder"]:::disc
-        REP["replay/<br/>loader · locate · steps · engine"]:::rep
-        NOTE2["llm.py · make_chat_model<br/>discovery only"]:::note
-    end
-    subgraph CORE["SHARED CORE"]
-        direction LR
-        V["vision/<br/>screenshot · OCR · crops"]
-        BR["browser/<br/>session · site lock · input"]
-        S["safety/<br/>SendGuard · rails · masking"]:::guard
-        HO["handoff/<br/>control tab · take-over"]
-    end
-    subgraph BASE["CONTRACT"]
-        SC[("schema/<br/>Capability · events · results<br/>pure, no I/O")]:::data
-    end
-    ENTRY --> SIDES --> CORE --> BASE
+    HUMAN(["👤 Human · answers questions · takes over · approves every send"]):::human
 
+    subgraph PIPE["LEARN ONCE → REPLAY MANY TIMES"]
+        direction LR
+        GOAL(["Goal<br/>in plain words"]):::io
+        DISC["<b>① DISCOVERY</b> · uses an LLM<br/>input rail → deep agent ⇄ 13 tools<br/>→ recorder keeps what worked"]:::disc
+        CAP[("<b>② CAPABILITY</b><br/>YAML recipe + image crops<br/>no values · no secrets")]:::data
+        REP["<b>③ REPLAY</b> · no LLM, zero tokens<br/>loader → locate (OCR text → anchor → template)<br/>→ judge (checkpoint · outcome rules)"]:::rep
+        OUT(["Status<br/>+ typed outputs"]):::io
+        GOAL --> DISC --> CAP --> REP --> OUT
+    end
+
+    subgraph CORE["SHARED CORE · used by both sides"]
+        direction LR
+        VIS["<b>Vision</b><br/>screenshot · OCR · crops"]
+        BRW["<b>Browser</b><br/>Playwright · site lock · mouse + keys"]
+        SAFE["<b>Safety</b><br/>host lock · SendGuard · Gate 1 + Gate 2 · masking"]:::guard
+        SCH["<b>Schema</b><br/>the contract between the two sides"]:::data
+    end
+
+    BANK[["🏦 Bank portal · legacy web app"]]:::bank
+    EVID[("evidence/ · masked run logs")]:::data
+
+    HUMAN <--> PIPE
+    PIPE --> CORE
+    BRW <--> BANK
+    PIPE -.-> EVID
+
+    classDef io fill:#e8f1fd,stroke:#2c6fbb,color:#123
+    classDef data fill:#e8f1fd,stroke:#2c6fbb,color:#123
     classDef disc fill:#fff6db,stroke:#c9a227,color:#3a2e00
     classDef rep fill:#e9f7ef,stroke:#2e8b57,color:#123
     classDef guard fill:#fde8e8,stroke:#c0392b,color:#7b1d1d
-    classDef data fill:#e8f1fd,stroke:#2c6fbb,color:#123
-    classDef note fill:#ffffff,stroke:#bbb,stroke-dasharray:3 3,color:#555
+    classDef human fill:#efe8fd,stroke:#6c4bb6,color:#2a1a55
+    classDef bank fill:#f6f6f6,stroke:#555,color:#222
+    style PIPE fill:#ffffff,stroke:#888
+    style CORE fill:#fafafa,stroke:#999,stroke-dasharray:4 4
 ```
 
-Import rules (tested in `tests/unit/test_import_rules.py`): `schema` imports nothing else from
-`cua`; `discovery` and `replay` never import each other; `replay` has no model import.
+- **Discovery** uses a model; **replay** never does. The capability file is the only thing between them.
+- **Shared core** (`src/cua/`): `vision`, `browser`, `safety`, `handoff`, `schema`. `discovery` and `replay`
+  never import each other; `replay` has no model import (tested in `tests/unit/test_import_rules.py`).
+- **A human is in the loop on both sides:** questions, take-over, and the two send gates.
 
-### 3. Extended architecture
+### 2. Extended architecture
 
 Two pictures, in the order things happen. Red = guardrail, blue = stored data.
 
@@ -178,7 +162,7 @@ flowchart TB
     classDef data fill:#e8f1fd,stroke:#2c6fbb,color:#123
 ```
 
-### 4. Flow diagram
+### 3. Flow diagram
 
 ```mermaid
 sequenceDiagram
@@ -220,11 +204,10 @@ sequenceDiagram
     R->>U: SUCCESS + outputs + drift log
 ```
 
-## The agent
+### 4. Agent architecture
 
-### How Teller thinks: see, think, act
-
-Like a person: look at the screen, decide, do one thing, check, repeat. Red = guardrail.
+How Teller thinks: like a person. Look at the screen, decide, do one thing, check, repeat.
+Red = guardrail.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 360, "nodeSpacing": 30, "rankSpacing": 45}}}%%
@@ -291,6 +274,8 @@ flowchart TD
 **Steps 4–7 are the deep agent** (LangChain `deepagents`, `create_deep_agent`, on LangGraph): one
 tool call per turn, looping until the task is done, with a checkpointer so a run paused for a human
 resumes where it stopped.
+
+## The agent
 
 Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
 
