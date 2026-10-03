@@ -1,0 +1,9 @@
+{
+  "status": "BUSINESS_OUTCOME",
+  "reason": "not enough funds for the down payment (loan denied)",
+  "summary": "BUSINESS_OUTCOME",
+  "outputs": {},
+  "human": [],
+  "failing_step": 7,
+  "cleanup": "done"
+}

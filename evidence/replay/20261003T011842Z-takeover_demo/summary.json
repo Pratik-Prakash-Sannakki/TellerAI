@@ -1,0 +1,20 @@
+{
+  "status": "FAILED",
+  "reason": "outputs not read: ['from_account_options']",
+  "summary": "FAILED (human intervened at step 4)",
+  "outputs": {},
+  "human": [
+    {
+      "step": 3,
+      "reason": "target not found",
+      "actions": {
+        "pages": [
+          "/parabank/billpay.htm"
+        ],
+        "sends": []
+      }
+    }
+  ],
+  "failing_step": 6,
+  "cleanup": "done"
+}

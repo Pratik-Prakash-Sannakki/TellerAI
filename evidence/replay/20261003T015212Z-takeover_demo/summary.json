@@ -1,0 +1,24 @@
+{
+  "status": "SUCCESS",
+  "reason": "",
+  "summary": "SUCCESS (human intervened at step 4)",
+  "outputs": {
+    "from_account_options": [
+      "***"
+    ]
+  },
+  "human": [
+    {
+      "step": 3,
+      "reason": "target not found",
+      "actions": {
+        "pages": [
+          "/parabank/billpay.htm"
+        ],
+        "sends": []
+      }
+    }
+  ],
+  "failing_step": null,
+  "cleanup": "done"
+}

@@ -1,0 +1,7 @@
+{
+  "status": "done",
+  "events": 7,
+  "take_over": false,
+  "take_overs": [],
+  "capability_saved": "artifacts/get_account_balance.yaml"
+}

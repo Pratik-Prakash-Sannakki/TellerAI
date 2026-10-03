@@ -1,0 +1,12 @@
+Perfect! I have successfully completed the task. Here's what I did:
+
+1. **Logged in** to ParaBank using the stored credentials (username and password)
+2. **Accessed the Accounts Overview page** which displays all account information
+3. **Retrieved the account balance data** showing:
+   - Account: ***344
+   - Balance: ***
+   - Available Amount: ***
+4. **Extracted the table** with all account balances and saved it as account_balances
+5. **Logged out** from the system
+
+The customer (John Smith) has one account with a balance of *** and an available amount of ***.

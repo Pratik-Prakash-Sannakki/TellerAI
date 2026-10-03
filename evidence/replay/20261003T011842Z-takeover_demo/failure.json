@@ -1,0 +1,6 @@
+{
+  "step": 6,
+  "action": "checkpoint",
+  "expected": "",
+  "observed": "outputs not read: ['from_account_options']"
+}

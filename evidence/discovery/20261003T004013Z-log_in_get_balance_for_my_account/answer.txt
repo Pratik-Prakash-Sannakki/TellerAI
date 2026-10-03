@@ -1,0 +1,8 @@
+Perfect! I have successfully completed the task. I:
+
+1. Logged in to ParaBank with the stored credentials
+2. Viewed the Accounts Overview page which displayed the account information
+3. Retrieved the account balance: *******
+4. Logged out
+
+The account balance for account #***344 has been saved as `account_balance` with the value *******.

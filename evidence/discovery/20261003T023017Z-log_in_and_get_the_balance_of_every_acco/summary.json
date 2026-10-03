@@ -1,0 +1,7 @@
+{
+  "status": "done",
+  "events": 10,
+  "take_over": false,
+  "take_overs": [],
+  "capability_saved": "/tmp/teller-check/get_account_balances.yaml"
+}

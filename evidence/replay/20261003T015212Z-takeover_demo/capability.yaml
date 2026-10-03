@@ -1,0 +1,91 @@
+schema_version: 2
+name: takeover_demo
+version: 1
+description: 'FAULT-INJECTION DEMO (not discovered): a copy of get_transfer_account_options
+  whose step 3 (''Bill Pay.'' click) points at text that does not exist, so replay
+  gets stuck there and a human takes over, clicks Bill Pay, and hands back. Shows
+  3.6 take-over -> resume -> SUCCESS.'
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: from_account_options
+  type: options
+  description: Options for the From account dropdown
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 10
+      - 46
+    template: crops/takeover_demo/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 40
+      - 19
+    template: crops/takeover_demo/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/takeover_demo/s2.png
+  cleanup: false
+- action: click
+  target:
+    ocr_text:
+      text: Pay My Bills Now
+      ordinal: 1
+    anchor:
+      label: Bill Center
+      ordinal: 1
+      offset:
+      - 0
+      - 0
+  cleanup: false
+- action: extract_options
+  target:
+    anchor:
+      label: 'From account #:'
+      ordinal: 1
+      offset:
+      - 76
+      - 0
+    template: crops/takeover_demo/s4.png
+  save_as: from_account_options
+  index: 0
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -18
+      - 24
+    template: crops/takeover_demo/s5.png
+  cleanup: true
+checkpoint: Enter payee information

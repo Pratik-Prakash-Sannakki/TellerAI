@@ -1,0 +1,61 @@
+{
+  "report": {
+    "runs": 3,
+    "status_counts": {
+      "SUCCESS": 3
+    },
+    "success_rate": 1.0,
+    "assisted": 0,
+    "rungs": {
+      "0": {
+        "rung2": 3
+      },
+      "1": {
+        "rung2": 3
+      },
+      "2": {
+        "rung1": 3
+      },
+      "3": {
+        "-": 3
+      },
+      "4": {
+        "-": 3
+      },
+      "5": {
+        "-": 3
+      }
+    },
+    "cleanup_rungs": {
+      "6": {
+        "rung1": 3
+      }
+    },
+    "fallback_steps": [
+      0,
+      1
+    ],
+    "output_stable": {
+      "account_balances": false
+    },
+    "outputs_stable": false,
+    "flaky": false
+  },
+  "runs": [
+    {
+      "run": 1,
+      "status": "SUCCESS",
+      "reason": ""
+    },
+    {
+      "run": 2,
+      "status": "SUCCESS",
+      "reason": ""
+    },
+    {
+      "run": 3,
+      "status": "SUCCESS",
+      "reason": ""
+    }
+  ]
+}

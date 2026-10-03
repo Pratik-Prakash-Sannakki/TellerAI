@@ -1,0 +1,11 @@
+{
+  "status": "SUCCESS",
+  "reason": "",
+  "summary": "SUCCESS",
+  "outputs": {
+    "confirmation": "***"
+  },
+  "human": [],
+  "failing_step": null,
+  "cleanup": "done"
+}

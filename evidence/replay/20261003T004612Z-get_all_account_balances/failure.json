@@ -1,0 +1,6 @@
+{
+  "step": 5,
+  "action": "extract_table",
+  "expected": "",
+  "observed": "the step's check failed"
+}

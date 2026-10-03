@@ -1,0 +1,77 @@
+schema_version: 2
+name: get_account_balance
+version: 1
+description: Logs into the online banking portal using stored credentials and retrieves
+  the current balance information from the accounts overview page.
+base_url: https://parabank.parasoft.com/parabank
+viewport:
+- 1280
+- 800
+device_scale_factor: 1.0
+inputs: []
+outputs:
+- name: account_balance
+  type: currency
+  description: The balance for the account
+secrets:
+- username
+- password
+steps:
+- action: type
+  target:
+    anchor:
+      label: Customer Login
+      ordinal: 1
+      offset:
+      - 10
+      - 45
+    template: crops/get_account_balance/s0.png
+  value: '{{secret:username}}'
+- action: type
+  target:
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 40
+      - 19
+    template: crops/get_account_balance/s1.png
+  value: '{{secret:password}}'
+- action: click
+  target:
+    ocr_text:
+      text: LOG IN
+      ordinal: 1
+    anchor:
+      label: Password
+      ordinal: 1
+      offset:
+      - 1
+      - 50
+    template: crops/get_account_balance/s2.png
+  cleanup: false
+- action: scroll
+  direction: down
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 64
+      - 69
+  save_as: account_balance
+- action: click
+  target:
+    ocr_text:
+      text: Log Out
+      ordinal: 1
+    anchor:
+      label: Request Loan
+      ordinal: 1
+      offset:
+      - -17
+      - 25
+    template: crops/get_account_balance/s5.png
+  cleanup: true
+checkpoint: Account

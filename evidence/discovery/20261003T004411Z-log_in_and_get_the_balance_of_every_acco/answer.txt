@@ -1,0 +1,14 @@
+Perfect! I have successfully logged out and returned to the login page. I have completed the task:
+
+1. ✅ **Logged in** to the ParaBank system using the stored credentials
+2. ✅ **Navigated to the Accounts Overview page** which displays all account balances
+3. ✅ **Extracted the account balance information** and saved it to the `account_balances` table
+
+**Summary of Results:**
+
+The account balance information has been extracted and saved. The data shows:
+- **One account** (Account ***344) with a balance of **$5022.93**
+- **Available Amount: $5022.93**
+- **Total Balance: $5022.93**
+
+The user (John Smith) has one checking/savings account with a total balance of $5022.93.
