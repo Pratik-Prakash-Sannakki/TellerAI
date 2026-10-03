@@ -41,13 +41,14 @@ def column_spans(line: list[Element]) -> list[tuple[Element, float, float]]:
 def table_columns(
     look: Look, head: Element, columns: list[str], match: Callable[[str, str], bool]
 ) -> tuple[list[tuple[str | None, float, float]], int] | None:
-    """(every header-line column as (asked name or None, lo, hi), the header line's bottom), or
-    None when an asked column is not on head's line. Unasked columns stay: they bound the others."""
+    """(every header-line column as (asked name or None, lo, hi), the asked headers' bottom), or
+    None when an asked column is not on head's line. Unasked columns stay: they bound the others,
+    but a text beside the table (a menu item) must not push the bottom below the first row."""
     spans = column_spans([e for e in look.elements if same_line(e.box, head.box)])
     names = {id(e): next((c for c in columns if match(e.text, c)), None) for e, _, _ in spans}
     if set(columns) - set(names.values()):
         return None
-    below = max(e.box.y2 for e, _, _ in spans)
+    below = max(e.box.y2 for e, _, _ in spans if names[id(e)] is not None)
     return [(names[id(e)], lo, hi) for e, lo, hi in spans], below
 
 
@@ -83,11 +84,14 @@ def read_rows(
 ) -> tuple[list[dict[str, str]], bool]:
     """(rows under the header, whether the table may continue past the look's bottom). Rows end at
     a vertical gap >= TABLE_GAP, a line with no text in any asked column, or `limit`. below=None:
-    a scrolled table with its header gone, read from the look's top."""
+    a scrolled table with its header gone, read from the look's top. Texts only in unasked
+    columns (a menu beside the table) are not read: they neither form nor end a row."""
     inside = [
         e
         for e in look.elements
-        if col_of(e.box, cols) is not None and (below is None or e.box.y1 >= below)
+        if (i := col_of(e.box, cols)) is not None
+        and cols[i][0] is not None
+        and (below is None or e.box.y1 >= below)
     ]
     rows: list[dict[str, str]] = []
     prev, height = below, None
