@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import shutil
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from cua.config import SiteProfile
@@ -146,10 +146,18 @@ def _write(
     return folder
 
 
-def save_refused(out_dir: Path, goal: str, verdict: RailVerdict, site: SiteProfile) -> Path:
-    """A goal the guardrails refused: no browser ran. goal.txt masked like any run's; the
-    summary names the rail and its score, never the matched text."""
-    ids = IdMask.for_site(site)
+def save_refused(
+    out_dir: Path,
+    goal: str,
+    verdict: RailVerdict,
+    site: SiteProfile,
+    *,
+    secrets: Mapping[str, str] | None = None,
+) -> Path:
+    """A goal the guardrails refused: no browser ran. goal.txt and the folder name are masked
+    like any run's (secrets whole, ids to their last digits); the summary names the rail and its
+    score, never the matched text."""
+    ids = safe_redactor(set(), secrets or {}, IdMask.for_site(site))
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     folder = Path(out_dir) / f"{stamp}-{input_name(ids(goal))[:40]}"
     folder.mkdir(parents=True, exist_ok=True)
