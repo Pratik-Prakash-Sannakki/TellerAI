@@ -85,6 +85,22 @@ where it stopped. Middleware wraps every model call:
 
 Replay uses no model at all.
 
+### Observability (LangSmith)
+
+Discovery is traced in [LangSmith](https://smith.langchain.com). It's switched on by environment
+variables only (`LANGSMITH_TRACING`, `LANGSMITH_ENDPOINT`, `LANGSMITH_API_KEY`, see Setup); LangChain
+sends the traces, no extra code.
+
+- **Agent trace:** every run is one trace: each model call, each tool call with its arguments and
+  result, the middleware (TypeSafe routing, `OnlyOurTools`), and the agent's reasoning per step.
+- **Latency:** per model call, per tool call and per run, so slow steps (OCR, page loads, the
+  human gates) show up directly.
+- **Cost:** token usage per call and the cost per run, split by model, so Haiku vs Sonnet routing
+  can be compared run to run.
+- **Replay** makes no model calls, so a replay costs nothing and has no trace.
+- **What leaves the machine:** what the model sees (screenshots, the goal, its own messages).
+  Secrets never do: the model only ever sees their names. Fake data only.
+
 ### Confidence-driven tool selection and model routing (TypeSafe)
 
 Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`), else the agent runs Sonnet
@@ -352,6 +368,7 @@ cp .env.example .env                     # then fill in the keys below
 | `ANTHROPIC_API_KEY` | discovery only | every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
 | `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one |
 | `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool selection + per-step Haiku/Sonnet routing for discovery. Needs `uv sync --extra typesafe` |
+| `LANGSMITH_TRACING` / `LANGSMITH_ENDPOINT` / `LANGSMITH_API_KEY` | optional | LangSmith traces for discovery: agent trace, latency, token usage and cost per run (see "Observability") |
 
 Replay needs no LLM key at all.
 

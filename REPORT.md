@@ -18,6 +18,7 @@ Trade-off: slower and OCR-noisy, but it works where there is no clean DOM.
 - **Agent:** a LangChain deep agent, 13 tools. Every call goes through `cua.llm.make_chat_model`.
   Latest screenshot only; a 900 s deadline ends the run `STUCK`, evidence intact.
 - **Key rule:** the agent picks the tool; our code decides if the action may happen.
+- **Observability:** discovery is traced in LangSmith (env vars only): the full agent trace, latency per model/tool call, and token usage and cost per run by model. Replay makes no model calls.
 - **Replay** shares vision, browser, safety and handoff code, and imports no model (R1).
 
 **Routing (built, opt-in).** TypeSafe classifies each step's job and picks the model. Its models
@@ -150,6 +151,4 @@ fake accounts); history was deliberately not rewritten.
 
 **Next:**
 
-- Measure cost: `run.json` has no token counts yet.
-- Drop deepagents' built-in file tools, added to the agent by default (in progress).
-- Show a human's mid-run option choice in replay's summary (in progress).
+- Copy each run's LangSmith token and cost totals into `run.json`, so evidence carries cost without the dashboard.
