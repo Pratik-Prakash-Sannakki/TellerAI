@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/5ef8c957-d093-440a-b31c-b6f06ea4ec09
 discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no LLM, browser)
 ```
 
-Learning bill pay took **16-21 model turns** (26 when a take-over was needed) (`evidence/discovery/*pay_bill*`). Every replay after that takes **0**.
+Learning bill pay took **14-21 model turns** (26 when a take-over was needed) (`evidence/discovery/*pay_bill*`). Every replay after that takes **0**.
 
 > **Demo bank: [ParaBank](https://parabank.parasoft.com/parabank/)**, Parasoft's open-source demo bank
 > ([source](https://github.com/parasoft/parabank)): a classic server-rendered portal with real flows and
@@ -38,8 +38,8 @@ Learning bill pay took **16-21 model turns** (26 when a take-over was needed) (`
 
 ```bash
 uv sync --extra typesafe --extra rails && uv run playwright install chromium && cp .env.example .env   # add keys to .env
-cua discover "Log in and get the balance of every account" --out artifacts
-cua replay artifacts/get_all_account_balances.yaml --evidence
+uv run cua discover "Log in and get the balance of every account" --out artifacts
+uv run cua replay artifacts/get_all_account_balances.yaml --evidence
 ```
 
 ## Architecture
@@ -461,19 +461,21 @@ Masked run folders in `evidence/` (layout: `evidence/README.md`).
 | Capability | Discovery run (saved it) | Replay / eval runs |
 |---|---|---|
 | `get_all_account_balances` | `discovery/20261003T004411Z-log_in_and_get_the_balance_of_every_acco` | `replay/20261003T005702Z` SUCCESS; `replay/20261003T011355Z` SUCCESS; `eval/20261003T013804Z` 3/3 SUCCESS, outputs stable; `eval/20261003T010917Z` 3/3 SUCCESS, outputs differed (one-off) |
-| `get_account_balance` | `discovery/20261003T004013Z-log_in_get_balance_for_my_account` | none yet (checkpoint fixed after discovery) |
+| `get_account_balance` | `discovery/20261003T110221Z-log_in_get_me_account_balance` | `replay/20261003T111830Z-get_account_balance` SUCCESS |
 | `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | `replay/20261003T010220Z` SUCCESS (confirmation read) |
 | `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | `replay/20261003T010531Z` SUCCESS |
 | `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | `replay/20261003T010624Z` BUSINESS_OUTCOME (loan denied: not enough for the down payment) |
 | `transfer_funds_between_accounts` | `discovery/20261003T015535Z-log_in_and_transfer_from_account_344_to_` | `replay/20261003T015748Z` SUCCESS, confirmation read; a person picked the account (demo DB had reset). Predates `human[]` recording, so `human[]` is empty |
-| `takeover_demo` (fault-injection, not discovered) | - | `replay/20261003T015212Z` SUCCESS (human intervened at step 4); `replay/20261003T012310Z` SUCCESS on the old checkpoint; `replay/20261003T011842Z` FAILED pre-fix |
+| `takeover_demo` (fault-injection, not discovered) | - | `replay/20261003T015212Z` SUCCESS (human intervened at step 3); `replay/20261003T012310Z` SUCCESS on the old checkpoint; `replay/20261003T011842Z` FAILED pre-fix |
 | `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | - |
+
+Step numbers match `failing_step` in each run's `summary.json` (0-based).
 
 Pre-fix runs (bugs the live runs found):
 
-- `replay/20261003T004519Z`, `004612Z` (balances): STUCK at step 6; menu text taken as the table header. Fixed in `85595bf`, `27ef5ef`.
+- `replay/20261003T004519Z`, `004612Z` (balances): STUCK at step 5; menu text taken as the table header. Fixed in `85595bf`, `27ef5ef`.
 - `replay/20261003T004836Z` (balances): SUCCESS but empty table. Same bug; fixed in `27ef5ef`.
-- `replay/20261003T005631Z`, `010142Z` (`pay_bill_to_payee`): STUCK at step 10; OCR read `1Main`. Fixed in `07664f2`.
+- `replay/20261003T005631Z`, `010142Z` (`pay_bill_to_payee`): STUCK at step 9; OCR read `1Main`. Fixed in `07664f2`.
 - `replay/20261003T011842Z` (`takeover_demo`): FAILED; read step skipped after the take-over. Fixed in `0c4c75a`.
 
 Other runs:
@@ -505,7 +507,7 @@ Other runs:
 No key, no browser, no network:
 
 ```bash
-.venv/bin/python -m pytest -q tests     # 1919 passed (2026-10-03)
+.venv/bin/python -m pytest -q tests     # 1941 passed (2026-10-03)
 .venv/bin/mypy --strict src             # no issues (73 files)
 uvx ruff check src tests                # lint
 ```

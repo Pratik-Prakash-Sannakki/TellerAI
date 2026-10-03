@@ -62,12 +62,12 @@ Same table as the README "Evidence" section; folders are under `discovery/`, `re
 | Capability | Discovery run (saved it) | Replay / eval |
 |---|---|---|
 | `get_all_account_balances` | `discovery/20261003T004411Z-log_in_and_get_the_balance_of_every_acco` | `replay/20261003T005702Z-...` SUCCESS; `replay/20261003T011355Z-...` SUCCESS; both eval runs above |
-| `get_account_balance` | `discovery/20261003T004013Z-log_in_get_balance_for_my_account` | none yet |
+| `get_account_balance` | `discovery/20261003T110221Z-log_in_get_me_account_balance` | `replay/20261003T111830Z-get_account_balance` SUCCESS |
 | `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | `replay/20261003T010220Z-pay_bill_to_payee` SUCCESS |
 | `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | `replay/20261003T010531Z-get_transfer_account_options` SUCCESS |
 | `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | `replay/20261003T010624Z-request_loan` BUSINESS_OUTCOME (loan denied) |
 | `transfer_funds_between_accounts` | `discovery/20261003T015535Z-log_in_and_transfer_from_account_344_to_` | `replay/20261003T015748Z-transfer_funds_between_accounts` SUCCESS (a person picked the account) |
-| `takeover_demo` (fault-injection, not discovered) | - | `replay/20261003T015212Z-takeover_demo` SUCCESS (human intervened at step 4) |
+| `takeover_demo` (fault-injection, not discovered) | - | `replay/20261003T015212Z-takeover_demo` SUCCESS (human intervened at step 3) |
 | `transfer_money` (RETIRED, replaced by `transfer_funds_between_accounts`) | - | `replay/20260930T223218Z-transfer_money` SUCCESS (pre-package) |
 
 Older pre-package runs (no `run.json`) are also kept, e.g. `replay/20260930T033412Z-pay_bill`

@@ -72,7 +72,7 @@ Every non-success carries a masked `failure = {step, action, expected, observed}
 and whether outputs matched (a bool, never a value). A step that slid off its first rung is the
 one to re-discover; anchor-only steps are not flagged (c007853).
 
-**Live verification (2026-10-03, current package).** Discover and replay passed on balances, bill pay, transfer options, transfers and loans (including a loan-denial `BUSINESS_OUTCOME`); `cua eval --runs 3` gave 3/3 `SUCCESS`, no drift. The runs found six bugs, each fixed test-first. Details and run folders: README "Evidence" section and `evidence/README.md`.
+**Live verification (2026-10-03, current package).** Discover and replay passed on balances, bill pay, transfer options, transfers and loans (including a loan-denial `BUSINESS_OUTCOME`); `cua eval --runs 3` gave 3/3 `SUCCESS` with no drift on one of two eval runs; the other used fallback rungs and its outputs varied. The runs found six bugs, each fixed test-first. Details and run folders: README "Evidence" section and `evidence/README.md`.
 
 ## 4. Heterogeneity & multi-tenant
 
