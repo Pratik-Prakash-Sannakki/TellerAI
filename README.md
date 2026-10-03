@@ -64,66 +64,69 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
 
 ### How Teller thinks: see, think, act
 
-Like a person: look at the screen, decide, then do one thing, and repeat. Red boxes are guardrails.
+Like a person: look at the screen, decide, do one thing, check, repeat. Red = guardrail.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 360, "nodeSpacing": 30, "rankSpacing": 45}}}%%
 flowchart TD
-    GOAL["INPUT: the goal<br/>plain-English task"]:::io
-    IR["SHIELD: input rail<br/>NeMo check_goal<br/>refused goal = REFUSED, exit 1"]:::guard
-    GOAL --> IR
-    subgraph CORE["AGENT CORE: deep agent loop"]
+    S1["<b>1 · GOAL</b><br/>a banking task in plain English"]:::io
+    S2["<b>2 · INPUT RAIL</b> · NeMo Guardrails<br/>🛡 off-topic · jailbreak · steering · sensitive → REFUSED, exit 1"]:::guard
+    S3["<b>3 · OPEN THE BANK SITE</b><br/>🛡 host lock: allowed hosts only"]:::step
+
+    subgraph LOOP["THE AGENT LOOP · one tool per turn"]
         direction TB
-        subgraph SEE["SEE"]
-            OBS["observe<br/>screenshot, OCR, numbered boxes"]
-        end
-        subgraph THINK["THINK"]
-            LLM["Sonnet, or Haiku via TypeSafe routing<br/>picks ONE tool per step"]
-            OOT["SHIELD: OnlyOurTools + TypeSafe<br/>only our 13 tools"]:::guard
-            LLM --- OOT
-        end
-        subgraph ACT["ACT"]
-            A["click, type_text, type_secret,<br/>select_option, scroll, open_path"]
-            TG["SHIELD: tool guards, allowed_actions,<br/>host lock; type_secret hides values"]:::guard
-            A --- TG
-        end
-        subgraph READ["READ"]
-            R["extract_value, extract_table,<br/>extract_options"]
-        end
-        subgraph ASK["ASK HUMAN"]
-            H["ask_human, request_missing_values"]
-        end
-        subgraph FIN["FINISH"]
-            F["finish_business_outcome"]
-        end
-        OBS --> LLM
-        LLM -->|act| A
-        LLM -->|read| R
-        LLM -->|stuck or missing value| H
-        LLM -->|done| F
-        A -->|new screen| OBS
-        R -->|new screen| OBS
-        H -->|answer| OBS
+        S4["<b>4 · SEE</b> · observe<br/>screenshot → OCR → numbered boxes"]:::step
+        S5{{"<b>5 · THINK</b> · Sonnet or Haiku picks ONE tool<br/>🛡 only our 13 tools · TypeSafe routing"}}:::think
+        S6A["<b>6 · ACT</b><br/>click · type_text · type_secret<br/>select_option · scroll · open_path<br/>🛡 tool guards · allowed_actions<br/>🛡 every send: Gate 1 + Gate 2"]:::step
+        S6B["<b>6 · READ</b><br/>extract_value<br/>extract_table<br/>extract_options"]:::step
+        S6C["<b>6 · ASK A HUMAN</b><br/>ask_human<br/>request_missing_values"]:::step
+        S7["<b>7 · CHECK</b> · a new screenshot confirms the step"]:::step
+        S4 --> S5
+        S5 -->|act| S6A
+        S5 -->|read| S6B
+        S5 -->|unsure| S6C
+        S6A --> S7
+        S6B --> S7
+        S6C --> S7
+        S7 -. next turn .-> S4
     end
-    IR -->|allowed| OBS
-    SG["SHIELD: SendGuard<br/>Gate 1 confirm details<br/>Gate 2 confirm send"]:::guard
-    BANK[("Bank site<br/>allowed host only")]:::io
-    A --> SG --> BANK
-    OR["SHIELD: output rail<br/>check_output on the final answer"]:::guard
-    F --> OR
-    MASK["SHIELD: masking<br/>redact.py on all evidence"]:::guard
-    OR --> OUT
-    OUT["OUTPUT: capability YAML + crops<br/>+ masked evidence"]:::io
-    MASK -.-> OUT
-    OUT --> REP["REPLAY<br/>plain code, no LLM"]:::io
-    classDef guard fill:#fde8e8,stroke:#c0392b,stroke-width:2px,color:#7b1d1d
+
+    S8["<b>8 · FINISH</b> · finish_business_outcome"]:::step
+    S9["<b>9 · OUTPUT RAIL</b><br/>🛡 answer masked: cards · SSNs · ids · credential → withheld"]:::guard
+    S10["<b>10 · SAVE</b> · capability YAML + crops<br/>🛡 all evidence masked"]:::io
+    S11["<b>11 · REPLAY LATER</b> · same steps, plain code, no LLM"]:::io
+
+    S1 --> S2 -->|allowed| S3 --> S4
+    S5 -->|done| S8
+    S8 --> S9 --> S10 --> S11
+
     classDef io fill:#e8f1fd,stroke:#2c6fbb,color:#123
+    classDef step fill:#f6f6f6,stroke:#888,color:#222
+    classDef think fill:#fff6db,stroke:#c9a227,color:#3a2e00
+    classDef guard fill:#fde8e8,stroke:#c0392b,stroke-width:2px,color:#7b1d1d
 ```
 
-- **See**: `observe` takes a screenshot, runs OCR and draws numbered boxes. Only the newest screenshot stays in context.
-- **Think**: the model (Sonnet, or Haiku when TypeSafe routing is sure) picks exactly one tool. `OnlyOurTools` hides everything else.
-- **Act / Read / Ask**: act on the page, read values and tables, or ask a human. Each result loops back to See.
-- **Guardrails**: input rail before the browser; tool guards, `allowed_actions` and the host lock at Act; SendGuard Gate 1 and Gate 2 before anything is sent; output rail on the final answer; masking on all evidence.
-- **Output**: a capability YAML plus crops, replayed by plain code with no LLM.
+**The steps**
+
+1. **Goal.** You give a banking task in plain English.
+2. **Input rail (NeMo Guardrails).** The goal is checked before anything starts. Off-topic, jailbreak,
+   steering or sensitive goals are refused (`REFUSED`, exit 1): no browser, no agent.
+3. **Open the bank site.** A Playwright browser opens, locked to the allowed hosts only.
+4. **See.** `observe` takes a screenshot, reads it with OCR and numbers every text box.
+5. **Think.** Sonnet (or Haiku, when TypeSafe routing is sure) picks exactly **one** tool. It is
+   only ever offered our 13 tools (`OnlyOurTools`).
+6. **Act, read, or ask.** One of:
+   - **Act:** `click`, `type_text`, `type_secret`, `select_option`, `scroll`, `open_path`. Tool
+     guards and `allowed_actions` apply; `type_secret` means the model never sees a password; any
+     request that sends data is held until a human approves **Gate 1** (details) and **Gate 2** (send).
+   - **Read:** `extract_value`, `extract_table`, `extract_options`.
+   - **Ask a human:** `ask_human`, `request_missing_values` when it is unsure or a value is missing.
+7. **Check.** A new screenshot confirms the step worked, then the loop goes back to **See**.
+8. **Finish.** When the task is done, `finish_business_outcome` reports the result.
+9. **Output rail.** The final answer is masked (card numbers, SSNs, account ids); a credential or
+   secret withholds it.
+10. **Save.** The steps become a capability YAML plus image crops; all evidence is masked.
+11. **Replay later.** The same steps run again with plain code, no LLM.
 
 Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
 
