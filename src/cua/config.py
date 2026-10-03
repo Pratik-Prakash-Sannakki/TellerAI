@@ -53,6 +53,7 @@ class SiteProfile:
     allowed_actions: frozenset[str] = STEP_ACTIONS  # 3.4; yaml omits the key = all allowed
     id_min_digits: int = 5  # a digit run this long is an account id: masked in what is stored
     id_visible_digits: int = 3  # ...down to its last digits ('98765' -> '***765')
+    rails: str = "on"  # NeMo guardrails on the goal: off | on (if installed) | required
 
     @property
     def base_url(self) -> str:
@@ -141,6 +142,16 @@ def _actions(names: list[str] | None, path: Path) -> frozenset[str]:
     return frozenset(names)
 
 
+RAILS_MODES = ("off", "on", "required")
+
+
+def _rails(value: object, path: Path) -> str:
+    mode = str(value)
+    if mode not in RAILS_MODES:
+        raise ValueError(f"{path}: rails must be one of {RAILS_MODES}, got {mode!r}")
+    return mode
+
+
 def load_site(name: str, root: Path | None = None) -> SiteProfile:
     """Read and validate ``configs/<name>.yaml`` (root defaults to the repo root)."""
     path = (root or _repo_root()) / "configs" / f"{name}.yaml"
@@ -160,6 +171,7 @@ def load_site(name: str, root: Path | None = None) -> SiteProfile:
         allowed_actions=_actions(data.get("allowed_actions"), path),
         id_min_digits=int(data.get("id_min_digits", 5)),
         id_visible_digits=int(data.get("id_visible_digits", 3)),
+        rails=_rails(data.get("rails", "on"), path),
     )
 
 

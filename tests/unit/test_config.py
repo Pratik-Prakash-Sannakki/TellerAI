@@ -172,3 +172,15 @@ def test_allowed_actions_subset_and_unknown(tmp_path: Path) -> None:
     (tmp_path / "configs/bad.yaml").write_text(base + "[click, teleport]\n")
     with pytest.raises(ValueError, match="teleport"):
         load_site("bad", root=tmp_path)
+
+
+def test_rails_mode_defaults_on_and_is_validated(tmp_path: Path) -> None:
+    (tmp_path / "configs").mkdir()
+    base = "start_url: https://x.test/\nallowed_hosts: [x.test]\n"
+    (tmp_path / "configs" / "a.yaml").write_text(base)
+    assert load_site("a", tmp_path).rails == "on"
+    (tmp_path / "configs" / "b.yaml").write_text(base + "rails: required\n")
+    assert load_site("b", tmp_path).rails == "required"
+    (tmp_path / "configs" / "c.yaml").write_text(base + "rails: maybe\n")
+    with pytest.raises(ValueError, match="rails"):
+        load_site("c", tmp_path)
