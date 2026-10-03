@@ -23,7 +23,7 @@ from cua.browser.dropdown import SELECT_AT_INDEX_JS, choose_option_at_index
 from cua.browser.input import into_box
 from cua.replay.context import Ctx
 from cua.replay.loader import PLACEHOLDER, ask_option, fill, secret_name
-from cua.replay.locate import find_text, locate, same_label, same_text, typed_ok
+from cua.replay.locate import locate, same_label, same_text, typed_ok
 from cua.replay.wiring import act, canvas, look, stash_dropdowns, to_page
 from cua.safety.hosts import host_allowed
 from cua.safety.redact import hide_secrets, is_sensitive, norm
@@ -250,19 +250,18 @@ async def do_extract_table(ctx: Ctx, step: Step, point: Point, cap: Capability) 
     valid output ([]); a header not on screen is a failed check."""
     run, limit = ctx.run, step.row_limit  # type: ignore[union-attr]
     header = step.header  # type: ignore[union-attr]
-    head = find_text(
-        run.look,  # type: ignore[arg-type]
-        fill(header.label, run.values),
-        header.ordinal,
-        ctx.cfg,
-        same_label,
-    )
-    found = head and table_columns(
-        run.look, head, step.columns, lambda a, b: same_text(a, b, ctx.cfg)  # type: ignore[union-attr, arg-type]
-    )
-    if not found:
+    label, look = fill(header.label, run.values), run.look
+    # Only label hits whose line holds every asked column count: discovery's ordinal is over
+    # exact header texts, and a menu's 'Account Services' only starts with 'Account'.
+    hits = [
+        found
+        for e in look.elements  # type: ignore[union-attr]
+        if same_label(e.text, label, ctx.cfg)
+        and (found := table_columns(look, e, step.columns, lambda a, b: same_text(a, b, ctx.cfg)))  # type: ignore[union-attr, arg-type]
+    ]
+    if len(hits) < header.ordinal:
         return False
-    cols, below = found
+    cols, below = hits[header.ordinal - 1]
     rows, more = read_rows(run.look, cols, below, limit)  # type: ignore[arg-type]
     while more and len(rows) < limit:
         await act(ctx, lambda: ctx.page.mouse.wheel(0, ctx.bcfg.scroll_px))

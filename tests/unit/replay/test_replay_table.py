@@ -165,3 +165,43 @@ def test_a_table_step_needs_no_target() -> None:
 
 def test_the_outputs_line_shows_rows() -> None:
     assert "Bill Payment" in ReplayResult("SUCCESS", {"transactions_1": WANT}, []).outputs_line  # type: ignore[dict-item]
+
+
+# The left menu's "Account Services" and "Accounts Overview" start with "Account" and sit above
+# the table's own "Account" header: header 1 is the first "Account" whose line holds the columns.
+OVERVIEW = [
+    ("Account Services", (0, 40, 120, 60)),
+    ("Accounts Overview", (0, 70, 130, 90)),
+    ("Account", (200, 100, 260, 120)),
+    ("Balance*", (350, 100, 420, 120)),
+    ("Available Amount", (500, 100, 620, 120)),
+    ("13344", (200, 130, 250, 150)),
+    ("$5022.93", (350, 130, 420, 150)),
+    ("$5022.93", (510, 130, 580, 150)),
+    *FOOTER,
+]
+
+
+@pytest.mark.asyncio
+async def test_the_header_skips_menu_items_that_only_start_with_its_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cols = ["Account", "Balance*", "Available Amount"]
+    ctx, ok = await _run(
+        [OVERVIEW], monkeypatch, header={"label": "Account", "ordinal": 1}, columns=cols
+    )
+    assert ok is True
+    assert ctx.run.outputs["transactions_1"] == [
+        {"Account": "13344", "Balance*": "$5022.93", "Available Amount": "$5022.93"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_label_hits_without_the_columns_are_a_failed_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    menu_only = OVERVIEW[:2]
+    ctx, ok = await _run(
+        [menu_only], monkeypatch, header={"label": "Account"}, columns=["Account", "Balance*"]
+    )
+    assert ok is False and "transactions_1" not in ctx.run.outputs
