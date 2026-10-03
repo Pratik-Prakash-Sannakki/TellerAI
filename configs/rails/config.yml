@@ -1,14 +1,7 @@
-# NeMo Guardrails for Teller's discovery goal. The main LLM (Haiku) is injected in code
-# (cua.llm.make_chat_model), so it is not listed here.
+# NeMo Guardrails for Teller's discovery goal. Only the embeddings model is configured here; the
+# decision (thresholds in thresholds.yml, Haiku fallback) lives in cua.safety.nemo. The LLM is
+# injected in code (cua.llm.make_chat_model), so it is not listed here.
 models:
   - type: embeddings
     engine: FastEmbed
     model: all-MiniLM-L6-v2
-rails:
-  dialog:
-    user_messages:
-      # Embeddings first: a clear match never calls the LLM. Below this similarity the LLM
-      # (Haiku) picks the intent. Score = 1 - sqrt(2-2cos)/2 (compressed: cosine 0.43 scores 0.47).
-      # Tuned 2026-10-03 to 0.45: all 21 labelled goals pass on embeddings alone (no LLM).
-      embeddings_only: true
-      embeddings_only_similarity_threshold: 0.45
