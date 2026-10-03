@@ -62,6 +62,71 @@ discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no L
 
 ## The agent
 
+### How Teller thinks: see, think, act
+
+Like a person: look at the screen, decide, then do one thing, and repeat. Red boxes are guardrails.
+
+```mermaid
+flowchart TD
+    GOAL["INPUT: the goal<br/>plain-English task"]:::io
+    IR["SHIELD: input rail<br/>NeMo check_goal<br/>refused goal = REFUSED, exit 1"]:::guard
+    GOAL --> IR
+    subgraph CORE["AGENT CORE: deep agent loop"]
+        direction TB
+        subgraph SEE["SEE"]
+            OBS["observe<br/>screenshot, OCR, numbered boxes"]
+        end
+        subgraph THINK["THINK"]
+            LLM["Sonnet, or Haiku via TypeSafe routing<br/>picks ONE tool per step"]
+            OOT["SHIELD: OnlyOurTools + TypeSafe<br/>only our 13 tools"]:::guard
+            LLM --- OOT
+        end
+        subgraph ACT["ACT"]
+            A["click, type_text, type_secret,<br/>select_option, scroll, open_path"]
+            TG["SHIELD: tool guards, allowed_actions,<br/>host lock; type_secret hides values"]:::guard
+            A --- TG
+        end
+        subgraph READ["READ"]
+            R["extract_value, extract_table,<br/>extract_options"]
+        end
+        subgraph ASK["ASK HUMAN"]
+            H["ask_human, request_missing_values"]
+        end
+        subgraph FIN["FINISH"]
+            F["finish_business_outcome"]
+        end
+        OBS --> LLM
+        LLM -->|act| A
+        LLM -->|read| R
+        LLM -->|stuck or missing value| H
+        LLM -->|done| F
+        A -->|new screen| OBS
+        R -->|new screen| OBS
+        H -->|answer| OBS
+    end
+    IR -->|allowed| OBS
+    SG["SHIELD: SendGuard<br/>Gate 1 confirm details<br/>Gate 2 confirm send"]:::guard
+    BANK[("Bank site<br/>allowed host only")]:::io
+    A --> SG --> BANK
+    OR["SHIELD: output rail<br/>check_output on the final answer"]:::guard
+    F --> OR
+    MASK["SHIELD: masking<br/>redact.py on all evidence"]:::guard
+    OR --> OUT
+    OUT["OUTPUT: capability YAML + crops<br/>+ masked evidence"]:::io
+    MASK -.-> OUT
+    OUT --> REP["REPLAY<br/>plain code, no LLM"]:::io
+    classDef guard fill:#fde8e8,stroke:#c0392b,stroke-width:2px,color:#7b1d1d
+    classDef io fill:#e8f1fd,stroke:#2c6fbb,color:#123
+```
+
+- **See**: `observe` takes a screenshot, runs OCR and draws numbered boxes. Only the newest screenshot stays in context.
+- **Think**: the model (Sonnet, or Haiku when TypeSafe routing is sure) picks exactly one tool. `OnlyOurTools` hides everything else.
+- **Act / Read / Ask**: act on the page, read values and tables, or ask a human. Each result loops back to See.
+- **Guardrails**: input rail before the browser; tool guards, `allowed_actions` and the host lock at Act; SendGuard Gate 1 and Gate 2 before anything is sent; output rail on the final answer; masking on all evidence.
+- **Output**: a capability YAML plus crops, replayed by plain code with no LLM.
+
+Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
+
 Discovery is one **deep agent** built with LangChain's [`deepagents`](https://github.com/langchain-ai/deepagents)
 (`create_deep_agent`, on LangGraph), in `src/cua/discovery/agent/build.py`. It gets the visual
 system prompt, 13 tools (`observe`, `click`, `type_text`, `type_secret`, `select_option`, `scroll`,
