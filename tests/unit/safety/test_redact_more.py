@@ -73,6 +73,23 @@ def test_mask_png_blacks_out_only_boxes_holding_a_value() -> None:
     assert img[15:25, 75:105].min() == 255  # noqa: PLR2004
 
 
+def test_a_value_ocr_reads_without_its_space_is_masked() -> None:
+    """Live: value '1 Main' showed unmasked in replay evidence; OCR read the field as '1Main'."""
+
+    def ocr(img: object) -> list[tuple[str, Box]]:
+        return [("1Main", Box(10, 10, 60, 30)), ("1 Main", Box(70, 10, 110, 30))]
+
+    img = decode(mask_png(_png(), redactor({"1 Main"}), ocr))
+    assert img[15:25, 15:55].max() == 0
+    assert img[15:25, 75:105].max() == 0
+
+
+def test_a_word_value_ignores_spaces_but_stays_whole() -> None:
+    redact = redactor({"1 Main"})
+    assert redact("at 1Main and 1  Main") == "at *** and ***"
+    assert redact("21Main 1Mainly") == "21Main 1Mainly"
+
+
 def test_a_clean_image_is_returned_as_is() -> None:
     png = _png()
     assert mask_png(png, redactor({"Nobody"}), _ocr) is png

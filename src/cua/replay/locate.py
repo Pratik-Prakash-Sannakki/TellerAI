@@ -39,10 +39,20 @@ def same_text(seen: str, want: str, cfg: ReplayConfig) -> bool:
 
 def typed_ok(seen: str, want: str, cfg: ReplayConfig) -> bool:
     """Bug B: the value is one of the OCR words. Digits exact ($10.00 is 10.00); words fuzzy
-    (llinois)."""
-    words, n = norm(seen).replace("$", "").replace(",", "").split(), len(norm(want).split())
+    (llinois). OCR may drop or add a space ('1 Main' read '1Main'), so the value also passes
+    with all spaces removed against 1..n+1 OCR words in order, joined (n = the value's words).
+    Order and digits still count: 'Main 1' and '121800' never pass for '1 Main' and '12180'."""
+
+    def clean(t: str) -> str:
+        return norm(t).replace("$", "").replace(",", "")
+
+    words, want = clean(seen).split(), clean(want)
+    n, tight = len(want.split()), want.replace(" ", "")
     runs = [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
-    return any(same_text(r, want.replace("$", "").replace(",", ""), cfg) for r in runs)
+    joined = ["".join(words[i : i + k]) for k in range(1, n + 2) for i in range(len(words))]
+    return any(same_text(r, want, cfg) for r in runs) or any(
+        same_text(r, tight, cfg) for r in joined
+    )
 
 
 def same_label(seen: str, label: str, cfg: ReplayConfig) -> bool:

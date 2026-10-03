@@ -170,6 +170,24 @@ async def test_a_one_character_value_is_checked_by_pixels(monkeypatch: pytest.Mo
     assert await steps.do_type(ctx, step, (70, 62), None) is False  # type: ignore[arg-type]
 
 
+@pytest.mark.asyncio
+async def test_a_value_ocr_reads_without_its_space_is_typed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live: Address '1 Main' failed twice: the field held it, OCR read it as one word '1Main'."""
+    before, after = mk_look([], _white()), mk_look([("1Main", (20, 55, 70, 70))], _white((60,)))
+    ctx = make_replay_ctx()
+
+    async def act(c: Ctx, *s: object) -> Look:
+        c.run.look = after
+        return after
+
+    monkeypatch.setattr(steps, "act", act)
+    step = type_("{{address}}", "Address:", (0, 0))
+    ctx.run.look, ctx.run.values = before, {"address": "1 Main"}
+    assert await steps.do_type(ctx, step, (40, 62), None) is True  # type: ignore[arg-type]
+
+
 async def _same_screen_click(navigated: bool) -> bool:
     lk = mk_look([("Accounts Overview", (10, 10, 170, 30))], _white())
     page = Page()

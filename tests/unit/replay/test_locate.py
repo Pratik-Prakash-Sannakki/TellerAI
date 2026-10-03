@@ -156,3 +156,17 @@ def test_typed_ok_words_tolerant_digits_exact() -> None:
     assert not typed_ok("13345", "13344", CFG)
     assert not typed_ok("100", "10", CFG)
     assert not typed_ok("", "IL", CFG)
+
+
+def test_typed_ok_ignores_spaces_ocr_drops_or_adds() -> None:
+    """Live: '1 Main' in the field, OCR read '1Main'. Order and digits still count."""
+    assert typed_ok("1Main", "1 Main", CFG)
+    assert typed_ok("1 Main", "1 Main", CFG)
+    assert typed_ok("Address: 1Main", "1 Main", CFG)
+    assert typed_ok("1218 0", "12180", CFG)
+    assert typed_ok("$42.00", "42.00", CFG)
+    assert not typed_ok("Main 1", "1 Main", CFG)
+    assert not typed_ok("Main1", "1 Main", CFG)
+    for seen in ("1218", "121800", "12181", "1 2181"):
+        assert not typed_ok(seen, "12180", CFG)
+    assert not typed_ok("TroyMain", "Troy", CFG)

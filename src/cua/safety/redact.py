@@ -37,18 +37,16 @@ def redactor(
     values: set[str], mask: str = "***", number: re.Pattern[str] = NUMBER
 ) -> Callable[[str], str]:
     """text -> text with every value masked. Numbers match however they are written
-    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill')."""
+    ('100000' = '$100,000.00'); words match whole, case-insensitively ('IL' never hits 'Bill'),
+    with any spacing between their words ('1 Main' also hits OCR's '1Main')."""
     nums = {_num(v) for v in values if number.fullmatch(v.strip())}
     words = sorted(
         (v for v in values if len(v.strip()) > 1 and not number.fullmatch(v.strip())),
         key=len,
         reverse=True,
     )
-    word_re = (
-        re.compile("|".join(rf"(?<!\w){re.escape(w.strip())}(?!\w)" for w in words), re.I)
-        if words
-        else None
-    )
+    spaced = (r"\s*".join(map(re.escape, w.split())) for w in words)  # '1Main' is '1 Main'
+    word_re = re.compile("|".join(rf"(?<!\w){w}(?!\w)" for w in spaced), re.I) if words else None
 
     def redact(text: str) -> str:
         text = number.sub(lambda m: mask if _num(m.group()) in nums else m.group(), text)
