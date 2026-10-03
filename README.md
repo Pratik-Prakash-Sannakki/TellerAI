@@ -177,6 +177,7 @@ sends the traces, no extra code.
 
 Discovery checks the goal with [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails)
 before the browser opens. Rails are written in Colang in `configs/rails/`.
+Full reference with every case and example: [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md).
 
 - **Input rails:** off-topic, jailbreak, steering ("give me control", "skip the gates") and
   sensitive/emotional goals are refused. The goal is checked sentence by sentence and whole.
