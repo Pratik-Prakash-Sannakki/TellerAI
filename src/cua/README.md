@@ -1,7 +1,6 @@
 # cua
 
-The productionized package behind the discovery and replay notebooks. Being built up step by
-step (see `docs/PRODUCTIONIZE_PLAN.md`); later steps append their folders here.
+The package behind the discovery and replay notebooks and the `cua` CLI.
 
 ## Read order
 1. `config.py` - site profile (`load_site` -> frozen `SiteProfile` from `configs/<site>.yaml`),
@@ -14,6 +13,15 @@ step (see `docs/PRODUCTIONIZE_PLAN.md`); later steps append their folders here.
 4. `eval.py` - `cua eval`'s report: `summarize` N `ReplayResult`s into a frozen `EvalReport`
    (status counts, rung histogram, `fallback_steps`, output stability as bools), `render`,
    `save_report`. Pure, no browser; `cli.py` runs the replays.
+5. `evidence.py` - masking helpers shared by discovery and replay evidence.
+6. Subpackages, each with its own `README.md`, in dependency order:
+   - `vision/` - pixels to text: screenshots, OCR, crops, table reader.
+   - `browser/` - Playwright session, site lock, our own input, native dropdowns.
+   - `safety/` - send gates, masking, what may leave the tab.
+   - `handoff/` - control tab, hand-back button, take-over.
+   - `discovery/` - the LLM side: deep agent, tools, recorder.
+   - `replay/` - no LLM: loader, locate rungs, engine.
+7. `cli.py` - `cua discover` / `cua replay` / `cua eval`.
 
 ## Rules
 - No site value (host, URL, words, env-var names) in `src/`: they live in `configs/<site>.yaml`

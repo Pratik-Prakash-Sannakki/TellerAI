@@ -1,4 +1,4 @@
-# REPORT
+# Design write-up
 
 A computer-use system for ParaBank: a **discovery agent** learns a task from screenshots, writes a
 **capability artifact** (YAML), and a **replay engine** runs it again with plain code, no LLM.
@@ -6,7 +6,7 @@ One package, `src/cua/`, with a `cua` CLI. Setup and commands: `README.md`. Deci
 `notebooks/discovery/decisions.md`, `R*`/`P*` in `notebooks/replay/`. **Built** = in code and
 tested; **designed** = decided, not built.
 
-## Architecture
+## 1. Architecture
 
 **Pure visual (built).** Each step: screenshot a fixed 1280x800 page (Q10); RapidOCR numbers every
 text box (`[7] 'Transfer'`); the agent picks one tool, which acts with `page.mouse` /
@@ -18,16 +18,12 @@ Trade-off: slower and OCR-noisy, but it works where there is no clean DOM.
 - **Agent:** a LangChain deep agent, 13 tools. Every call goes through `cua.llm.make_chat_model`.
   Latest screenshot only; a 900 s deadline ends the run `STUCK`, evidence intact.
 - **Key rule:** the agent picks the tool; our code decides if the action may happen.
-- **Observability:** discovery is traced in LangSmith (env vars only): the full agent trace, latency per model/tool call, and token usage and cost per run by model. Replay makes no model calls.
+- **Observability:** discovery is traced in LangSmith (env vars only): trace, latency, tokens and cost per run. Replay makes no model calls.
 - **Replay** shares vision, browser, safety and handoff code, and imports no model (R1).
 
-**Routing (built, opt-in).** TypeSafe classifies each step's job and picks the model. Its models
-are RLCD-trained (calibrated confidence), so a fixed 0.8 gate is meaningful. From the
-live transfer discovery: confidence was 0.35–0.53 on most steps, 0.86 once (form fill), so tool
-narrowing rarely engaged (it fails open by design). Model routing sent most steps to Haiku and
-switched to Sonnet near the end.
+**Routing (built, opt-in).** TypeSafe classifies each step's job and picks the model (calibrated confidence, fixed 0.8 gate). Live: confidence was mostly 0.35-0.53, so tool narrowing rarely engaged (fails open); most steps went to Haiku, Sonnet near the end.
 
-## Artifact schema
+## 2. Artifact schema
 
 Discovery writes `artifacts/<name>.yaml` + `artifacts/crops/<name>/` directly (R10/R11). Two
 sources, kept apart:
@@ -37,6 +33,7 @@ sources, kept apart:
   It cannot add a step or an input.
 - **Typed inputs.** Only each value's *shape* is logged; the type is inferred from it (`email`,
   `date`, `currency`, `id`, ... else `string`).
+- **Typed outputs.** Outputs are named, typed values read from the final screen (never stored).
 - **Checkpoint:** stable final-screen text, never a value or a lone label (cdb3b7e).
 
 **Shape** (`Capability`, strict): `name`, `version`, `description`, `base_url`, `viewport`,
@@ -52,9 +49,9 @@ always `{{input}}` or `{{secret:name}}`, never a literal.
 | 3 `template` | `cv2.matchTemplate` of a tight crop; two near-equal peaks = miss | the look changes |
 | `table_cell` | row key + column (Q8) | columns are renamed |
 
-Crops are tight with other text blanked, so no customer data is saved (Q14).
+Crops blank other text, so no customer data is saved (Q14).
 
-## Determinism & error handling
+## 3. Determinism & error handling
 
 **Replay (built):** validate the artifact; ask missing inputs in one form and reject wrong types
 before the site opens; per step try rung 1, 2, 3, scroll once, act, check by OCR on a bounded poll.
@@ -69,36 +66,15 @@ and read outputs.
 | `STUCK` | a human stopped it or rejected Gate 1, or an input was blank or wrong |
 | `FAILED` | bad YAML, host blocked, action not allowed, checkpoint or output missing |
 
-Every non-success carries a masked `failure = {step, action, expected, observed}`. New OCR text is
-matched against `outcomes:` in config: a business outcome stops cleanly; "session expired" re-runs
-login once (never after a send); "error" or a second expiry is `FAILED`.
+Every non-success carries a masked `failure = {step, action, expected, observed}`. New OCR text is matched against `outcomes:` in config: a business outcome stops cleanly; "session expired" re-runs login once (never after a send); "error" is `FAILED`.
 
 **Drift (built).** Each step logs its rung. `cua eval --runs N` reports status counts, flakiness,
 and whether outputs matched (a bool, never a value). A step that slid off its first rung is the
 one to re-discover; anchor-only steps are not flagged (c007853).
 
-**Live verification (2026-10-02, current package):**
+**Live verification (2026-10-03, current package).** Discover and replay passed on balances, bill pay, transfer options, transfers and loans (including a loan-denial `BUSINESS_OUTCOME`); `cua eval --runs 3` gave 3/3 `SUCCESS`, no drift. The runs found six bugs, each fixed test-first. Details and run folders: README "Evidence" section and `evidence/README.md`.
 
-- Discover → replay `get_all_account_balances`: `SUCCESS`, one row read.
-- `pay_bill_to_payee` replay: `SUCCESS`, confirmation read. `get_transfer_account_options`:
-  `SUCCESS`.
-- `request_loan`, down payment above balance: `BUSINESS_OUTCOME` "not enough funds for the down
-  payment (loan denied)".
-- `cua eval get_all_account_balances --runs 3`: 3/3 `SUCCESS`, outputs stable, no drift.
-- Fresh discover + replay `transfer_funds_between_accounts`: `SUCCESS`, confirmation read. The demo
-  DB had reset, so the requested account was gone; replay asked the human to pick a live one
-  instead of guessing.
-
-**Bugs those runs found (each fixed test-first):**
-
-- Table header matched a menu item that only starts with the label (85595bf).
-- Menu text on the header line made tables read empty (aa8cbe5, 27ef5ef; shared with discovery).
-- OCR dropped a space ("1 Main" → "1Main"): typed check failed, value slipped past masking (07664f2).
-- Loan-denial wording now maps to `BUSINESS_OUTCOME` (5915a22, config only).
-- Read steps were skipped after a take-over reached the checkpoint (0c4c75a).
-- CLI could abort at exit on macOS in onnxruntime teardown (b8f5c4a).
-
-## Heterogeneity & multi-tenant
+## 4. Heterogeneity & multi-tenant
 
 **Designed.** Pure visual needs no `id`s or `<label>`s, so legacy web is the same path. The seam:
 perception/action (screenshot, OCR, point input) versus the recorded flow (rungs). Desktop swaps
@@ -108,9 +84,11 @@ only the screenshot and input layer.
   "Log In"). A vendor update fixes the base once.
 - **Per-tenant config (built).** All site values live in `configs/<site>.yaml`. A second tenant is
   one file, not a code change.
-- **Drift per tenant** from rung logs and `cua eval`.
+- **Tenant override (designed, not built).** A per-tenant overlay YAML sits over the base capability and replaces only the changed steps (target text, rung); the rest is inherited.
+- **Drift per tenant/version (built signals).** Each step logs its rung; `cua eval` gives a rung histogram and fallback steps per run (`drift.jsonl`). A step that slid off rung 1 for one tenant flags that tenant's overlay or a new app version.
+- **Desktop (designed).** Same Look/act seam: a screenshot source and a point-input sink replace Playwright.
 
-## Escalation & handoff
+## 5. Escalation & handoff
 
 - **Who is in control (built, Q16/Q21).** Our "Agent control" tab shows it. CDP
   `Input.setIgnoreInputEvents` blocks human input on the site except during a take-over.
@@ -119,16 +97,14 @@ only the screenshot and input layer.
 - **Take over (built).** The human works in the same live session, then hands back (toolbar button
   or Done). We record pages, send paths and screenshots, never keystrokes. Sends still hit both
   gates. Discovery won't save a take-over run; replay reports it on `result.human`.
-- **Live demo.** `takeover_demo` has step 3's target broken on purpose. Result: `SUCCESS (human
-  intervened at step 4)`, outputs still read after hand-back.
+- **Live demo.** `takeover_demo` breaks step 3 on purpose: `SUCCESS (human intervened at step 4)`.
 
-## Safety
+## 6. Safety
 
 - **Guardrails (NeMo):** the goal is checked before any work (off-topic, jailbreak, steering,
   sensitive), embeddings plus Haiku; refused goals exit 1 with REFUSED
   evidence. The answer is masked on the way out (also in evidence). Both fail closed.
-  The rails do not cover exfiltration or account-change goals ("change my phone number"); the
-  send gates control those.
+  Rails do not cover exfiltration or account-change goals; the send gates do.
 - **Every send held at the network layer (built).** `SendGuard` (`page.route`) holds any non-GET
   (login exempt). A number the human never gave opens a prefilled form; then Gate 1 (approve/edit)
   and Gate 2 (send?). No means `DECLINED`. Neither agent nor replay ever approves a send.
@@ -139,16 +115,13 @@ only the screenshot and input layer.
   digits, in text and PNGs. URLs drop `;jsessionid=`. Artifacts are leak-checked before writing.
   TypeSafe sees no screen text. The browser profile is deleted at close.
 
-**Data-handling note.** Older discovery runs logged a ParaBank session id (jsessionid) and two raw
-account ids before masking covered them. Those files are re-masked (2ca336a);
-`tests/integration/test_evidence_clean.py` now fails CI on any leak; `scripts/remask_evidence.py`
-re-masks. The old values stay in earlier git history (expired demo session ids, public demo-bank
-fake accounts); history was deliberately not rewritten.
+**Data-handling note.** Older discovery runs logged a ParaBank session id and two raw account ids before masking covered them. They were re-masked (2ca336a; `scripts/remask_evidence.py`); `tests/integration/test_evidence_clean.py` now fails CI on any leak. Old values remain in git history (expired demo session ids, fake accounts); history was not rewritten.
 
-**Limits.** Masking is only as good as OCR (see 07664f2). The gates trust the human reading them.
+**Limits.** Masking is only as good as OCR (07664f2). The gates trust the human reading them.
 
-## Cuts
+## 7. Cuts
 
+- **Nothing mocked:** the browser, operator control tab and take-over are real; desktop surfaces and multi-tenant plumbing are design-only.
 - **Cut:** per-keystroke take-over capture (a take-over run stays unreplayable); desktop and
   whole-screen OCR; discovery-written `outcomes:`; per-step `expect` text (R14); a hostile legacy
   test page (Q18); assisted-LLM replay fallback; live CI tests (offline suites use fake pages).
@@ -157,3 +130,6 @@ fake accounts); history was deliberately not rewritten.
 **Next:**
 
 - Copy each run's LangSmith token and cost totals into `run.json`, so evidence carries cost without the dashboard.
+- Desktop surface through the same Look/act seam.
+- Per-tenant overlays over a base capability.
+- Live Haiku evaluation of borderline goals for the guardrails.

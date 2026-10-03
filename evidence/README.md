@@ -24,7 +24,7 @@ Everything is masked before it is written:
 | `take_over_<n>_before.png` / `_after.png` | the screen at the start and end of a take-over |
 | `final.png` | the last screen |
 | `capability.yaml` + `crops/<name>/` | the saved capability and its template crops, if one was saved |
-| `summary.json` | status (`done`, `STUCK`, `DECLINED`, `no answer`), event count, take-overs, saved capability path |
+| `summary.json` | status (`done`, `STUCK`, `DECLINED`, `no answer`, `REFUSED`), `answer_withheld` (true if the output rail withheld the answer), event count, take-overs, saved capability path |
 | `run.json` | prompt version, model name, config hash, git sha. Never a value |
 
 ## replay/<UTC>-<capability>/
@@ -39,22 +39,40 @@ Everything is masked before it is written:
 | `capability.yaml` | the exact capability that was replayed |
 | `run.json` | `prompt_version` and `model` null (replay has no LLM), config hash, git sha |
 
+## discovery/ REFUSED runs (guardrails)
+
+A goal the rails refuse writes a short folder and exits 1; the browser never opens.
+
+| File | What |
+|---|---|
+| `goal.txt` | the refused goal (masked) |
+| `summary.json` | `{status: REFUSED, rail, score}`; rail is `off_topic`, `jailbreak`, `steering`, `sensitive` or `empty_goal` |
+| `run.json` | prompt version, model name, config hash, git sha |
+
+Live examples: `discovery/20261003T06*` (six runs; list in `docs/GUARDRAILS.md`).
+
+## eval/<UTC>-<name>/
+
+`cua eval <capability> --runs N` writes `report.json` (status counts, flakiness, whether outputs matched, rung histogram) and `run.json`. Kept: `eval/20261003T013804Z-get_all_account_balances` (3/3 SUCCESS, outputs stable), `eval/20261003T010917Z-get_all_account_balances` (3/3 SUCCESS, outputs differed once).
+
 ## Kept runs
 
-| Capability | Discovery run (saved it) | Replay |
+Same table as the README "Evidence" section; folders are under `discovery/`, `replay/`, `eval/`.
+
+| Capability | Discovery run (saved it) | Replay / eval |
 |---|---|---|
-| `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | `replay/20260930T033412Z-pay_bill` (older artifact: step-5 check failed, human took over; STUCK at step 6) |
-| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | - |
-| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | - |
-| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | - |
-| `get_all_account_balances` | `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou` | `replay/20260930T091210Z-get_all_account_balances` (SUCCESS) |
-| `transfer_money` | - (older notebook run) | `replay/20260930T223218Z-transfer_money` (SUCCESS) |
-| `transfer_funds` (retired) | `discovery/20260930T035011Z-log_in_transfer_funds` | `replay/20260930T041553Z-transfer_funds` (FAILED: site error page at step 3) |
+| `get_all_account_balances` | `discovery/20261003T004411Z-log_in_and_get_the_balance_of_every_acco` | `replay/20261003T005702Z-...` SUCCESS; `replay/20261003T011355Z-...` SUCCESS; both eval runs above |
+| `get_account_balance` | `discovery/20261003T004013Z-log_in_get_balance_for_my_account` | none yet |
+| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | `replay/20261003T010220Z-pay_bill_to_payee` SUCCESS |
+| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | `replay/20261003T010531Z-get_transfer_account_options` SUCCESS |
+| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | `replay/20261003T010624Z-request_loan` BUSINESS_OUTCOME (loan denied) |
+| `transfer_funds_between_accounts` | `discovery/20261003T015535Z-log_in_and_transfer_from_account_344_to_` | `replay/20261003T015748Z-transfer_funds_between_accounts` SUCCESS (a person picked the account) |
+| `takeover_demo` (fault-injection, not discovered) | - | `replay/20261003T015212Z-takeover_demo` SUCCESS (human intervened at step 4) |
+| `transfer_money` (RETIRED, replaced by `transfer_funds_between_accounts`) | - | `replay/20260930T223218Z-transfer_money` SUCCESS (pre-package) |
 
-Take-overs during discovery (failed login, re-register, hand back) are recorded in
-`summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
-Replay runs predate the `cua` package (no `run.json`).
-
-Discovery runs on the package are done; replay and eval runs on the new artifacts are pending.
+Older pre-package runs (no `run.json`) are also kept, e.g. `replay/20260930T033412Z-pay_bill`
+(STUCK at step 6 after a take-over) and `replay/20260930T041553Z-transfer_funds` (FAILED, site
+error page; retired). Take-overs during discovery are recorded in `summary.json`, e.g.
+`discovery/20261002T074508Z-log_in_pay_bill`.
 
 Runs whose files held an unmasked account number or a typed name were deleted, not committed.

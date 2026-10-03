@@ -25,12 +25,22 @@ https://github.com/user-attachments/assets/5ef8c957-d093-440a-b31c-b6f06ea4ec09
 discover (agent + browser)  ->  artifacts/<name>.yaml + crops/  ->  replay (no LLM, browser)
 ```
 
-Learning bill pay took **16-21 model turns** (`evidence/discovery/*pay_bill*`). Every replay after that takes **0**.
+Learning bill pay took **16-21 model turns** (26 when a take-over was needed) (`evidence/discovery/*pay_bill*`). Every replay after that takes **0**.
 
 > **Demo bank: [ParaBank](https://parabank.parasoft.com/parabank/)**, Parasoft's open-source demo bank
 > ([source](https://github.com/parasoft/parabank)): a classic server-rendered portal with real flows and
 > fake data only. Nothing in `src/` is ParaBank-specific; its values live in `configs/parabank.yaml`
 > (see [Configure the bank](#configure-the-bank-or-swap-in-another-one)).
+
+## Quick start
+
+**Demo path** (details: [Setup](#setup), [Run it](#run-it)):
+
+```bash
+uv sync --extra typesafe --extra rails && uv run playwright install chromium && cp .env.example .env   # add keys to .env
+cua discover "Log in and get the balance of every account" --out artifacts
+cua replay artifacts/get_all_account_balances.yaml --evidence
+```
 
 ## Architecture
 
@@ -262,10 +272,6 @@ flowchart TD
 2. **Input rail (NeMo Guardrails).** The goal is checked before anything starts. Off-topic, jailbreak,
    steering or sensitive goals are refused (`REFUSED`, exit 1): no browser, no agent.
 3. **Open the bank site.** A Playwright browser opens, locked to the allowed hosts only.
-**Steps 4–7 are the deep agent** (LangChain `deepagents`, `create_deep_agent`, on LangGraph): one
-tool call per turn, looping until the task is done, with a checkpointer so a run paused for a human
-resumes where it stopped.
-
 4. **See.** `observe` takes a screenshot, reads it with OCR and numbers every text box.
 5. **Think.** Sonnet (or Haiku, when TypeSafe routing is sure) picks exactly **one** tool. It is
    only ever offered our 13 tools (`OnlyOurTools`).
@@ -281,6 +287,10 @@ resumes where it stopped.
    secret withholds it.
 10. **Save.** The steps become a capability YAML plus image crops; all evidence is masked.
 11. **Replay later.** The same steps run again with plain code, no LLM.
+
+**Steps 4–7 are the deep agent** (LangChain `deepagents`, `create_deep_agent`, on LangGraph): one
+tool call per turn, looping until the task is done, with a checkpointer so a run paused for a human
+resumes where it stopped.
 
 Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
 
@@ -398,7 +408,7 @@ Replay needs no LLM key.
 
 Everything bank-specific lives in **one file**, `configs/<site>.yaml`, loaded into a frozen
 `SiteProfile` by `cua.config.load_site("<site>")`. `src/` holds no site values
-(`tests/unit/test_no_site_values.py`).
+(`tests/unit/test_no_site_values.py`). Sample below is abridged.
 
 ```yaml
 name: parabank
@@ -484,10 +494,16 @@ Pre-fix runs (bugs the live runs found):
 Other runs:
 
 - `OnlyOurTools` live check: `discovery/20261003T023017Z-log_in_and_get_the_balance_of_every_acco` (after `f2feffe`). Only our tools called; `extract_table` read the table in one call. Artifact went to `/tmp`, not committed.
-- Before the `cua` package (no `run.json`): `replay/20260930T091210Z-get_all_account_balances` (SUCCESS), `replay/20260930T223218Z-transfer_money` (SUCCESS; retired, replaced by `transfer_funds_between_accounts`), `replay/20260930T033412Z-pay_bill` (STUCK at step 6 after a take-over), `replay/20260930T041553Z-transfer_funds` (FAILED: site error page; retired). Discovery: `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou`, `discovery/20260930T035011Z-log_in_transfer_funds`.
+- Before the `cua` package (no `run.json`):
+  - `replay/20260930T091210Z-get_all_account_balances`: SUCCESS.
+  - `replay/20260930T223218Z-transfer_money`: SUCCESS; retired, replaced by `transfer_funds_between_accounts`.
+  - `replay/20260930T033412Z-pay_bill`: STUCK at step 6 after a take-over.
+  - `replay/20260930T041553Z-transfer_funds`: FAILED, site error page; retired.
+  - Discovery: `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou`, `discovery/20260930T035011Z-log_in_transfer_funds`.
+- Guardrail refusals (live, 6 `REFUSED` folders: off_topic, jailbreak, steering, sensitive, suffix attack, empty goal): `discovery/20261003T06*`; list in [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md).
 - Discovery take-overs (failed login, re-register, hand back) are in `summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
 
-## Guard rails
+## Safety controls
 
 - **Every send is held.** `SendGuard` holds every non-GET at the network layer (login exempt). Mismatch check flags any number the human never gave, then Gate 1 (approve / edit) and Gate 2 (send / decline). The agent never approves; replay never auto-approves.
 - **Allowed actions.** `allowed_actions` in `configs/<site>.yaml`. Discovery refuses others (`REFUSED`, logged); replay fails that step before acting.
@@ -505,7 +521,7 @@ No key, no browser, no network:
 
 ```bash
 .venv/bin/python -m pytest -q tests     # 1919 passed (2026-10-03)
-.venv/bin/mypy --strict src             # no issues (71 files)
+.venv/bin/mypy --strict src             # no issues (73 files)
 uvx ruff check src tests                # lint
 ```
 
