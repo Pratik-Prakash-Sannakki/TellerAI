@@ -58,8 +58,8 @@ from cua.llm import make_chat_model
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence as save_replay_evidence
 from cua.replay.wiring import attach as replay_attach
-from cua.safety.nemo import load_classifier
-from cua.safety.rails import Classifier, check_goal, check_output
+from cua.safety.nemo import load_classifier, rails_installed
+from cua.safety.rails import Classifier, check_goal, safe_output
 from cua.safety.redact import IdMask
 from cua.schema import Capability, Event, ReplayResult
 
@@ -138,13 +138,18 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
     """The discovery notebook's cells: setup, run, save artifact, evidence."""
     site = load_site(site_name)
     clf: Classifier | None = None
-    if site.rails != "off":
+    if site.rails != "off" and rails_installed():  # Haiku is built only when it can be used
         try:
             clf = load_classifier(RAILS, make_chat_model("haiku"))
-        except Exception:  # noqa: BLE001  bad config / model: fail closed below
+            warm = getattr(clf, "warmup", None)
+            if warm is not None:  # the embedding download happens here, outside check_goal's wait
+                await warm()
+        except Exception:  # noqa: BLE001  bad config / model / download: fail closed below
             clf = _Broken()
     if clf is None and site.rails == "on":
         print("guardrails OFF (install with --extra rails)")
+    if clf is None and site.rails == "required":
+        print("guardrails required but not installed (install with --extra rails)")
     verdict = await check_goal(goal, site.rails, clf)
     if not verdict.allowed:
         print(verdict.message)
@@ -163,9 +168,8 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
         try:
             agent = build_agent(ctx, model)  # a CompiledStateGraph; run_goal types it as Agent
             answer = await run_goal(ctx, agent, goal)  # type: ignore[arg-type]
-            checked = check_output(answer, IdMask.for_site(site), secret_values(site))
-            ctx.run.answer = checked.answer  # evidence's answer.txt gets the checked answer too
-            print(checked.answer)
+            # fails closed; evidence applies the same rail to answer.txt and transcript.jsonl
+            print(safe_output(answer, IdMask.for_site(site), secret_values(site)).answer)
             path = await _save(
                 ctx.run.log, ctx.run.goal, model, out, artifact_mask(ctx),
                 values=run_values(ctx.run, ctx.secrets),

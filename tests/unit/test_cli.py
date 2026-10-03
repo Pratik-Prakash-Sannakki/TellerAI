@@ -262,6 +262,119 @@ def test_a_broken_rails_config_refuses(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert calls == []
 
 
+def _rails_site(monkeypatch: pytest.MonkeyPatch, mode: str) -> list[tuple[object, ...]]:
+    calls: list[tuple[object, ...]] = []
+    _patch_session(monkeypatch, calls)
+    monkeypatch.setattr(
+        cli,
+        "load_site",
+        lambda name: SimpleNamespace(
+            name=name, start_url="U", id_min_digits=5, id_visible_digits=3, rails=mode
+        ),
+    )
+    monkeypatch.setattr(cli, "save_refused", lambda out, goal, v, site, **k: out / "R")
+    return calls
+
+
+def _never(*a: object, **k: object) -> object:
+    raise AssertionError("must not be built")
+
+
+def test_rails_off_never_builds_the_classifier_or_haiku(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _rails_site(monkeypatch, "off")
+    monkeypatch.setattr(cli, "load_classifier", _never)
+    monkeypatch.setattr(cli, "make_chat_model", _never)
+
+    async def stop(*a: object, **k: object) -> object:
+        raise RuntimeError("past the rail")
+
+    monkeypatch.setattr(cli, "open_session", stop)
+    with pytest.raises(RuntimeError, match="past the rail"):
+        asyncio.run(cli.discover("Log in", "parabank", tmp_path))
+
+
+def test_rails_on_without_the_extra_prints_off_and_never_builds_haiku(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _rails_site(monkeypatch, "on")
+    monkeypatch.setattr(cli, "rails_installed", lambda: False)
+    monkeypatch.setattr(cli, "make_chat_model", _never)  # would raise with no key
+
+    async def stop(*a: object, **k: object) -> object:
+        raise RuntimeError("past the rail")
+
+    monkeypatch.setattr(cli, "open_session", stop)
+    with pytest.raises(RuntimeError, match="past the rail"):
+        asyncio.run(cli.discover("Log in", "parabank", tmp_path))
+    assert "guardrails OFF (install with --extra rails)" in capsys.readouterr().out
+
+
+def test_rails_required_without_the_extra_refuses_with_an_install_hint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = _rails_site(monkeypatch, "required")
+    monkeypatch.setattr(cli, "rails_installed", lambda: False)
+    monkeypatch.setattr(cli, "make_chat_model", _never)
+    monkeypatch.setattr(cli, "EVIDENCE", tmp_path)
+    assert cli.main(["discover", "Log in"]) == 1
+    assert "--extra rails" in capsys.readouterr().out
+    assert calls == []
+
+
+def test_the_classifier_is_warmed_up_before_the_goal_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _rails_site(monkeypatch, "on")
+    order: list[str] = []
+
+    class Warm(_Clf):
+        async def warmup(self) -> None:
+            order.append("warmup")
+
+        async def classify(self, text: str) -> tuple[str | None, float]:
+            order.append("classify")
+            return ("off_topic", 0.9)
+
+    monkeypatch.setattr(cli, "rails_installed", lambda: True)
+    monkeypatch.setattr(cli, "load_classifier", lambda *a, **k: Warm())
+    monkeypatch.setattr(cli, "make_chat_model", lambda kind: object())
+    monkeypatch.setattr(cli, "EVIDENCE", tmp_path)
+    assert cli.main(["discover", "joke"]) == 1
+    assert order == ["warmup", "classify"]
+    assert calls == []
+
+
+def test_a_failed_warmup_fails_closed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls = _rails_site(monkeypatch, "on")
+
+    class Bad(_Clf):
+        async def warmup(self) -> None:
+            raise OSError("download failed")
+
+    monkeypatch.setattr(cli, "rails_installed", lambda: True)
+    monkeypatch.setattr(cli, "load_classifier", lambda *a, **k: Bad())
+    monkeypatch.setattr(cli, "make_chat_model", lambda kind: object())
+    monkeypatch.setattr(cli, "EVIDENCE", tmp_path)
+    assert cli.main(["discover", "Log in"]) == 1
+    assert calls == []
+
+
+def test_safe_output_withholds_when_the_rail_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cua.safety import rails  # noqa: PLC0415
+
+    def boom(*a: object, **k: object) -> object:
+        raise RuntimeError("rail broke")
+
+    monkeypatch.setattr(rails, "check_output", boom)
+    out = rails.safe_output("card 4111 1111 1111 1111", IdMask(5, 3))
+    assert out.withheld
+    assert "4111" not in out.answer
+
+
 MASK = ArtifactMask(IdMask(5, 3), str)
 
 
