@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NoReturn
 
 import yaml
 from langchain_core.language_models import BaseChatModel
@@ -259,5 +262,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if result.status == "SUCCESS" else 1
 
 
+def entry() -> NoReturn:
+    """The ``cua`` console script: run :func:`main`, flush, then ``os._exit`` with its code.
+
+    Skips interpreter teardown on purpose: the cached RapidOCR engine (onnxruntime sessions) can
+    abort while its C++ statics are destroyed on macOS ("recursive_mutex lock failed", exit 134),
+    which would hide main's real code. If main raises (incl. ``SystemExit`` from argparse), it
+    propagates and Python exits the normal way with the traceback / its code.
+    """
+    code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    entry()

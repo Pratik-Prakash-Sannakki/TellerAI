@@ -487,3 +487,41 @@ def test_the_terminal_shows_ids_by_their_last_digits_and_amounts_as_is(
     assert "98765" not in out
     assert "***765" in out
     assert "$12345.00" in out
+
+
+class _Exited(Exception):
+    """Stands in for ``os._exit`` so the test process survives."""
+
+
+@pytest.mark.parametrize("code", [0, 1])
+def test_entry_exits_with_mains_code_after_flushing(
+    monkeypatch: pytest.MonkeyPatch, code: int
+) -> None:
+    calls: list[str] = []
+
+    def exit_(n: int) -> None:
+        calls.append(f"exit {n}")
+        raise _Exited
+
+    monkeypatch.setattr(cli, "main", lambda: code)
+    monkeypatch.setattr(cli.sys.stdout, "flush", lambda: calls.append("flush out"))
+    monkeypatch.setattr(cli.sys.stderr, "flush", lambda: calls.append("flush err"))
+    monkeypatch.setattr(cli.os, "_exit", exit_)
+    with pytest.raises(_Exited):
+        cli.entry()
+    assert calls == ["flush out", "flush err", f"exit {code}"]
+
+
+def test_entry_lets_an_exception_in_main_propagate(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom() -> int:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cli, "main", boom)
+    monkeypatch.setattr(cli.os, "_exit", lambda n: pytest.fail("os._exit after a raise"))
+    with pytest.raises(RuntimeError, match="boom"):
+        cli.entry()
+
+
+def test_the_console_script_points_at_entry() -> None:
+    pyproject = Path(__file__).parents[2] / "pyproject.toml"
+    assert 'cua = "cua.cli:entry"' in pyproject.read_text()

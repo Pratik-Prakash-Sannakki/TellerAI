@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cua = "cua.cli:main"
+cua = "cua.cli:entry"
 
 [project.optional-dependencies]
 # TypeSafe tool selection + model routing for discovery (cua.discovery.agent.routing). Off unless
