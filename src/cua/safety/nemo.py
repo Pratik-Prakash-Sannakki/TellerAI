@@ -48,7 +48,6 @@ TRIPWIRE = re.compile(
     r"hand me|give me control|log ?out|stay (?:logged|signed) in|keep me (?:logged|signed))\b",
     re.IGNORECASE,
 )
-GOAL_TAG = re.compile(r"<\s*/?\s*goal\s*>", re.IGNORECASE)
 ASK = (
     "You classify the goal given to a banking agent. Reply with exactly one label from this list "
     "and nothing else:\n{labels}\n\n"
@@ -105,7 +104,7 @@ class NemoClassifier:
         if self.llm is None:
             raise RuntimeError("guardrails unsure and no LLM to decide")
         labels = "\n".join(f"- {n}" for n in (ALLOW_INTENT, *INTENT_RAIL))
-        goal = GOAL_TAG.sub("", text)  # the goal is data: it cannot close its own delimiter
+        goal = text.replace("<", "\u2039").replace(">", "\u203a")  # no tag can be forged
         reply = await self.llm.ainvoke(ASK.format(labels=labels, allow=ALLOW_INTENT, goal=goal))
         content = reply.content
         text_reply = content if isinstance(content, str) else str(content)
