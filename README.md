@@ -553,3 +553,11 @@ evidence/              masked discovery/ and replay/ run folders; cua eval write
 ```
 
 Each package above has a component doc; the index is [`docs/README.md`](docs/README.md).
+
+## References
+
+- **Deep Agents** (LangChain): [documentation](https://docs.langchain.com/oss/python/deepagents/overview) · [GitHub](https://github.com/langchain-ai/deepagents)
+- **TypeSafe** (Jev, RLCD routing): [documentation](https://docs.typesafe.ai) · [website](https://typesafe.ai)
+- **NeMo Guardrails** (NVIDIA): [documentation](https://docs.nvidia.com/nemo/guardrails/latest/index.html) · [GitHub](https://github.com/NVIDIA/NeMo-Guardrails)
+- **LangSmith** (tracing): [documentation](https://docs.langchain.com/langsmith/home)
+- **ParaBank** (demo bank): [live site](https://parabank.parasoft.com/parabank/) · [source](https://github.com/parasoft/parabank)
