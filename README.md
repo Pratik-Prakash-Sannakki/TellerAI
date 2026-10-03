@@ -73,7 +73,7 @@ flowchart TD
     S2["<b>2 · INPUT RAIL</b> · NeMo Guardrails<br/>🛡 off-topic · jailbreak · steering · sensitive → REFUSED, exit 1"]:::guard
     S3["<b>3 · OPEN THE BANK SITE</b><br/>🛡 host lock: allowed hosts only"]:::step
 
-    subgraph LOOP["THE AGENT LOOP · one tool per turn"]
+    subgraph LOOP["DEEP AGENT · LangChain deepagents on LangGraph · one tool per turn, loops until done"]
         direction TB
         S4["<b>4 · SEE</b> · observe<br/>screenshot → OCR → numbered boxes"]:::step
         S5{{"<b>5 · THINK</b> · Sonnet or Haiku picks ONE tool<br/>🛡 only our 13 tools · TypeSafe routing"}}:::think
@@ -112,6 +112,10 @@ flowchart TD
 2. **Input rail (NeMo Guardrails).** The goal is checked before anything starts. Off-topic, jailbreak,
    steering or sensitive goals are refused (`REFUSED`, exit 1): no browser, no agent.
 3. **Open the bank site.** A Playwright browser opens, locked to the allowed hosts only.
+**Steps 4–7 are the deep agent** (LangChain `deepagents`, `create_deep_agent`, on LangGraph): one
+tool call per turn, looping until the task is done, with a checkpointer so a run paused for a human
+resumes where it stopped.
+
 4. **See.** `observe` takes a screenshot, reads it with OCR and numbers every text box.
 5. **Think.** Sonnet (or Haiku, when TypeSafe routing is sure) picks exactly **one** tool. It is
    only ever offered our 13 tools (`OnlyOurTools`).
