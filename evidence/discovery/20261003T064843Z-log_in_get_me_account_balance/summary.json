@@ -1,0 +1,30 @@
+{
+  "status": "no answer",
+  "answer_withheld": false,
+  "events": 32,
+  "take_over": true,
+  "take_overs": [
+    {
+      "reason": "login hit its limit. Do not ***",
+      "actions": [
+        {
+          "kind": "page",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "send",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/register.htm"
+        },
+        {
+          "kind": "page",
+          "path": "/parabank/index.htm"
+        }
+      ]
+    }
+  ],
+  "capability_saved": null
+}
