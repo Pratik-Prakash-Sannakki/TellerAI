@@ -15,11 +15,13 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from cua.config import SiteProfile
 from cua.discovery.agent.prompt import PROMPT_VERSION
 from cua.discovery.context import Ctx
 from cua.discovery.recorder import ArtifactMask, artifact_texts, input_name
 from cua.discovery.run import DiscoveryRun, forget
 from cua.evidence import Redact, _clean, _png, run_info
+from cua.safety.rails import RailVerdict
 from cua.safety.redact import IdMask, OcrFn, safe_redactor
 from cua.vision import ocr as ocr_
 
@@ -140,5 +142,20 @@ def _write(
     summary = _clean(_summary(run, takeovers, capability), redact)
     (folder / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     info = run_info(PROMPT_VERSION, model, (ctx.session.cfg, ctx.cfg), ctx.site)
+    (folder / "run.json").write_text(json.dumps(info, indent=2) + "\n")
+    return folder
+
+
+def save_refused(out_dir: Path, goal: str, verdict: RailVerdict, site: SiteProfile) -> Path:
+    """A goal the guardrails refused: no browser ran. goal.txt masked like any run's; the
+    summary names the rail and its score, never the matched text."""
+    ids = IdMask.for_site(site)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    folder = Path(out_dir) / f"{stamp}-{input_name(ids(goal))[:40]}"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "goal.txt").write_text(ids(goal))
+    summary = {"status": "REFUSED", "rail": verdict.rail, "score": verdict.score}
+    (folder / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    info = run_info(PROMPT_VERSION, None, [{"rails": site.rails}], site)
     (folder / "run.json").write_text(json.dumps(info, indent=2) + "\n")
     return folder
