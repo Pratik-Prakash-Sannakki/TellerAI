@@ -174,16 +174,16 @@ def read_only_done(ctx: Ctx, cap: Capability, missing: list[str]) -> bool:
 
 
 async def _main_steps(ctx: Ctx, cap: Capability, crops: Path | None, drift: Drift) -> None:
-    reached = False  # a human's take-over already got to the checkpoint: nothing left to do
+    reached = False  # a human's take-over already got to the checkpoint: nothing left to act on
     for i, step in enumerate(cap.steps):
         if is_cleanup(step):
             continue
-        if reached:
-            drift.append({"step": i, "action": step.action, "rung": "skipped"})
+        if reached and step.action not in READS:  # reads still run: they never send, and they
+            drift.append({"step": i, "action": step.action, "rung": "skipped"})  # read outputs
             continue
         before = ctx.run.look.text if ctx.run.look else ""
         await run_step(ctx, i, step, cap, crops, drift)
-        reached = took_over_to_checkpoint(ctx, i, cap, before)
+        reached = reached or took_over_to_checkpoint(ctx, i, cap, before)
 
 
 async def walk(ctx: Ctx, cap: Capability, crops: Path | None, drift: Drift) -> ReplayResult:

@@ -16,7 +16,16 @@ from cua.replay.context import Ctx
 from cua.replay.wiring import stash_dropdowns
 from cua.schema import Capability, Step, Stop
 from cua.vision import Box, Element, Look
-from tests.unit.replay.helpers import cap, click, make_replay_ctx, mk_look, screen, set_control
+from tests.unit.replay.helpers import (
+    cap,
+    click,
+    extract,
+    make_replay_ctx,
+    mk_look,
+    screen,
+    set_control,
+    type_,
+)
 
 LOOK = [("Pay", (40, 300, 110, 320)), ("Done", (40, 400, 110, 420))]
 
@@ -441,4 +450,109 @@ async def test_checkpoint_reached_by_the_human_skips_the_remaining_steps(
     assert [d for d in res.drift if d.get("rung") == "skipped"] == [
         {"step": 1, "action": "click", "rung": "skipped"},
         {"step": 2, "action": "click", "rung": "skipped"},
+    ]
+
+
+def _human_lands_on(ctx: Ctx, text: str) -> None:
+    """A take-over that ends on a screen showing `text` (the checkpoint)."""
+    landed = Look(b"shot", b"shot", (Element(1, text, Box(0, 0, 90, 10)),), "")
+
+    class Lands:
+        async def ask(self, title: str, details: str, mode: str, **_: object) -> str:
+            if mode == "rescue":
+                return "takeover"
+            ctx.run.look = landed
+            return "done"
+
+    async def shoot() -> Look:
+        return ctx.run.look  # type: ignore[return-value]
+
+    ctx.shoot = shoot
+    set_control(ctx, Lands())
+
+
+@pytest.mark.asyncio
+async def test_read_steps_still_run_after_the_human_reaches_the_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live (takeover_demo): the human landed on Bill Pay ('City:'); the extract_options step
+    that reads the output was skipped, so the run FAILED with the output missing."""
+    ctx = _env()
+    _human_lands_on(ctx, "City:")
+    tried: list[str] = []
+
+    async def clicked(c: Ctx, step: Step, point: tuple[int, int], cp: Capability) -> bool:
+        tried.append(step.target.ocr_text.text)  # type: ignore[union-attr]
+        return step.target.ocr_text.text == "Log Out"  # type: ignore[union-attr]
+
+    async def read(c: Ctx, step: Step, point: tuple[int, int], cp: Capability) -> bool:
+        c.run.outputs[step.save_as] = "12345"  # type: ignore[union-attr]
+        return True
+
+    monkeypatch.setitem(steps.ACTIONS, "click", clicked)
+    monkeypatch.setitem(steps.ACTIONS, "extract", read)
+    res = await engine.walk(
+        ctx,
+        cap(
+            [
+                click("Pay"),
+                extract(
+                    "account",
+                    {"ocr_text": {"text": "City:"}, "anchor": {"label": "City:", "offset": [0, 0]}},
+                ),
+                click("Log Out", cleanup=True),
+            ],
+            checkpoint="City:",
+            outputs=[{"name": "account", "type": "text", "description": "a"}],
+        ),
+        None,
+        [],
+    )
+    assert res.status == "SUCCESS" and res.outputs == {"account": "12345"}
+    assert res.human and res.human[0]["step"] == 0
+    assert not [d for d in res.drift if d.get("rung") == "skipped"]
+
+
+@pytest.mark.asyncio
+async def test_acting_steps_after_the_checkpoint_take_over_stay_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only reads run after the human reached the checkpoint: a click or a type is skipped."""
+    ctx = _env()
+    _human_lands_on(ctx, "City:")
+    acted: list[str] = []
+
+    async def acts(c: Ctx, step: Step, point: tuple[int, int], cp: Capability) -> bool:
+        acted.append(step.action)
+        return False
+
+    async def read(c: Ctx, step: Step, point: tuple[int, int], cp: Capability) -> bool:
+        c.run.outputs[step.save_as] = "12345"  # type: ignore[union-attr]
+        return True
+
+    monkeypatch.setitem(steps.ACTIONS, "click", acts)
+    monkeypatch.setitem(steps.ACTIONS, "type", acts)
+    monkeypatch.setitem(steps.ACTIONS, "extract", read)
+    res = await engine.walk(
+        ctx,
+        cap(
+            [
+                click("Pay"),
+                type_("x", label="City:"),
+                extract(
+                    "account",
+                    {"ocr_text": {"text": "City:"}, "anchor": {"label": "City:", "offset": [0, 0]}},
+                ),
+                click("Send"),
+            ],
+            checkpoint="City:",
+            outputs=[{"name": "account", "type": "text", "description": "a"}],
+        ),
+        None,
+        [],
+    )
+    assert res.status == "SUCCESS" and acted == ["click", "click"]  # only step 0's two tries
+    assert [d for d in res.drift if d.get("rung") == "skipped"] == [
+        {"step": 1, "action": "type", "rung": "skipped"},
+        {"step": 3, "action": "click", "rung": "skipped"},
     ]
