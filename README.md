@@ -217,7 +217,7 @@ flowchart TD
     S2["<b>2 · INPUT RAIL</b> · NeMo Guardrails<br/>🛡 off-topic · jailbreak · steering · sensitive → REFUSED, exit 1"]:::guard
     S3["<b>3 · OPEN THE BANK SITE</b><br/>🛡 host lock: allowed hosts only"]:::step
 
-    subgraph LOOP["DEEP AGENT · LangChain deepagents on LangGraph · one tool per turn, loops until done"]
+    subgraph LOOP["DEEP AGENT"]
         direction TB
         S4["<b>4 · SEE</b> · observe<br/>screenshot → OCR → numbered boxes"]:::step
         S5{{"<b>5 · THINK</b> · Sonnet or Haiku picks ONE tool<br/>🛡 only our 13 tools · TypeSafe routing"}}:::think
