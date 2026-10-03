@@ -13,6 +13,7 @@ from cua.discovery.agent.middleware import (
     WHY_CHARS,
     LatestScreenshotOnly,
     NoopAnthropicPromptCachingMiddleware,
+    OnlyOurTools,
     RecordWhy,
 )
 from tests.fakes import make_ctx
@@ -149,3 +150,52 @@ def test_record_why_keeps_short_numbers_like_refs() -> None:
     resp = _answer("Box 12 is the Payee Name field.", {"name": "observe", "args": {}})
     RecordWhy(ctx).wrap_model_call(object(), lambda r: resp)  # type: ignore[arg-type, return-value]
     assert ctx.run.why == "Box 12 is the Payee Name field."
+
+
+def _tools_req(*names: str) -> SimpleNamespace:
+    tools = [SimpleNamespace(name=n) for n in names]
+    return SimpleNamespace(tools=tools, override=lambda tools: SimpleNamespace(tools=tools))
+
+
+def test_only_our_tools_are_offered_to_the_model() -> None:
+    mw = OnlyOurTools(["observe", "click"])
+    out = mw.wrap_model_call(_tools_req("observe", "ls", "click", "task"), lambda r: r)  # type: ignore[arg-type, return-value]
+    assert [t.name for t in out.tools] == ["observe", "click"]  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_only_our_tools_are_offered_async() -> None:
+    async def handler(r: object) -> object:
+        return r
+
+    out = await OnlyOurTools(["observe"]).awrap_model_call(_tools_req("observe", "grep"), handler)  # type: ignore[arg-type]
+    assert [t.name for t in out.tools] == ["observe"]  # type: ignore[attr-defined]
+
+
+def _call(name: str) -> SimpleNamespace:
+    return SimpleNamespace(tool_call={"name": name, "args": {}, "id": "c1"})
+
+
+def test_a_call_to_another_tool_is_refused_and_not_run() -> None:
+    ran: list[object] = []
+    out = OnlyOurTools(["observe"]).wrap_tool_call(_call("ls"), ran.append)  # type: ignore[arg-type]
+    assert ran == []
+    assert isinstance(out, ToolMessage)
+    assert out.content == "REFUSED: 'ls' is not an allowed tool"
+    assert out.tool_call_id == "c1"
+    assert out.status == "error"
+
+
+@pytest.mark.asyncio
+async def test_a_call_to_another_tool_is_refused_async_and_ours_runs() -> None:
+    ran: list[object] = []
+
+    async def handler(r: object) -> str:
+        ran.append(r)
+        return "RAN"
+
+    mw = OnlyOurTools(["observe"])
+    refused = await mw.awrap_tool_call(_call("task"), handler)  # type: ignore[arg-type]
+    assert isinstance(refused, ToolMessage)
+    assert ran == []
+    assert await mw.awrap_tool_call(_call("observe"), handler) == "RAN"  # type: ignore[arg-type, comparison-overlap]

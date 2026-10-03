@@ -1,6 +1,6 @@
 # cua.discovery.agent
 
-The discovery agent: what the model is told, what wraps each model call, and how it is built.
+The discovery deep agent: what the model is told, what wraps each model call, and how it is built.
 
 ## Read order
 1. `prompt.py` - `VISUAL_SYSTEM_PROMPT` (the notebook's, verbatim, plus one later rule: save the
@@ -10,16 +10,17 @@ The discovery agent: what the model is told, what wraps each model call, and how
 2. `middleware.py` - `NoopAnthropicPromptCachingMiddleware` (prompt caching off; some
    Anthropic-compatible gateways reject cache markers), `LatestScreenshotOnly` (only the newest
    screenshot reaches the model), `RecordWhy` (the model's reason for each call, masked, max 200
-   chars, put on each event as `why`).
+   chars, put on each event as `why`), `OnlyOurTools` (the model is offered only our tools; a
+   call to any other name is refused, never run).
 3. `routing.py` - optional TypeSafe tool router + per-step Haiku/Sonnet model router. Off unless
    `TYPESAFE_API_KEY` is set (`build_routing_middleware(page_path) -> []`). Fails open: low
    confidence or any error keeps every tool and uses Sonnet. When on it sends the page path + last result text
    to typesafe.ai: never with real data. `langchain_typesafe` (extra `typesafe`) is imported
    only when on.
-4. `build.py` - `build_agent(ctx, model)`: langchain `create_agent` over `build_tools(ctx)` (the
-   model sees only these 13 tools: no deepagents filesystem or `task` sub-agent tools), the prompt,
-   a `MemorySaver`, the middleware above (routing appended when on), and deepagents'
-   `PatchToolCallsMiddleware` (answers a dangling tool call before a resume).
+4. `build.py` - `build_agent(ctx, model)`: `create_deep_agent` over `build_tools(ctx)`, the prompt,
+   a `MemorySaver`, and the middleware above (routing appended last, only when on). The model is
+   only offered our 13 tools: deepagents' built-in file and `task` sub-agent tools are filtered
+   out and refused (`OnlyOurTools`, placed before routing).
 
 Run a goal with `cua.discovery.goal.run_goal(ctx, agent, goal)`; save the evidence with
 `cua.discovery.evidence.save_evidence(ctx, out_dir, capability, model=...)`.
@@ -27,4 +28,4 @@ Run a goal with `cua.discovery.goal.run_goal(ctx, agent, goal)`; save the eviden
 ## What may NOT go here
 - No site value (host, URL, words). The page path for routing comes from `ctx.page.url`.
 - No secret value, ever. Tools name secrets; the prompt names only `'username'`/`'password'`.
-- Never import `cua.replay`. `__init__` stays light (no langchain/deepagents import): use `agent.build`.
+- Never import `cua.replay`. `__init__` stays light (no deepagents import): use `agent.build`.
