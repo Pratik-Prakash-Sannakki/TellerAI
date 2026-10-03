@@ -20,9 +20,7 @@ from cua.safety.redact import IdMask
 WITHHELD = "Response withheld: it looked like it contained a credential."
 CARD = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
 SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-(\d{4})(?!\d)")
-CREDENTIAL = re.compile(
-    r"\b(?:password|passwd|pwd|token|api[_-]?key|secret)\s*[:=]\s*\S+", re.I
-)
+CREDENTIAL = re.compile(r"\b(?:password|passwd|pwd|token|api[_-]?key|secret)\s*[:=]\s*\S+", re.I)
 
 # Luhn algorithm constants
 LUHN_MULTIPLIER = 2
@@ -118,13 +116,16 @@ def _refuse(rail: str, score: float | None = None) -> RailVerdict:
 async def _classify_all(goal: str, classifier: Classifier) -> RailVerdict:
     parts = sentences(goal)
     result: tuple[str, float] | None = None
+    allowed_scores: list[float] = []
     for text in [*parts, goal] if len(parts) > 1 else [goal]:
         rail, score = await classifier.classify(text)
         if rail is not None and result is None:
             result = (rail, score)
+        elif rail is None:
+            allowed_scores.append(score)
     if result:
         return _refuse(result[0], result[1])
-    return RailVerdict(True)
+    return RailVerdict(True, score=min(allowed_scores, default=None))
 
 
 async def check_goal(

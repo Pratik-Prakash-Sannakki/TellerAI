@@ -1,20 +1,25 @@
 """NeMo Guardrails adapter for the discovery goal (optional ``rails`` extra).
 
-NeMo supplies the Colang config and its local embeddings index of example phrases. The decision
-is ours, so it can fail closed: NeMo's own ``embeddings_only`` mode returns the nearest intent for
-any hit above one threshold (no margin check), which lets novel attacks through.
+Design: NeMo supplies the Colang intent examples (``configs/rails/input.co``) and its local
+embeddings index over them. It is pinned ``<0.25`` because we use a private internal (the user-
+message index). The allow / refuse / unsure decision is OURS; no NeMo flow runs. NeMo's own
+``embeddings_only`` mode returns the nearest intent for any hit above one threshold, with no
+margin check, which lets novel attacks through.
 
-Rule, with ``upper`` / ``lower`` from ``configs/rails/thresholds.yml``:
-- best refused-intent score >= upper                       -> refuse that rail
-- best banking score >= upper and best refused <= lower    -> allow
-- anything else (unsure)                                   -> ask the injected LLM (Haiku) to
-  pick one intent label; no LLM, an error, or an unknown label raises (check_goal refuses
+Rule, with ``upper`` / ``lower`` from ``configs/rails/thresholds.yml`` (0 < lower < upper <= 1):
+- best refused-intent score (whole goal or any clause) >= upper -> refuse that rail
+- best banking score >= upper, best refused <= lower, and no TRIPWIRE word -> allow
+- anything else (unsure)                                       -> ask the injected LLM (Haiku)
+  to pick one intent label; no LLM, an error, or an unknown label raises (check_goal refuses
   ``guardrails_unavailable``).
-Score = NeMo's own similarity, ``1 - sqrt(2 - 2 cos) / 2``.
+Score = NeMo's own similarity, ``1 - sqrt(2 - 2 cos) / 2``. Clauses are scored too, and a small
+generic lexical TRIPWIRE (role-play / rule-bypass wording) forces unsure, because a short attack
+suffix barely moves the whole goal's embedding.
 """
 
 from __future__ import annotations
 
+import re
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,6 +37,16 @@ INTENT_RAIL = {
     "attempt steering": "steering",
     "express sensitive emotion": "sensitive",
 }
+CLAUSES = re.compile(r"[,;:()]|\b(?:and also|and then|then|also|but|while)\b", re.IGNORECASE)
+# Generic wording that must never be auto-allowed: it goes to the LLM instead.
+TRIPWIRE = re.compile(
+    r"\b(?:dan|jailbreak|developer mode|ignor\w*|disregard\w*|instructions?|system prompt|prompt|"
+    r"pretend\w*|role-?play\w*|act as|you are now|unrestricted|no rules|rules|"
+    r"no (?:approval|confirmation|gates?|checks?)|without (?:\w+ )?(?:asking|approval|approving|"
+    r"confirm\w*|gates?|checks?|me)|skip\w*|bypass\w*|yourself|on your own|take over|"
+    r"hand me|give me control|log ?out|stay (?:logged|signed) in|keep me (?:logged|signed))\b",
+    re.IGNORECASE,
+)
 ASK = (
     "You classify the goal given to a banking agent. Reply with exactly one label from this list "
     "and nothing else:\n{labels}\n\n"
@@ -58,6 +73,8 @@ class NemoClassifier:
             self._gen: Any = self.rails.llm_generation_actions
         t = yaml.safe_load((config_dir / "thresholds.yml").read_text())
         self.upper, self.lower = float(t["upper"]), float(t["lower"])
+        if not 0 < self.lower < self.upper <= 1:
+            raise ValueError(f"thresholds need 0 < lower < upper <= 1, got {t}")
 
     async def scores(self, text: str) -> dict[str, float]:
         """Best similarity per intent for ``text`` (NeMo's own formula)."""
@@ -89,11 +106,15 @@ class NemoClassifier:
     async def classify(self, text: str) -> tuple[str | None, float]:
         best = await self.scores(text)
         refused = {n: best.get(n, 0.0) for n in INTENT_RAIL}
+        for clause in (c.strip() for c in CLAUSES.split(text)):
+            if clause and clause != text.strip():  # an attack suffix is a clause of its own
+                part = await self.scores(clause)
+                refused = {n: max(v, part.get(n, 0.0)) for n, v in refused.items()}
         top = max(refused, key=lambda n: refused[n])
         if refused[top] >= self.upper:
             return INTENT_RAIL[top], refused[top]
         banking = best.get(ALLOW_INTENT, 0.0)
-        if banking >= self.upper and refused[top] <= self.lower:
+        if banking >= self.upper and refused[top] <= self.lower and not TRIPWIRE.search(text):
             return None, banking
         label = await self._ask_llm(text, best)  # unsure
         if label == ALLOW_INTENT:

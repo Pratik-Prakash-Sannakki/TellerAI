@@ -89,3 +89,16 @@ def test_modes_when_the_extra_is_missing(mode: str, allowed: bool, rail: str | N
 
 def test_sentences_split_on_end_marks_and_newlines() -> None:
     assert sentences("A b. C d!\nE f? ") == ["A b.", "C d!", "E f?"]
+
+
+def test_an_allowed_goal_keeps_the_classifier_score() -> None:
+    v = run("Log in and pay a bill", clf=Fake({"Log in and pay a bill": (None, 0.8)}))
+    assert v.allowed
+    assert v.score == pytest.approx(0.8)
+
+
+def test_an_allowed_multi_sentence_goal_keeps_its_weakest_score() -> None:
+    table = {"Pay a bill.": (None, 0.9), "Then log out.": (None, 0.7)}
+    v = run("Pay a bill. Then log out.", clf=Fake(table))
+    assert v.allowed
+    assert v.score == pytest.approx(0.7)
