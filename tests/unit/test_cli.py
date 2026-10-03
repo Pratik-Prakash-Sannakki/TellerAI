@@ -434,7 +434,8 @@ def test_eval_replays_n_times_in_one_session(
 
     async def replay(ctx: object, path: Path, inputs: dict[str, str]) -> ReplayResult:
         calls.append(("replay", inputs))
-        return ReplayResult("SUCCESS", {"bal": secret_out}, [{"step": 0, "rung": "rung1"}])
+        drift = [{"step": 0, "rung": "rung2"}]  # an anchor-only login box: rung 2 is first choice
+        return ReplayResult("SUCCESS", {"bal": secret_out}, drift)
 
     monkeypatch.setattr(cli, "replay_attach", attach)
     monkeypatch.setattr(cli, "replay", replay)
@@ -446,6 +447,7 @@ def test_eval_replays_n_times_in_one_session(
     cap = _cap_file(tmp_path, ["amount"])
     report = asyncio.run(cli.run_eval(cap, {"amount": "5"}, "parabank", 3, True))
     assert (report.runs, report.all_success) == (RUNS, True)
+    assert report.fallback_steps == []  # judged against the capability's own targets
     assert [c[0] for c in calls] == [
         "open_session", *["attach", "replay", "evidence"] * 3, "close", "stop",
     ]  # fmt: skip

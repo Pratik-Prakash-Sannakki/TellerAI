@@ -3,8 +3,11 @@ stretch goal). Pure: no browser, no LLM. The CLI runs the replays and hands the 
 
 What it measures: status counts and success rate, runs a human had to help, a per-step rung
 histogram from each run's drift log, and the drift signal itself: ``fallback_steps``, the steps
-whose first-choice rung (``rung1`` / ``table``) was not used every time. Outputs are compared in
-memory only; the report keeps one bool per output name, never a value.
+whose first-choice rung (``rung1`` / ``table``) was not used every time. Given the capability, a
+step whose target has no OCR text (an empty login box) has rung 2 as its first choice, so rung 2
+there is not drift. Outputs are compared in memory only; the report keeps one bool per output
+name and, for an unstable one, a value-free description of what differs (row counts, column
+names, cell shape and length per run), never a value.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ import json
 import time
 from collections import Counter
 from collections.abc import Iterable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from pydantic import JsonValue
@@ -21,8 +24,10 @@ from pydantic import JsonValue
 from cua.replay.loader import PLACEHOLDER, step_inputs
 from cua.safety.redact import REPLAY_NUMBER, redactor
 from cua.schema import Capability, ReplayResult
+from cua.vision.table import cell_shape
 
 FIRST_CHOICE = ("rung1", "table")  # "rung1+anchor" is still rung 1, disambiguated by a label
+NO_OCR_FIRST = (*FIRST_CHOICE, "rung2")  # a target with no OCR text of its own starts at rung 2
 NOT_A_LOCATE = ("-", "recover", "skipped")  # no target, a re-login, a cleanup step not yet run
 
 Histogram = dict[int, dict[str, int]]
@@ -40,6 +45,7 @@ class EvalReport:
     output_stable: dict[str, bool]  # per output name: same value in every SUCCESS run
     outputs_stable: bool
     flaky: bool  # not every run had the same status
+    output_diffs: dict[str, str] = field(default_factory=dict)  # unstable name -> what differs
 
     @property
     def all_success(self) -> bool:
@@ -59,12 +65,30 @@ def _histograms(results: Iterable[ReplayResult]) -> tuple[Histogram, Histogram]:
     return ({s: dict(c) for s, c in sorted(h.items())} for h in (main, clean))  # type: ignore[return-value]
 
 
-def _is_fallback(rung: str) -> bool:
-    return rung not in NOT_A_LOCATE and not rung.startswith(FIRST_CHOICE)
+def _is_fallback(rung: str, first: tuple[str, ...] = FIRST_CHOICE) -> bool:
+    return rung not in NOT_A_LOCATE and not rung.startswith(first)
 
 
-def fallback_steps(rungs: Histogram) -> list[int]:
-    return [step for step, seen in rungs.items() if any(_is_fallback(r) for r in seen)]
+def _no_ocr_steps(cap: Capability | None) -> set[int]:
+    """Steps whose target has no OCR text: rung 1 cannot apply, so rung 2 is the first choice."""
+    if cap is None:
+        return set()
+    return {
+        i
+        for i, step in enumerate(cap.steps)
+        if (target := getattr(step, "target", None)) is not None
+        and target.ocr_text is None
+        and target.anchor is not None
+    }
+
+
+def fallback_steps(rungs: Histogram, cap: Capability | None = None) -> list[int]:
+    no_ocr = _no_ocr_steps(cap)
+    return [
+        step
+        for step, seen in rungs.items()
+        if any(_is_fallback(r, NO_OCR_FIRST if step in no_ocr else FIRST_CHOICE) for r in seen)
+    ]
 
 
 def _output_stability(results: list[ReplayResult]) -> dict[str, bool]:
@@ -76,7 +100,60 @@ def _output_stability(results: list[ReplayResult]) -> dict[str, bool]:
     }
 
 
-def summarize(results: list[ReplayResult]) -> EvalReport:
+def _per_run(items: Iterable[object]) -> str:
+    return "[" + ", ".join(str(i) for i in items) + "]"
+
+
+def _cells(values: list[str | None]) -> str:
+    shapes = ", ".join("-" if v is None else cell_shape(v) for v in values)
+    lengths = ", ".join("-" if v is None else str(len(v)) for v in values)
+    return f"shape {shapes}; length {lengths}"
+
+
+def _table_diff(tables: list[list[dict[str, str]]]) -> str:
+    parts = [f"rows per run: {_per_run(len(t) for t in tables)}"]
+    common = min(len(t) for t in tables)
+    columns = list(dict.fromkeys(c for t in tables for row in t[:common] for c in row))
+    differ = []
+    for col in columns:
+        for i in range(common):
+            cells = [t[i].get(col) for t in tables]
+            if any(c != cells[0] for c in cells):
+                differ.append(f"{col} (row {i + 1}: {_cells(cells)})")
+                break
+    if differ:
+        parts.append("differ in " + ", ".join(differ))
+    return "; ".join(parts)
+
+
+def _describe(values: list[object]) -> str:
+    """What differs between runs for one output, never a value: counts, names, shapes, lengths."""
+    lists = [v for v in values if isinstance(v, list)]
+    if len(lists) == len(values):
+        if all(isinstance(r, dict) for v in lists for r in v):
+            return _table_diff([[{str(k): str(c) for k, c in r.items()} for r in v] for v in lists])
+        return f"items per run: {_per_run(len(v) for v in lists)}"
+    texts = [v for v in values if isinstance(v, str)]
+    if len(texts) == len(values):
+        shapes, lengths = _per_run(cell_shape(t) for t in texts), _per_run(len(t) for t in texts)
+        return f"shape per run: {shapes}; length per run: {lengths}"
+    return f"type per run: {_per_run(type(v).__name__ for v in values)}"
+
+
+def _output_diffs(results: list[ReplayResult], stable: Mapping[str, bool]) -> dict[str, str]:
+    wins = [r.outputs for r in results if r.status == "SUCCESS"]
+    diffs: dict[str, str] = {}
+    for name in (n for n, ok in stable.items() if not ok):
+        missing = [i for i, out in enumerate(wins, start=1) if name not in out]
+        diffs[name] = (
+            f"missing in runs: {_per_run(missing)}"
+            if missing
+            else _describe([out[name] for out in wins])
+        )
+    return diffs
+
+
+def summarize(results: list[ReplayResult], cap: Capability | None = None) -> EvalReport:
     counts = dict(Counter(r.status for r in results))
     rungs, cleanup = _histograms(results)
     stable = _output_stability(results)
@@ -88,10 +165,11 @@ def summarize(results: list[ReplayResult]) -> EvalReport:
         assisted=sum(1 for r in results if r.human),
         rungs=rungs,
         cleanup_rungs=cleanup,
-        fallback_steps=fallback_steps(rungs),
+        fallback_steps=fallback_steps(rungs, cap),
         output_stable=stable,
         outputs_stable=wins > 0 and all(stable.values()),
         flaky=len(counts) > 1,
+        output_diffs=_output_diffs(results, stable),
     )
 
 
@@ -108,6 +186,7 @@ def render(report: EvalReport) -> str:
         f"flaky: {'yes' if report.flaky else 'no'}  |  human assisted: {report.assisted}",
         f"outputs stable: {'yes' if report.outputs_stable else 'no'}"
         + (f" (differ: {', '.join(unstable)})" if unstable else ""),
+        *(f"  {name}: {diff}" for name, diff in report.output_diffs.items()),
         "step  rungs",
     ]
     for step, seen in report.rungs.items():

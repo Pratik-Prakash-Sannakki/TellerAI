@@ -131,3 +131,89 @@ def test_a_click_after_typing_an_input_sends_data() -> None:
     assert not ev.sends_data(_cap(LOGIN, []))  # the login alone is not a send
     logout = {"action": "click", "target": T, "cleanup": True}
     assert not ev.sends_data(_cap([*LOGIN, form, logout], ["amount"]))
+
+
+# --- what differs between runs, without the values -------------------------------------------
+
+ROW_A = {"Account": "13344", "Balance": SECRET_OUT}
+ROW_B = {"Account": "13455", "Balance": "$99.00"}
+
+
+def _table(rows: list[dict[str, str]]) -> ReplayResult:
+    return ReplayResult("SUCCESS", {"account_balances": rows}, [])  # type: ignore[dict-item]
+
+
+def _no_values(text: str) -> None:
+    for value in (SECRET_OUT, "13344", "13455", "$99.00", "99.00", "Savings 1"):
+        assert value not in text
+
+
+def test_a_table_that_gained_a_row_reports_rows_per_run_only() -> None:
+    r = ev.summarize([_table([ROW_A]), _table([ROW_A, ROW_B]), _table([ROW_A])])
+    assert r.output_diffs == {"account_balances": "rows per run: [1, 2, 1]"}
+    _no_values(json.dumps(r.output_diffs))
+
+
+def test_a_differing_cell_reports_its_column_and_shape_per_run() -> None:
+    other = {"Account": "13344", "Balance": "Savings 1"}  # OCR read a label, not an amount
+    r = ev.summarize([_table([ROW_A]), _table([other])])
+    diff = r.output_diffs["account_balances"]
+    assert diff == (
+        "rows per run: [1, 1]; differ in Balance (row 1: shape amount, text; length 7, 9)"
+    )
+    _no_values(diff)
+
+
+def test_strings_and_option_lists_report_shape_length_or_count() -> None:
+    a = ReplayResult("SUCCESS", {"bal": SECRET_OUT, "opts": ["13344", "13455"]}, [])
+    b = ReplayResult("SUCCESS", {"bal": "$99.00", "opts": ["13344"]}, [])
+    diffs = ev.summarize([a, b]).output_diffs
+    assert diffs == {
+        "bal": "shape per run: [amount, amount]; length per run: [7, 6]",
+        "opts": "items per run: [2, 1]",
+    }
+    missing = ev.summarize([a, ReplayResult("SUCCESS", {"bal": SECRET_OUT}, [])]).output_diffs
+    assert missing == {"opts": "missing in runs: [2]"}
+
+
+def test_stable_outputs_have_no_diff() -> None:
+    assert ev.summarize([_table([ROW_A]), _table([ROW_A])]).output_diffs == {}
+
+
+def test_no_value_reaches_the_printout_or_report_json(tmp_path: Path) -> None:
+    other = {"Account": "13455", "Balance": "Savings 1"}
+    results = [_table([ROW_A]), _table([ROW_A, ROW_B]), _table([other])]
+    report = ev.summarize(results)
+    text = ev.render(report)
+    assert "account_balances: rows per run: [1, 2, 1]" in text
+    _no_values(text)
+    folder = ev.save_report(report, ev.run_rows(results, [set()] * 3), "c", tmp_path, {})
+    saved = (folder / "report.json").read_text()
+    _no_values(saved)
+    assert "account_balances" in json.loads(saved)["report"]["output_diffs"]
+
+
+# --- a rung that could not exist for a step is not drift ---------------------------------------
+
+OCR_T = {"ocr_text": {"text": "Log In"}, "anchor": {"label": "L", "offset": [0, 0]}}
+
+
+def test_an_anchor_only_step_found_by_rung2_is_first_choice_not_fallback() -> None:
+    cap = _cap(
+        [
+            {"action": "type", "target": T, "value": "{{secret:username}}"},
+            {"action": "click", "target": OCR_T},
+        ],
+        [],
+    )
+    drift = [_row(0, "rung2"), _row(1, "rung2")]
+    r = ev.summarize([ReplayResult("SUCCESS", {}, drift)], cap)
+    assert r.fallback_steps == [1]  # the click had OCR text and missed it: genuine drift
+    anchor_only = _cap([{"action": "click", "target": {"anchor": T["anchor"]}}], [])
+    rung3 = [_row(0, "rung3")]
+    assert ev.summarize([ReplayResult("SUCCESS", {}, rung3)], anchor_only).fallback_steps == [0]
+
+
+def test_without_a_capability_every_rung2_is_still_a_fallback() -> None:
+    r = ev.summarize([ReplayResult("SUCCESS", {}, [_row(0, "rung2")])])
+    assert r.fallback_steps == [0]

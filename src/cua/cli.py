@@ -213,7 +213,7 @@ async def run_eval(
                 print("evidence:", save_replay_evidence(ctx, result, cap, EVIDENCE / "replay"))
     finally:
         await _close(session)
-    report = summarize(results)
+    report = summarize(results, _load_cap(cap))
     print(render(report))
     folder = save_report(report, run_rows(results, masks), _cap_name(cap), EVIDENCE / "eval", info)
     print("eval report:", folder)
