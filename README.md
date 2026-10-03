@@ -69,6 +69,9 @@ system prompt, 13 tools (`observe`, `click`, `type_text`, `type_secret`, `select
 `ask_human`, `finish_business_outcome`) and a checkpointer, so a run paused for a human resumes
 where it stopped. Middleware wraps every model call:
 
+- `OnlyOurTools`: deepagents always adds its own file tools and `task` sub-agent tool. This
+  middleware drops them from every model call, so the model is offered only our 13 tools, and
+  refuses (`REFUSED`) any call to them.
 - `RecordWhy`: logs the model's one-line reason for each tool call (masked) into the evidence.
 - `LatestScreenshotOnly`: only the newest screenshot stays in context, which keeps every turn small.
 - The TypeSafe tool router and model router below, when switched on.
@@ -137,8 +140,10 @@ Design rules:
 - **Multi-tenant vendors:** one base capability per vendor product. A tenant is one config file,
   not a code change.
 
-Saved examples: `artifacts/` (`pay_bill`, `pay_bill_to_payee`, `transfer_money`, `request_loan`,
-`get_all_account_balances`, `get_transfer_account_options`).
+Saved examples: `artifacts/` (`pay_bill`, `pay_bill_to_payee`, `transfer_funds_between_accounts`,
+`request_loan`, `get_all_account_balances`, `get_account_balance`, `get_transfer_account_options`).
+`takeover_demo` is a fault-injection demo (a broken target that forces a human take-over), not a
+discovered task.
 
 ## Architecture
 
@@ -318,6 +323,12 @@ re-logs in once. Cleanup (logout) always runs.
 | `FAILED` | bad YAML, wrong screen size, host blocked, action not allowed, checkpoint or output missing |
 | `BUSINESS_OUTCOME` | a known answer, e.g. "not found", "insufficient funds" |
 
+A person's help is shown on the status and listed, value-free, in `human[]`:
+
+- `SUCCESS (human input at step N)`: replay asked for a value (e.g. picked an account from the
+  options) and a person chose it.
+- `SUCCESS (human intervened at step N)`: replay could not go on, a person took over, then handed back.
+
 Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*, routing
 is Q22) and `notebooks/replay/DECISIONS.md` (R*).
 
@@ -422,10 +433,10 @@ the code touches the page's script; everything else is screenshots, mouse and ke
 ### CLI
 
 ```bash
-.venv/bin/cua discover "Log in and read the first account's balance" --out artifacts
+.venv/bin/cua discover "Log in and get the balance of every account" --out artifacts
 .venv/bin/cua replay artifacts/get_all_account_balances.yaml --evidence
-.venv/bin/cua replay artifacts/transfer_money.yaml \
-  --input amount=10 --input from_account=12345 --input to_account=67890
+.venv/bin/cua replay artifacts/transfer_funds_between_accounts.yaml \
+  --input amount=5 --input from_account=<id> --input to_account=<id>
 .venv/bin/cua eval artifacts/get_all_account_balances.yaml --runs 3
 ```
 
@@ -436,6 +447,9 @@ the code touches the page's script; everything else is screenshots, mouse and ke
   their first-choice rung, and whether outputs matched across runs (yes/no, never the values). It
   writes `evidence/eval/<UTC>-<name>/report.json`. Every input must be given with `--input`, and it
   exits 1 unless every run is `SUCCESS`.
+- For each unstable output, eval prints one value-free line saying what differs: rows per run, the
+  differing column, or the cell shape. A step whose target has no OCR text (anchor only) is not
+  flagged as a fallback when the anchor finds it.
 
 **What you'll see.** Chromium opens with the bank tab and an "Agent control" tab. When the agent
 (or replay) needs you, the control tab comes to the front: answer a question, fill a form, or
@@ -449,19 +463,40 @@ step).
 
 Masked run folders live in `evidence/` (layout: `evidence/README.md`).
 
-| Capability | Discovery run (saved it) | Replay |
+| Capability | Discovery run (saved it) | Replay / eval runs |
 |---|---|---|
-| `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | `replay/20260930T033412Z-pay_bill` (older artifact: step-5 check failed, human took over; STUCK at step 6) |
-| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | - |
-| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | - |
-| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | - |
-| `get_all_account_balances` | `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou` | `replay/20260930T091210Z-get_all_account_balances` (SUCCESS) |
-| `transfer_money` | - (older notebook run) | `replay/20260930T223218Z-transfer_money` (SUCCESS) |
-| `transfer_funds` (retired) | `discovery/20260930T035011Z-log_in_transfer_funds` | `replay/20260930T041553Z-transfer_funds` (FAILED: site error page at step 3) |
+| `get_all_account_balances` | `discovery/20261003T004411Z-log_in_and_get_the_balance_of_every_acco` | `replay/20261003T005702Z` SUCCESS; `replay/20261003T011355Z` SUCCESS; `eval/20261003T013804Z` 3/3 SUCCESS, outputs stable; `eval/20261003T010917Z` 3/3 SUCCESS, outputs differed (one-off) |
+| `get_account_balance` | `discovery/20261003T004013Z-log_in_get_balance_for_my_account` | none yet (checkpoint fixed after discovery) |
+| `pay_bill_to_payee` | `discovery/20261002T050328Z-log_in_pay_bill_to_with_account_from_my_` | `replay/20261003T010220Z` SUCCESS (confirmation read) |
+| `get_transfer_account_options` | `discovery/20261002T045655Z-log_in_pay_bill_give_me_options_from_and` | `replay/20261003T010531Z` SUCCESS |
+| `request_loan` | `discovery/20261002T073727Z-log_in_request_for_a_loan` | `replay/20261003T010624Z` BUSINESS_OUTCOME (loan denied: not enough funds for the down payment) |
+| `transfer_funds_between_accounts` | `discovery/20261003T015535Z-log_in_and_transfer_from_account_344_to_` | `replay/20261003T015748Z` SUCCESS, confirmation read; a person picked the account (the demo DB had reset). This run predates `human[]` recording, so its `human[]` is empty |
+| `takeover_demo` (fault-injection demo, not discovered) | - | `replay/20261003T015212Z` SUCCESS (human intervened at step 4); `replay/20261003T012310Z` SUCCESS on the old checkpoint; `replay/20261003T011842Z` FAILED pre-fix (below) |
+| `pay_bill` | `discovery/20261002T075648Z-log_in_pay_bill` | - |
+
+Pre-fix runs (kept as evidence of bugs the live runs found):
+
+- `replay/20261003T004519Z`, `004612Z` (balances): STUCK at step 6 (table read). Menu text was
+  taken as the table header. Fixed in `85595bf`, `27ef5ef`.
+- `replay/20261003T004836Z` (balances): SUCCESS but an empty table. Same bug; fixed in `27ef5ef`.
+- `replay/20261003T005631Z`, `010142Z` (`pay_bill_to_payee`): STUCK at step 10 (Address). OCR read
+  `1Main`. Fixed in `07664f2`.
+- `replay/20261003T011842Z` (`takeover_demo`): FAILED. The read step was skipped after the take-over.
+  Fixed in `0c4c75a`.
+
+Live check of `OnlyOurTools`: `discovery/20261003T023017Z-log_in_and_get_the_balance_of_every_acco`,
+run after `f2feffe`. The agent called only our tools, and `extract_table` read the table in one call.
+Its artifact went to `/tmp` and is not committed.
+
+Older runs (before the `cua` package, no `run.json`): `replay/20260930T091210Z-get_all_account_balances`
+(SUCCESS), `replay/20260930T223218Z-transfer_money` (SUCCESS; `transfer_money` is retired, replaced by
+`transfer_funds_between_accounts`), `replay/20260930T033412Z-pay_bill` (STUCK at step 6 after a
+take-over), `replay/20260930T041553Z-transfer_funds` (FAILED: site error page; retired). Their
+discovery runs: `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou`,
+`discovery/20260930T035011Z-log_in_transfer_funds`.
 
 Take-overs during discovery (failed login, re-register, hand back) are recorded in
 `summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
-Replay runs predate the `cua` package (no `run.json`); no `cua eval` run is saved yet.
 
 ## Guard rails
 
@@ -491,7 +526,7 @@ Replay runs predate the `cua` package (no `run.json`); no `cua eval` run is save
 No key, no browser, no network:
 
 ```bash
-.venv/bin/python -m pytest -q tests     # 888 passed, 1 skipped (2026-10-02)
+.venv/bin/python -m pytest -q tests     # 1731 passed (2026-10-02)
 .venv/bin/mypy --strict src             # no issues (71 files)
 uvx ruff check src tests                # lint
 ```
