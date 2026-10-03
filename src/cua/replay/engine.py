@@ -155,7 +155,8 @@ def took_over_to_checkpoint(ctx: Ctx, i: int, cap: Capability, before: str) -> b
     text is on screen now and was not before the take-over."""
     run = ctx.run
     want = norm(fill(cap.checkpoint, run.values))
-    helped = bool(run.human) and run.human[-1]["step"] == i
+    last = run.human[-1] if run.human else {}
+    helped = last.get("step") == i and last.get("kind") != "option"  # a choice is no take-over
     return (
         helped and want not in norm(before) and run.look is not None and want in norm(run.look.text)
     )

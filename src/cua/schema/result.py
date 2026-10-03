@@ -33,7 +33,9 @@ class ReplayResult:
     outputs: dict[str, str | list[dict[str, str]] | list[str]]  # a table: rows; options: list
     drift: list[dict[str, JsonValue]]  # per step: rung, point, attempt. No values (R18)
     reason: str = ""
-    human: list[dict[str, JsonValue]] = field(default_factory=list)  # R17: take-overs; [] = alone
+    human: list[dict[str, JsonValue]] = field(
+        default_factory=list
+    )  # R17: take-overs + option choices ("kind": "option"); [] = alone
     failure: dict[str, JsonValue] | None = None  # {step, action, expected, observed} if not SUCCESS
     recoveries: int = 0  # R17 recoverable errors fixed by a re-login
     cleanup: str = ""  # "" = no cleanup steps (or never logged in) | "done" | "failed: <why>"
@@ -45,8 +47,13 @@ class ReplayResult:
 
     @property
     def summary(self) -> str:
-        if not self.human:
-            return self.status
-        steps = [str(h["step"] + 1) for h in self.human]  # type: ignore[operator]
-        plural = "s" if len(steps) > 1 else ""
-        return f"{self.status} (human intervened at step{plural} {', '.join(steps)})"
+        """`SUCCESS`, or e.g. `SUCCESS (human input at step 2; human intervened at step 4)`:
+        "input" = a mid-run option choice (kind "option"), "intervened" = a take-over."""
+        parts = []
+        for words, picked in (("human input", True), ("human intervened", False)):
+            hits = [h for h in self.human if (h.get("kind") == "option") == picked]
+            steps = [str(h["step"] + 1) for h in hits]  # type: ignore[operator]
+            if steps:
+                plural = "s" if len(steps) > 1 else ""
+                parts.append(f"{words} at step{plural} {', '.join(steps)}")
+        return f"{self.status} ({'; '.join(parts)})" if parts else self.status

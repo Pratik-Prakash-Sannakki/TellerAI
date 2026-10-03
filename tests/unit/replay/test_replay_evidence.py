@@ -56,7 +56,9 @@ def _result(ctx: Ctx, status: str, failure: dict[str, object] | None = None) -> 
         {"step": 1, "action": "click", "rung": "human", "shots": shots, "actions": actions},
     ]
     human = [{"step": 1, "reason": f"box shows {VALUE}", "actions": actions}]
-    return ReplayResult(status, {"balance": "74838"}, drift, f"typed {VALUE} and {SECRET}", human, failure)  # type: ignore[arg-type]
+    return ReplayResult(
+        status, {"balance": "74838"}, drift, f"typed {VALUE} and {SECRET}", human, failure
+    )  # type: ignore[arg-type]
 
 
 def _save(ctx: Ctx, res: ReplayResult, cap_path: Path, out: Path) -> Path:
@@ -220,3 +222,24 @@ def test_a_png_id_keeps_its_last_digits(tmp_path: Path) -> None:
     )
     assert final[5:35, 11:38].max() == 0  # '9', '8' hidden
     assert (final[:, 38:] == drawn[:, 38:]).all()  # '765' as drawn
+
+
+def test_an_option_choice_is_in_summary_human_without_the_chosen_value(
+    run: tuple[Ctx, Path, Path],
+) -> None:
+    ctx, cap_path, out = run  # "74838" is the human's chosen option, in the mask set
+    human = [
+        {
+            "step": 2,
+            "kind": "option",
+            "reason": "value not an option here; human chose one",
+            "input": "from_account",
+        }
+    ]
+    drift = [{"step": 2, "action": "select", "rung": "rung2", "point": (10, 20), "attempt": 1}]
+    folder = _save(ctx, ReplayResult("SUCCESS", {}, drift, "", human), cap_path, out)  # type: ignore[arg-type]
+    summary = json.loads((folder / "summary.json").read_text())
+    assert summary["human"] == human
+    assert summary["summary"] == "SUCCESS (human input at step 3)"
+    for name in ("summary.json", "drift.jsonl"):
+        assert "74838" not in (folder / name).read_text()

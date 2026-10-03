@@ -12,7 +12,7 @@ import pytest
 
 from cua.replay import engine, loader, steps
 from cua.replay.context import Ctx
-from cua.schema import Capability, Step, Stop
+from cua.schema import Capability, ReplayResult, Step, Stop
 from tests.unit.replay.helpers import (
     cap,
     click,
@@ -187,6 +187,40 @@ async def test_dropdown_mismatch_gives_one_prompt_with_the_live_options(
     assert prefill == [""] and options == [["", "13344", "74838"]]
     assert ctx.page.picked == "74838" and ctx.run.values["from_account"] == "74838"  # type: ignore[attr-defined]
     assert ctx.run.given == ["74838"]
+
+
+@pytest.mark.asyncio
+async def test_a_dropdown_choice_is_recorded_as_human_input_without_the_value(
+    env: tuple[Ctx, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _ = env
+    ctx.run.values, ctx.run.step = {"from_account": "7483"}, 2
+    assert await _run_select(ctx, monkeypatch, ["13344", "74838"], ["74838"]) is True
+    assert ctx.run.human == [
+        {"step": 2, "kind": "option", "reason": steps.OPTION_REASON, "input": "from_account"}
+    ]
+    assert "74838" not in str(ctx.run.human)
+    res = ReplayResult("SUCCESS", {}, [], "", list(ctx.run.human))
+    assert res.summary == "SUCCESS (human input at step 3)"
+
+
+def test_summary_names_take_overs_and_option_choices_apart() -> None:
+    human = [
+        {"step": 0, "kind": "option", "reason": "r", "input": "a"},
+        {"step": 2, "reason": "r", "actions": {}},
+    ]
+    res = ReplayResult("SUCCESS", {}, [], "", human)  # type: ignore[arg-type]
+    assert res.summary == "SUCCESS (human input at step 1; human intervened at step 3)"
+
+
+def test_an_option_choice_is_not_a_take_over_to_the_checkpoint() -> None:
+    ctx = make_replay_ctx()
+    cp = _cap([], [click("Go")])
+    ctx.run.look = mk_look([("Done", (10, 10, 60, 30))])
+    ctx.run.human = [{"step": 0, "kind": "option", "reason": "r", "input": "a"}]
+    assert engine.took_over_to_checkpoint(ctx, 0, cp, "") is False
+    ctx.run.human.append({"step": 0, "reason": "target not found", "actions": {}})
+    assert engine.took_over_to_checkpoint(ctx, 0, cp, "") is True
 
 
 @pytest.mark.asyncio

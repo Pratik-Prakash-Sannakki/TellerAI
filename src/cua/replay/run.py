@@ -35,7 +35,9 @@ class ReplayRun:
     navs: int = 0  # main-document responses so far (a same-URL reload is one too)
     verdict: str = ""  # what the send gate decided during the last action
     takeover: dict[str, list[str]] | None = None  # during a take-over: page and send paths
-    human: list[dict[str, JsonValue]] = field(default_factory=list)  # one per take-over
+    human: list[dict[str, JsonValue]] = field(
+        default_factory=list
+    )  # one per take-over or option choice
     dropdowns: list[dict[str, object]] = field(default_factory=list)  # read before a click
     step: int | None = None  # where the run is, for failure.json (len(steps) = the checkpoint)
     outcomes: list[dict[str, str]] = field(default_factory=list)  # R17 rules for this run

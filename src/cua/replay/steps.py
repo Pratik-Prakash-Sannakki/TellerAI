@@ -184,6 +184,9 @@ async def do_type(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool:
     return typed_into_box(before, after, point, size, ctx.bcfg)  # type: ignore[arg-type]
 
 
+OPTION_REASON = "value not an option here; human chose one"
+
+
 async def do_select(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool:
     js_args = [*to_page(ctx, point), None, step.index]  # type: ignore[union-attr]
     options = await ctx.page.evaluate(SELECT_AT_INDEX_JS, js_args)
@@ -193,7 +196,10 @@ async def do_select(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool
     want = ctx.run.values.get(m[2], "") if m else step.option  # type: ignore[union-attr]
     if m and want not in options:
         want = ctx.run.values[m[2]] = await ask_option(ctx, cap, m[2], options)
-        ctx.run.given.append(want)
+        ctx.run.given.append(want)  # masking only: the chosen value never goes in `human`
+        ctx.run.human.append(
+            {"step": ctx.run.step, "kind": "option", "reason": OPTION_REASON, "input": m[2]}
+        )
     return await choose_option(ctx, point, want, step.index)  # type: ignore[union-attr]
 
 
