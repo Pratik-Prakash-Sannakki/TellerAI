@@ -10,6 +10,7 @@ Spec: docs/superpowers/specs/2026-10-03-nemo-guardrails-design.md
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +22,10 @@ WITHHELD = "Response withheld: it looked like it contained a credential."
 CARD = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
 SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-(\d{4})(?!\d)")
 CREDENTIAL = re.compile(r"\b(?:password|passwd|pwd|token|api[_-]?key|secret)\s*[:=]\s*\S+", re.I)
+
+# Very short secret values (a 1-2 character password) withhold aggressively by design: fail safe.
+# CREDENTIAL needs ':' or '=' after the keyword; a known secret value is caught by the secret
+# check whatever the wording.
 
 # Luhn algorithm constants
 LUHN_MULTIPLIER = 2
@@ -47,12 +52,29 @@ def _luhn(digits: str) -> bool:
 
 
 def _cards(text: str, hits: list[str]) -> str:
+    """Mask every Luhn-valid 13-19 digit card number. A separated run can swallow neighbouring
+    digits ("4111 1111 1111 1111 12/25"), so within each run try every window of whole digit
+    groups, longest first. A run with no Luhn-valid window is left alone (ids and references are
+    long digit runs too; the site's id mask handles those)."""
+
     def mask(m: re.Match[str]) -> str:
-        digits = re.sub(r"\D", "", m.group())
-        if not (MIN_CARD_DIGITS <= len(digits) <= MAX_CARD_DIGITS and _luhn(digits)):
-            return m.group()
-        hits.append("card_number")
-        return "***" + digits[-4:]
+        groups = [(g.start(), g.end()) for g in re.finditer(r"\d+", m.group())]
+        out, i, pos = [], 0, 0
+        while i < len(groups):
+            found = None
+            for j in range(len(groups), i, -1):  # longest window starting at group i first
+                digits = "".join(m.group()[a:b] for a, b in groups[i:j])
+                if MIN_CARD_DIGITS <= len(digits) <= MAX_CARD_DIGITS and _luhn(digits):
+                    found = (j, digits)
+                    break
+            if found is None:
+                i += 1
+                continue
+            j, digits = found
+            hits.append("card_number")
+            out.append(m.group()[pos : groups[i][0]] + "***" + digits[-4:])
+            pos, i = groups[j - 1][1], j
+        return "".join(out) + m.group()[pos:]
 
     return CARD.sub(mask, text)
 
@@ -77,6 +99,19 @@ def check_output(
     if masked != text:
         hits.append("account_id")
     return OutputVerdict(masked, False, tuple(dict.fromkeys(hits)))
+
+
+def safe_output(
+    answer: str, ids: IdMask, secrets: Mapping[str, str] | None = None
+) -> OutputVerdict:
+    """``check_output`` that fails CLOSED: any error withholds the answer and logs a warning
+    naming the error type only (never a value)."""
+    try:
+        return check_output(answer, ids, secrets)
+    except Exception as e:  # noqa: BLE001  fail closed
+        log = logging.getLogger(__name__)
+        log.warning("output rail failed (%s); answer withheld", type(e).__name__)
+        return OutputVerdict(WITHHELD, True, ("error",))
 
 
 # --- input rail ------------------------------------------------------------------------------

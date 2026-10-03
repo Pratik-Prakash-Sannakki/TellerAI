@@ -53,3 +53,28 @@ def test_a_secret_value_withholds_the_answer() -> None:
 def test_amounts_and_short_numbers_are_not_pii() -> None:
     text = "Balance $5022.93, 3 accounts, step 12."
     assert check_output(text, IDS).answer == text
+
+
+def test_a_separated_card_followed_by_more_digits_is_still_masked() -> None:
+    for text in ("Card 4111 1111 1111 1111 12/25 on file", "4111-1111-1111-1111 5 items"):
+        out = check_output(text, IDS)
+        assert "4111" not in out.answer.replace("***1111", "")
+        assert "***1111" in out.answer
+        assert "card_number" in out.hits
+
+
+def test_a_card_after_leading_digits_is_masked() -> None:
+    out = check_output("ref 12 4111 1111 1111 1111", IDS)
+    assert "***1111" in out.answer
+    assert "4111 1111" not in out.answer
+
+
+def test_a_luhn_invalid_long_run_is_not_called_a_card() -> None:
+    """By design: only Luhn-valid runs are cards; other long digit runs are ids/references."""
+    out = check_output("ref 1234 5678 9012 3456", IDS)
+    assert "card_number" not in out.hits
+    assert out.answer == "ref 1234 5678 9012 3456"
+
+
+def test_secrets_none_is_fine() -> None:
+    assert check_output("ok", IDS, None).answer == "ok"

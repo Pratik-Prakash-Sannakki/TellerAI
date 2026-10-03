@@ -21,7 +21,7 @@ from cua.discovery.context import Ctx
 from cua.discovery.recorder import ArtifactMask, artifact_texts, input_name
 from cua.discovery.run import DiscoveryRun, forget
 from cua.evidence import Redact, _clean, _png, run_info
-from cua.safety.rails import RailVerdict
+from cua.safety.rails import RailVerdict, safe_output
 from cua.safety.redact import IdMask, OcrFn, safe_redactor
 from cua.vision import ocr as ocr_
 
@@ -73,11 +73,15 @@ def _copy_capability(folder: Path, capability: Path, yml: str) -> None:
 
 
 def _summary(
-    run: DiscoveryRun, takeovers: list[dict[str, object]], capability: Path | None
+    run: DiscoveryRun,
+    takeovers: list[dict[str, object]],
+    capability: Path | None,
+    answer_withheld: bool = False,
 ) -> dict[str, object]:
     head = run.answer.split(":", 1)[0]
     return {
         "status": head if head in ("STUCK", "DECLINED") else "done" if run.answer else "no answer",
+        "answer_withheld": answer_withheld,
         "events": len(run.log),
         "take_over": bool(takeovers),
         "take_overs": takeovers,
@@ -132,14 +136,17 @@ def _write(
 
     lines, takeovers = _events(run, folder, redact, png)
     (folder / "goal.txt").write_text(redact(run.goal) + "\n")
-    (folder / "answer.txt").write_text(redact(run.answer) + "\n")
+    # The output rail covers every place the agent's words land (answer, transcript), not only
+    # the terminal; the status head below still reads the raw answer.
+    out = safe_output(run.answer, ids, ctx.secrets)
+    (folder / "answer.txt").write_text(redact(out.answer) + "\n")
     (folder / "events.jsonl").write_text("\n".join(lines) + "\n")
-    rows = transcript(run.messages, redact)
+    rows = transcript(run.messages, lambda t: redact(safe_output(t, ids, ctx.secrets).answer))
     (folder / "transcript.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     png(folder / "final.png", run.final_shot)
     if capability:
         _copy_capability(folder, capability, yml)
-    summary = _clean(_summary(run, takeovers, capability), redact)
+    summary = _clean(_summary(run, takeovers, capability, out.withheld), redact)
     (folder / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     info = run_info(PROMPT_VERSION, model, (ctx.session.cfg, ctx.cfg), ctx.site)
     (folder / "run.json").write_text(json.dumps(info, indent=2) + "\n")

@@ -93,6 +93,7 @@ def _save(  # noqa: PLR0913 (constraints allow 6)
     capability: Path | None = None,
     extra_redact: frozenset[str] | set[str] = frozenset(),
     goal: str = f"Log in, pay {NAME} $100000",
+    messages: list[object] | None = None,
 ) -> Path:
     ctx = make_ctx(secrets={"username": "jdoe", "password": SECRET})
     run = DiscoveryRun(
@@ -100,7 +101,7 @@ def _save(  # noqa: PLR0913 (constraints allow 6)
         answer=answer,
         log=[dict(e) for e in LOG],  # type: ignore[misc]
         redact={"100000", ACCOUNT, NAME, "jdoe", *extra_redact},
-        messages=list(MESSAGES),
+        messages=list(MESSAGES) if messages is None else messages,
         final_shot=shot,
     )
     ctx.guard.state = run
@@ -277,3 +278,46 @@ def test_a_refused_artifact_still_forgets_the_run(tmp_path: Path, masked: list[b
     with pytest.raises(ValueError, match="a run value is in the artifact"):
         save_evidence(ctx, tmp_path / "ev", yml, ocr_fn=lambda i: [])
     assert ctx.run.messages == []
+
+
+def _ai(text: str) -> SimpleNamespace:
+    return SimpleNamespace(type="ai", content=text, tool_calls=[])
+
+
+@pytest.mark.parametrize(
+    "leak",
+    ["Card 4111 1111 1111 1111 12/25 on file", "SSN 123-45-6789", "password: hunter9"],
+)
+def test_the_output_rail_masks_answer_and_transcript_alike(
+    tmp_path: Path, masked: list[bytes], leak: str
+) -> None:
+    run = _save(tmp_path, answer=f"Done. {leak}", messages=[_ai(f"Done. {leak}")])
+    for name in ("answer.txt", "transcript.jsonl"):
+        text = (run / name).read_text()
+        assert "4111 1111" not in text, name
+        assert "123-45-6789" not in text, name
+        assert "hunter9" not in text, name
+
+
+def test_a_withheld_stuck_answer_keeps_its_status_and_says_withheld(
+    tmp_path: Path, masked: list[bytes]
+) -> None:
+    run = _save(tmp_path, answer="STUCK: password: hunter9", messages=[])
+    summary = json.loads((run / "summary.json").read_text())
+    assert summary["status"] == "STUCK"
+    assert summary["answer_withheld"] is True
+    assert "hunter9" not in (run / "answer.txt").read_text()
+
+
+def test_an_output_rail_error_withholds_instead_of_leaking(
+    tmp_path: Path, masked: list[bytes], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cua.safety import rails  # noqa: PLC0415
+
+    def boom(*a: object, **k: object) -> object:
+        raise RuntimeError("rail broke")
+
+    monkeypatch.setattr(rails, "check_output", boom)
+    run = _save(tmp_path, answer="Done. 4111 1111 1111 1111", messages=[_ai("4111 1111 1111 1111")])
+    assert "4111" not in (run / "answer.txt").read_text()
+    assert "4111" not in (run / "transcript.jsonl").read_text()
