@@ -22,6 +22,9 @@ cua = "cua.cli:entry"
 # TypeSafe tool selection + model routing for discovery (cua.discovery.agent.routing). Off unless
 # TYPESAFE_API_KEY is set; it sends the page path + last result text to typesafe.ai.
 typesafe = ["langchain-typesafe>=0.0.1a3"]
+# NeMo Guardrails on discovery's goal (cua.safety.nemo). Embeddings run locally (FastEmbed);
+# the first use downloads the embedding model (~90 MB, cached).
+rails = ["nemoguardrails>=0.24,<0.25"]
 
 [build-system]
 requires = ["hatchling"]
@@ -92,7 +95,7 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 # Third-party boundaries without (complete) type information; cv2 and rapidocr ship stubs/py.typed
 # today, kept here so an environment with an older build still type-checks.
-module = ["cv2.*", "rapidocr.*", "onnxruntime.*", "deepagents.*", "langchain_typesafe.*"]
+module = ["cv2.*", "rapidocr.*", "onnxruntime.*", "deepagents.*", "langchain_typesafe.*", "nemoguardrails.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
