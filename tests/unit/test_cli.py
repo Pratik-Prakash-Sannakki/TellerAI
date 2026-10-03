@@ -216,9 +216,12 @@ MASK = ArtifactMask(IdMask(5, 3), str)
 def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[tuple[object, ...]] = []
     _patch_session(monkeypatch, calls)
-    run = SimpleNamespace(goal="g", log=["ev"])
-    ctx = SimpleNamespace(run=run)
+    run = SimpleNamespace(
+        goal="g", log=["ev"], typed_texts=["Acme Water"], given=[], entered={}, redact=set()
+    )
+    ctx = SimpleNamespace(run=run, secrets={})
     model = SimpleNamespace(model="M")
+    built: list[object] = []
 
     async def attach(session: object, cfg: object, secrets: object) -> object:
         calls.append(("attach", secrets))
@@ -238,7 +241,9 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr(cli, "run_goal", run_goal)
     monkeypatch.setattr(cli, "describe", describe)
     monkeypatch.setattr(cli, "check_savable", lambda log: None)
-    monkeypatch.setattr(cli, "build_capability", lambda log, meta: "CAP")
+    monkeypatch.setattr(
+        cli, "build_capability", lambda log, meta, values: built.append(values) or "CAP"
+    )
     monkeypatch.setattr(cli, "crops_for", lambda log, cap: {})
     monkeypatch.setattr(cli, "artifact_mask", lambda c: MASK)
     monkeypatch.setattr(
@@ -270,6 +275,7 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert calls[5][3:] == (MASK.ids,)  # the model sees the goal with ids cut
     assert calls[6][1:] == (MASK,)  # the artifact is masked (and leak-checked) before writing
     assert calls[7][1:] == (tmp_path / "c.yaml", "M")
+    assert built == [{"acme water"}]  # the run's values: never the checkpoint
 
 
 def test_replay_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -473,7 +479,7 @@ def test_a_leak_found_while_masking_is_not_saved_and_says_so(
 
     monkeypatch.setattr(cli, "describe", describe)
     monkeypatch.setattr(cli, "check_savable", lambda log: None)
-    monkeypatch.setattr(cli, "build_capability", lambda log, meta: "CAP")
+    monkeypatch.setattr(cli, "build_capability", lambda log, meta, values: "CAP")
     monkeypatch.setattr(cli, "crops_for", lambda log, cap: {})
     monkeypatch.setattr(cli, "save_artifact", refuse)
     assert asyncio.run(cli._save([], "g", object(), tmp_path, MASK)) is None  # type: ignore[arg-type]

@@ -6,6 +6,7 @@ Moved unchanged from notebooks/discovery/discovery.py (``target`` .. ``output``)
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from urllib.parse import parse_qsl, urlparse
 
 from cua.discovery.recorder.checkpoint import checkpoint
@@ -116,8 +117,11 @@ def used_inputs(log: list[Event]) -> list[str]:
     return step_inputs([to_step(ev, "crop.png") for ev in step_events(log)])
 
 
-def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
-    """Steps, inputs and secrets come from the log only. The model's text cannot fail the build."""
+def build_capability(
+    log: list[Event], meta: CapabilityMeta, values: Collection[str] = ()
+) -> Capability:
+    """Steps, inputs and secrets come from the log only. The model's text cannot fail the build.
+    ``values`` (the run's typed and given values, in memory only) are never the checkpoint."""
     start = next(ev["args"] for ev in log if ev["tool"] == "start")
     events, name = step_events(log), input_name(meta.name)
     _refuse(log, events)
@@ -143,7 +147,7 @@ def build_capability(log: list[Event], meta: CapabilityMeta) -> Capability:
             dict.fromkeys(ev["args"]["secret_name"] for ev in events if ev["tool"] == "type_secret")  # type: ignore[misc]
         ),
         steps=steps,
-        checkpoint=checkpoint(log, meta.success_text),
+        checkpoint=checkpoint(log, meta.success_text, values),
     )
 
 

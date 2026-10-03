@@ -12,7 +12,7 @@ import argparse
 import asyncio
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import NoReturn
 
@@ -42,6 +42,7 @@ from cua.discovery.recorder import (
     describe,
     save_artifact,
 )
+from cua.discovery.run import run_values
 from cua.discovery.wiring import attach as discovery_attach
 from cua.eval import (
     EvalReport,
@@ -135,7 +136,10 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
             agent = build_agent(ctx, model)  # a CompiledStateGraph; run_goal types it as Agent
             answer = await run_goal(ctx, agent, goal)  # type: ignore[arg-type]
             print(IdMask.for_site(site)(answer))
-            path = await _save(ctx.run.log, ctx.run.goal, model, out, artifact_mask(ctx))
+            path = await _save(
+                ctx.run.log, ctx.run.goal, model, out, artifact_mask(ctx),
+                values=run_values(ctx.run, ctx.secrets),
+            )  # fmt: skip
         finally:  # evidence after any run, successful or not
             folder = save_discovery_evidence(
                 ctx, EVIDENCE / "discovery", capability=path, model=getattr(model, "model", None)
@@ -146,14 +150,20 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
     return path
 
 
-async def _save(
-    log: list[Event], goal: str, model: BaseChatModel, out: Path, mask: ArtifactMask
+async def _save(  # noqa: PLR0913
+    log: list[Event],
+    goal: str,
+    model: BaseChatModel,
+    out: Path,
+    mask: ArtifactMask,
+    *,
+    values: Collection[str] = (),
 ) -> Path | None:
     """Save the run as a capability, or say plainly why not. Checked before the model is asked;
     the artifact is masked and leak-checked before any file is written."""
     try:
         check_savable(log)
-        cap = build_capability(log, await describe(goal, log, model, mask.ids))
+        cap = build_capability(log, await describe(goal, log, model, mask.ids), values)
         path = save_artifact(cap, crops_for(log, cap), out, mask)
     except NotSaved as e:
         print(f"not saved: {e}")

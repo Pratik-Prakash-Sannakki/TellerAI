@@ -67,8 +67,10 @@ def _read_log(proof: str, page: list[str] = READ_PAGE) -> list[dict]:
 
 def test_a_read_after_logout_takes_its_checkpoint_from_the_page_it_read() -> None:
     meta = _meta(name="read", success_text="Customer Login")
-    cap = build_capability(_read_log("Customer Login"), meta)  # type: ignore[arg-type]
-    assert cap.checkpoint == "Balance*"  # the value's own label, on that page
+    log = _read_log("Customer Login")
+    log[0] |= {"looks": 4, "text_counts": {"account services": 4, "transfer funds": 4}}
+    cap = build_capability(log, meta)  # type: ignore[arg-type]
+    assert cap.checkpoint == "Account Details"  # that page's own text; 'Balance*' is one word
 
 
 def test_an_agent_proof_on_the_read_page_is_kept() -> None:

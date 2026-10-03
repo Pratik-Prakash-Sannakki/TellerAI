@@ -38,6 +38,7 @@ from cua.discovery.agent.build import build_agent
 from cua.discovery.evidence import artifact_mask, save_evidence
 from cua.discovery.goal import run_goal
 from cua.discovery.recorder import build_capability, crops_for, describe, save_artifact
+from cua.discovery.run import run_values
 from cua.discovery.wiring import attach
 from cua.llm import make_chat_model
 from cua.safety.redact import IdMask
@@ -80,7 +81,7 @@ print("saved:", ids(str(ctx.run.saved)), "| events:", len(ctx.run.log))
 # BROWSER
 mask = artifact_mask(ctx)  # account ids -> last digits; a run value refused before writing
 meta = await describe(ctx.run.goal, ctx.run.log, model, mask.ids)
-cap = build_capability(ctx.run.log, meta)
+cap = build_capability(ctx.run.log, meta, run_values(ctx.run, ctx.secrets))  # never a checkpoint
 print(path := save_artifact(cap, crops_for(ctx.run.log, cap), ROOT / "artifacts", mask))
 
 # %% [markdown]
