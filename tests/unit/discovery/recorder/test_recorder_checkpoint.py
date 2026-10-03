@@ -8,8 +8,11 @@ earlier pages), 'Account' (a single word on every logged-in page).
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from cua.discovery.recorder import build_capability, checkpoint
-from cua.discovery.recorder.checkpoint import WARNING
+from cua.discovery.recorder.checkpoint import WARNING, stable
 from tests.unit.discovery.recorder.test_recorder import START, _ev, _meta
 
 LOGIN_PAGE = ["Customer Login", "Username", "Password", "© Parasoft. All rights reserved."]
@@ -120,3 +123,46 @@ def test_with_nothing_new_a_stable_text_is_kept_and_a_warning_logged() -> None:
     log = [_start(), _click(MENU), _read([*MENU, "City:"], headings=["City:"])]
     assert checkpoint(log, "x") in MENU  # type: ignore[arg-type]
     assert [ev["result"] for ev in log if ev["tool"] == "warning"] == [WARNING]
+
+
+# Live (20261003T023017Z, read-only balances): OCR read the footer link bar differently per look
+# ('|' vs 'I'), so exact matching saw it as new, and it was picked.
+LIVE = (
+    Path(__file__).parents[4]
+    / "evidence/discovery/20261003T023017Z-log_in_and_get_the_balance_of_every_acco/events.jsonl"
+)
+FOOTER = "Home | About Us I Services I Products I Locations I Forum | Site Map I Contact Us"
+
+
+def test_the_live_balances_run_never_picks_the_footer_link_bar() -> None:
+    log = [json.loads(line) for line in LIVE.read_text().splitlines()]
+    log = [ev for ev in log if ev["tool"] != "warning"]
+    got = checkpoint(log, "x")
+    assert got == "*Balance includes deposits that may be subject to holds"
+
+
+def test_an_ocr_variant_of_a_start_page_text_counts_as_seen() -> None:
+    """'Welcome I Home' on the start page, 'Welcome l Home' on the final screen: the same text,
+    so never the checkpoint, even when nothing else on the screen is new."""
+    start = {**_start(), "start_texts": [*LOGIN_PAGE, "Welcome to the Bank I Home Page"]}
+    earlier = _click([*MENU, "Account Services Menu"])
+    page = ["Welcome to the Bank l Home Page", "Account Services Menu"]
+    log = [start, earlier, _read(page, headings=page)]
+    assert checkpoint(log, "x") == "Account Services Menu"  # type: ignore[arg-type]
+
+
+def test_an_ocr_variant_of_an_earlier_screen_text_is_not_new() -> None:
+    """'I' read as 'l' is not a new word: 'Bill Pay Service' (one new word) is the new text."""
+    earlier = _click([*MENU, "Welcome to Account Services I Home"])
+    page = [*MENU, "Welcome to Account Services l Home", "Bill Pay Service"]
+    log = [_start(), earlier, _read(page, headings=["Welcome to Account Services l Home"])]
+    assert checkpoint(log, "x") == "Bill Pay Service"  # type: ignore[arg-type]
+
+
+def test_a_link_bar_is_never_the_checkpoint() -> None:
+    assert not stable()(FOOTER)
+    assert not stable()("Home | About Us")
+    assert not stable()("Home I About Us I Services")
+    assert stable()("Bill Payment Service")
+    log = [_start(), _read([FOOTER, "Bill Payment Service"], headings=[FOOTER])]
+    assert checkpoint(log, "x") == "Bill Payment Service"  # type: ignore[arg-type]
