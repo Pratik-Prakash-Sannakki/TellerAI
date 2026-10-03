@@ -1,9 +1,10 @@
 schema_version: 2
-name: get_transfer_account_options
+name: takeover_demo
 version: 1
-description: Logs into the online banking portal and navigates to the transfer funds
-  section to retrieve the available "from" account options for paying a bill. Returns
-  a list of eligible source accounts that can be used for the transfer.
+description: 'FAULT-INJECTION DEMO (not discovered): a copy of get_transfer_account_options
+  whose step 3 (''Bill Pay.'' click) points at text that does not exist, so replay
+  gets stuck there and a human takes over, clicks Bill Pay, and hands back. Shows
+  3.6 take-over -> resume -> SUCCESS.'
 base_url: https://parabank.parasoft.com/parabank
 viewport:
 - 1280
@@ -26,7 +27,7 @@ steps:
       offset:
       - 10
       - 46
-    template: crops/get_transfer_account_options/s0.png
+    template: crops/takeover_demo/s0.png
   value: '{{secret:username}}'
 - action: type
   target:
@@ -36,7 +37,7 @@ steps:
       offset:
       - 40
       - 19
-    template: crops/get_transfer_account_options/s1.png
+    template: crops/takeover_demo/s1.png
   value: '{{secret:password}}'
 - action: click
   target:
@@ -49,20 +50,19 @@ steps:
       offset:
       - 1
       - 50
-    template: crops/get_transfer_account_options/s2.png
+    template: crops/takeover_demo/s2.png
   cleanup: false
 - action: click
   target:
     ocr_text:
-      text: Bill Pay.
+      text: Pay My Bills Now
       ordinal: 1
     anchor:
-      label: Transfer Funds
+      label: Bill Center
       ordinal: 1
       offset:
-      - -22
-      - 24
-    template: crops/get_transfer_account_options/s3.png
+      - 0
+      - 0
   cleanup: false
 - action: extract_options
   target:
@@ -72,7 +72,7 @@ steps:
       offset:
       - 76
       - 0
-    template: crops/get_transfer_account_options/s4.png
+    template: crops/takeover_demo/s4.png
   save_as: from_account_options
   index: 0
 - action: click
@@ -86,6 +86,6 @@ steps:
       offset:
       - -18
       - 24
-    template: crops/get_transfer_account_options/s5.png
+    template: crops/takeover_demo/s5.png
   cleanup: true
 checkpoint: Enter payee information

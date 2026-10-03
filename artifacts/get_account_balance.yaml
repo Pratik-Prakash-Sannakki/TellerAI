@@ -1,9 +1,8 @@
 schema_version: 2
-name: get_all_account_balances
+name: get_account_balance
 version: 1
 description: Logs into the online banking portal using stored credentials and retrieves
-  the balance for every account associated with the customer, returning the data as
-  a table.
+  the current balance information from the accounts overview page.
 base_url: https://parabank.parasoft.com/parabank
 viewport:
 - 1280
@@ -11,13 +10,9 @@ viewport:
 device_scale_factor: 1.0
 inputs: []
 outputs:
-- name: account_balances
-  type: table
-  description: All accounts with their balances and available amounts
-  columns:
-  - Account
-  - Balance*
-  - Available Amount
+- name: account_balance
+  type: currency
+  description: The balance for the account
 secrets:
 - username
 - password
@@ -28,9 +23,9 @@ steps:
       label: Customer Login
       ordinal: 1
       offset:
-      - 11
-      - 46
-    template: crops/get_all_account_balances/s0.png
+      - 10
+      - 45
+    template: crops/get_account_balance/s0.png
   value: '{{secret:username}}'
 - action: type
   target:
@@ -38,9 +33,9 @@ steps:
       label: Password
       ordinal: 1
       offset:
-      - 41
-      - 20
-    template: crops/get_all_account_balances/s1.png
+      - 40
+      - 19
+    template: crops/get_account_balance/s1.png
   value: '{{secret:password}}'
 - action: click
   target:
@@ -53,22 +48,19 @@ steps:
       offset:
       - 1
       - 50
-    template: crops/get_all_account_balances/s2.png
+    template: crops/get_account_balance/s2.png
   cleanup: false
 - action: scroll
   direction: down
-- action: scroll
-  direction: up
-- action: extract_table
-  header:
-    label: Account
-    ordinal: 1
-  columns:
-  - Account
-  - Balance*
-  - Available Amount
-  save_as: account_balances
-  row_limit: 50
+- action: extract
+  target:
+    anchor:
+      label: Accounts Overview
+      ordinal: 1
+      offset:
+      - 64
+      - 69
+  save_as: account_balance
 - action: click
   target:
     ocr_text:
@@ -80,6 +72,6 @@ steps:
       offset:
       - -17
       - 25
-    template: crops/get_all_account_balances/s6.png
+    template: crops/get_account_balance/s5.png
   cleanup: true
 checkpoint: Balance includes deposits
