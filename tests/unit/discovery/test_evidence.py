@@ -87,6 +87,7 @@ def masked(monkeypatch: pytest.MonkeyPatch) -> list[bytes]:
 
 def _save(  # noqa: PLR0913 (constraints allow 6)
     tmp_path: Path,
+    *,
     answer: str = ANSWER,
     shot: bytes | None = None,
     capability: Path | None = None,

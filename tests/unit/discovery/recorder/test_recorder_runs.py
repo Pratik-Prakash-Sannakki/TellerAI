@@ -236,6 +236,7 @@ OVERVIEW = SITE + "overview.htm"
 def _noop_click(  # noqa: PLR0913
     text: str,
     result: str | None = None,
+    *,
     url: str = OVERVIEW,
     came_from: str = OVERVIEW,
     new: bool = True,

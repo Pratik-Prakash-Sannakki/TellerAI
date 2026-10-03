@@ -204,7 +204,7 @@ async def test_the_choice_is_made_per_call_not_per_run() -> None:
 
 def test_with_a_key_both_routers_are_built(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TYPESAFE_API_KEY", "k")
-    built = SimpleNamespace(Choice=_choice, TypeSafeClassifier=lambda: FakeClassifier())
+    built = SimpleNamespace(Choice=_choice, TypeSafeClassifier=FakeClassifier)
     monkeypatch.setattr(routing, "_typesafe", lambda: built)
     monkeypatch.setattr(routing, "_models", lambda: {"fast": "H", "powerful": "S"})
     out = build_routing_middleware(lambda: "https://example.test/")

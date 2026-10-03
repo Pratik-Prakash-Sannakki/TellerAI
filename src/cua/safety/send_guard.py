@@ -143,6 +143,7 @@ class SendGuard:
         secrets: Mapping[str, str],
         sensitive_words: Iterable[str],
         hooks: SendHooks,
+        *,
         options: GuardOptions,
     ) -> None:
         self.state, self.control, self.hooks, self.options = state, control, hooks, options

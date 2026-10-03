@@ -110,7 +110,7 @@ class ControlWindow:
                 fut.set_result(value)
                 return
 
-    async def show(  # noqa: PLR0913 - the notebooks' own signature, moved unchanged
+    async def show(  # noqa: PLR0913, PLR0917 - the notebooks' own signature; show(*q) unpacks a tuple
         self,
         title: str,
         details: str = "",
@@ -131,7 +131,7 @@ class ControlWindow:
         except Exception:
             self.on_reply(None)
 
-    async def ask(  # noqa: PLR0913 - the notebooks' own signature, moved unchanged
+    async def ask(  # noqa: PLR0913, PLR0917 - the notebooks' own signature; show(*q) unpacks a tuple
         self,
         title: str,
         details: str,

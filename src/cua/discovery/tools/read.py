@@ -98,7 +98,7 @@ def _columns(
 
 
 def _log_table(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, lk: Look, head: Element, args: dict[str, object], cols: Cols, continued: bool
+    ctx: Ctx, lk: Look, head: Element, args: dict[str, object], cols: Cols, *, continued: bool
 ) -> None:
     """The extract_table event: labels and positions only, never a cell."""
     columns, save_as = args["columns"], args["save_as"]
@@ -137,7 +137,7 @@ def _saved_rows(
     rows, more = read_rows(lk, cols, below, row_limit)
     ctx.run.tables[save_as] = cols  # type: ignore[assignment]
     ctx.run.saved[save_as] = append_rows(old, rows)[:row_limit]  # type: ignore[arg-type]
-    _log_table(ctx, lk, head, args, cols, below is None)
+    _log_table(ctx, lk, head, args, cols, continued=below is None)
     total = len(ctx.run.saved[save_as])
     tail = (
         " The table may continue below: scroll and call extract_table again with the same "

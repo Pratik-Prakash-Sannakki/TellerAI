@@ -10,7 +10,7 @@ What may leave the tab, and keeping values out of whatever is stored, logged or 
 3. `request.py` - `sent_fields`, `rebuilt`, `pretty` over a small `Request` Protocol.
 4. `mismatch.py` - `mismatches(fields, given_text, words)`, `dropdown_options(fields, keys,
    dropdowns, hide)`. The run supplies the given text and the pre-click dropdown stash.
-5. `send_guard.py` - `SendGuard(state, control, secrets, words, hooks, options)`: Gate 1
+5. `send_guard.py` - `SendGuard(state, control, secrets, words, hooks, *, options)`: Gate 1
    (Approve/Edit) and Gate 2 for every non-GET request. `guard.lock` is the send gate.
    `SendState`/`ControlLike` are Protocols; `SendHooks` and `GuardOptions`
    (`DISCOVERY_OPTIONS`/`REPLAY_OPTIONS`) carry each side's exact differences.

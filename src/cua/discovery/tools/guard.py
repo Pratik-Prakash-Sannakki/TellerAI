@@ -52,7 +52,7 @@ def log(
     event: dict[str, object] = {
         "tool": tool,
         "args": args,
-        "result": result.split("\n")[0],
+        "result": result.split("\n", maxsplit=1)[0],
         "point": point,
         "url": no_session(ctx.page.url),  # no session token, no query value
         "crop": crop,

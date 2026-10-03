@@ -81,7 +81,13 @@ def confidence_gate(
 
 def page_name(url: str) -> str:
     """The URL's last path segment: no query, no ``;jsessionid=``, no trailing slash, lower case."""
-    return url.split("?")[0].split(";")[0].rstrip("/").rsplit("/", 1)[-1].lower()
+    return (
+        url.split("?", maxsplit=1)[0]
+        .split(";", maxsplit=1)[0]
+        .rstrip("/")
+        .rsplit("/", 1)[-1]
+        .lower()
+    )
 
 
 STATUS_WORD = re.compile(r"[A-Za-z]+")  # letters only: a digit (an id, an amount) never passes

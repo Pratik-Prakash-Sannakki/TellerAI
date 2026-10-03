@@ -177,7 +177,7 @@ def _make_click(ctx: Ctx) -> BaseTool:
 
 
 async def _typed(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, lk: Look, point: tuple[int, int], hint: str, text: str, args: dict[str, object]
+    ctx: Ctx, lk: Look, point: tuple[int, int], hint: str, text: str, *, args: dict[str, object]
 ) -> Result:
     """type_text's body once the value is the agent's to type: type it, read the box back, log."""
     cut, spots = crop(ctx, lk, point, None), where(lk, point, run_values(ctx.run, ctx.secrets))
@@ -191,12 +191,13 @@ async def _typed(  # noqa: PLR0913 (constraints allow 6)
     )
     ctx.run.entered[hint] = text
     shapes = shapes_of(text)  # the value's shape names only: the recorder types the input
-    log(ctx, "type_text", args, msg.split(" Box shows")[0], point, cut, shapes=shapes, **spots)
+    summary = msg.split(" Box shows", maxsplit=1)[0]
+    log(ctx, "type_text", args, summary, point, cut, shapes=shapes, **spots)
     return blocks(ctx, msg, after)
 
 
 async def _selected(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, lk: Look, point: tuple[int, int], hint: str, option: str, args: dict[str, object]
+    ctx: Ctx, lk: Look, point: tuple[int, int], hint: str, option: str, *, args: dict[str, object]
 ) -> Result:
     """select_option's body once the option is the agent's to pick: choose it, log its index."""
     own = element_at(lk, point)
@@ -233,7 +234,7 @@ def _make_type_text(ctx: Ctx) -> BaseTool:
         hint = label.text if label else "value"
         if needs_human_value(ctx, text, hint):
             return await reply(ctx, await human_fills(ctx, [(point, hint)]))
-        return await _typed(ctx, lk, point, hint, text, {"ref": ref, "x": x, "y": y})
+        return await _typed(ctx, lk, point, hint, text, args={"ref": ref, "x": x, "y": y})
 
     return type_text
 
@@ -314,7 +315,7 @@ def _make_select_option(ctx: Ctx) -> BaseTool:
         hint = label.text if label else "option"
         if needs_human_value(ctx, option, hint):
             return await reply(ctx, await human_fills(ctx, [(point, hint)], dropdown=True))
-        return await _selected(ctx, lk, point, hint, option, {"ref": ref, "x": x, "y": y})
+        return await _selected(ctx, lk, point, hint, option, args={"ref": ref, "x": x, "y": y})
 
     return select_option
 

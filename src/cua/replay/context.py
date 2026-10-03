@@ -43,7 +43,9 @@ class Ctx:
     def __post_init__(self) -> None:
         hooks = SendHooks(on_request=self._on_request, on_gated=self._on_gated)
         words = self.session.cfg.sensitive_words
-        self.guard = SendGuard(self.run, self.control, self.secrets, words, hooks, REPLAY_OPTIONS)
+        self.guard = SendGuard(
+            self.run, self.control, self.secrets, words, hooks, options=REPLAY_OPTIONS
+        )
 
     @property
     def page(self) -> Page:

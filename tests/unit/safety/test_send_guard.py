@@ -83,7 +83,7 @@ def _new(side: str, st: State, ctl: Control) -> SendGuard:
             calls.append("on_sent")
 
         hooks = SendHooks(on_sent=on_sent, after_verdict=lambda *a: calls.append("after"))
-        return SendGuard(st, ctl, {}, WORDS, hooks, DISCOVERY_OPTIONS)
+        return SendGuard(st, ctl, {}, WORDS, hooks, options=DISCOVERY_OPTIONS)
 
     def on_request(req: object) -> None:
         st.sent = True
@@ -92,7 +92,7 @@ def _new(side: str, st: State, ctl: Control) -> SendGuard:
         st.gated = True
 
     hooks = SendHooks(on_request=on_request, on_gated=on_gated)
-    return SendGuard(st, ctl, {}, WORDS, hooks, REPLAY_OPTIONS)
+    return SendGuard(st, ctl, {}, WORDS, hooks, options=REPLAY_OPTIONS)
 
 
 async def _no_dropdowns(look: object, sent: object) -> None:
@@ -246,7 +246,7 @@ def test_gate1_edit_sends_the_edit_as_json() -> None:
     st = State(given=["777"], look=SimpleNamespace(png=b"shot"))
     ctl = Control("edit", "approve", "approve", form=["Acme Power", "777"])
     route = _route("POST", body)
-    asyncio.run(SendGuard(st, ctl, {}, WORDS, SendHooks(), DISCOVERY_OPTIONS)(route))
+    asyncio.run(SendGuard(st, ctl, {}, WORDS, SendHooks(), options=DISCOVERY_OPTIONS)(route))
     sent = json.loads(str(route.calls[-1][1]["post_data"]))
     assert sent == {"name": "Acme Power", "n": 777}
     assert [img for _, img in ctl.prompts] == [b"shot", None, None]
@@ -262,7 +262,7 @@ def test_secrets_and_sensitive_values_never_reach_the_gate_text() -> None:
 
     st = State()
     route = FakeRoute("POST", "https://x/login", "user=bob&password=hunter2&note=bob")
-    guard = SendGuard(st, Ctl(), {"username": "bob"}, WORDS, SendHooks(), DISCOVERY_OPTIONS)
+    guard = SendGuard(st, Ctl(), {"username": "bob"}, WORDS, SendHooks(), options=DISCOVERY_OPTIONS)
     asyncio.run(guard(route))
     assert "hunter2" not in seen[0]
     assert "Password: ******" in seen[0]
@@ -278,7 +278,7 @@ def test_a_held_send_never_touches_the_page(opts: object) -> None:
     st = State(given=["10"], look=SimpleNamespace(png=b"shot"))
     ctl = Control("edit", "approve", "approve", form=["1400", "10"])
     route = _route("POST", "amount=10&fromAccountId=1450")
-    guard = SendGuard(st, ctl, {}, WORDS, SendHooks(), opts)  # type: ignore[arg-type]
+    guard = SendGuard(st, ctl, {}, WORDS, SendHooks(), options=opts)  # type: ignore[arg-type]
     asyncio.run(asyncio.wait_for(guard(route), 2))
     assert page.calls == []
     assert route.calls[-1][0] == "continue_"
@@ -294,7 +294,8 @@ def test_the_lock_is_held_while_the_gates_wait() -> None:
                 await release.wait()
                 return "approve"
 
-        guard = SendGuard(State(given=["10"]), Slow(), {}, WORDS, SendHooks(), REPLAY_OPTIONS)
+        st, opts = State(given=["10"]), REPLAY_OPTIONS
+        guard = SendGuard(st, Slow(), {}, WORDS, SendHooks(), options=opts)
         task = asyncio.create_task(guard(_route("POST", "amount=10")))
         await asyncio.sleep(0)
         held = guard.lock.locked()
@@ -318,7 +319,7 @@ def test_bill_pay_json_every_field_is_editable_and_sent_back_as_json() -> None:
     edited = ["124677", "2", "Acme Power", "1 Main", "Troy", "12180", "5551234", "777"]
     ctl = Control("edit", "approve", "approve", form=edited)
     route = FakeRoute("POST", "https://x/services/bank/billpay?accountId=124677&amount=2", body)
-    asyncio.run(SendGuard(st, ctl, {}, WORDS, SendHooks(), DISCOVERY_OPTIONS)(route))
+    asyncio.run(SendGuard(st, ctl, {}, WORDS, SendHooks(), options=DISCOVERY_OPTIONS)(route))
     names = [
         "Account id",
         "Amount",
@@ -346,7 +347,7 @@ def test_bill_pay_json_every_field_is_editable_and_sent_back_as_json() -> None:
 def test_a_take_over_send_image_per_side(opts: object, images: list[object]) -> None:
     st = State(takeover=[], look=SimpleNamespace(png=b"last"))
     ctl = Control("approve", "approve")
-    guard = SendGuard(st, ctl, {}, WORDS, SendHooks(), opts)  # type: ignore[arg-type]
+    guard = SendGuard(st, ctl, {}, WORDS, SendHooks(), options=opts)  # type: ignore[arg-type]
     asyncio.run(guard(_route("POST", "customer.firstName=Ann")))
     assert [img for _, img in ctl.prompts] == images
     assert ctl.forms == []
@@ -362,5 +363,5 @@ def test_after_verdict_gets_human_so_discovery_can_keep_the_take_over_path() -> 
     hooks = SendHooks(after_verdict=keep_path)
     ctl = Control("approve", "approve")
     route = FakeRoute("POST", "https://x/services/bank/billpay?accountId=13344&amount=10", None)
-    asyncio.run(SendGuard(st, ctl, {}, WORDS, hooks, DISCOVERY_OPTIONS)(route))
+    asyncio.run(SendGuard(st, ctl, {}, WORDS, hooks, options=DISCOVERY_OPTIONS)(route))
     assert st.takeover == [{"kind": "send", "path": "/services/bank/billpay"}]

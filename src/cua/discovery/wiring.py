@@ -70,7 +70,7 @@ def build_ctx(session: Session, cfg: DiscoveryConfig, secrets: Mapping[str, str]
         secrets,
         session.cfg.sensitive_words,
         _hooks(holder),
-        DISCOVERY_OPTIONS,
+        options=DISCOVERY_OPTIONS,
     )
     holder.append(Ctx(session, cfg, guard, control, secrets))
     return holder[0]

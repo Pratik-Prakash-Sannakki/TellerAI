@@ -206,7 +206,7 @@ async def do_scroll(ctx: Ctx, step: Step, point: Point, cap: Capability) -> bool
 def next_rung(ctx: Ctx, target: Target, rung: str) -> tuple[Point, str] | None:
     """Where the rungs after `rung` point (e.g. the anchor after a wrong table cell), if any."""
     order = list(RUNGS.values())
-    base = rung.split("+")[0]
+    base = rung.split("+", maxsplit=1)[0]
     done = order[: order.index(RUNGS[base]) + 1] if base in RUNGS else order
     rest = target.model_copy(update=dict.fromkeys(done))
     if not any(getattr(rest, k) for k in order):

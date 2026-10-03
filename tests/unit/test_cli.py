@@ -203,7 +203,7 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, calls: list[tuple[object, ..
     async def check_viewport(s: object) -> None:
         calls.append(("check_viewport",))
 
-    monkeypatch.setattr(cli, "load_site", lambda name: SITE_NS(name))
+    monkeypatch.setattr(cli, "load_site", SITE_NS)
     monkeypatch.setattr(cli, "open_session", open_session)
     monkeypatch.setattr(cli, "check_viewport", check_viewport)
     monkeypatch.setattr(cli, "secret_values", lambda site: {"username": ""})

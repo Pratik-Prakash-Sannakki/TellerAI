@@ -73,7 +73,7 @@ def into_box(
     doubling up. The focus step matters: with the control tab open, keystrokes otherwise reach
     whichever tab holds the keyboard, and the box stays empty."""
     return (
-        lambda: page.bring_to_front(),
+        lambda: page.bring_to_front(),  # noqa: PLW0108 - late-bound, like the steps below
         lambda: page.mouse.click(*to_page(look, point)),
         lambda: page.keyboard.press("ControlOrMeta+A"),
         lambda: page.keyboard.press("Backspace"),

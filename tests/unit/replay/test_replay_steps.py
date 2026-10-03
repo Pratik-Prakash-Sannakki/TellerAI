@@ -292,7 +292,7 @@ async def _judge(http: tuple[int, str] | None, text: str) -> bool:
         steps=[navigate("/x")],
         checkpoint="x",
     )
-    return await engine.judge(ctx, 0, "", cp, None, [])
+    return await engine.judge(ctx, 0, "", cp, None, drift=[])
 
 
 @pytest.mark.asyncio

@@ -84,7 +84,7 @@ def login_came_back(cap: Capability, i: int, before: str, after: str) -> bool:
 
 
 async def judge(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, i: int, before: str, cap: Capability, crops: Path | None, drift: Drift
+    ctx: Ctx, i: int, before: str, cap: Capability, crops: Path | None, *, drift: Drift
 ) -> bool:
     """R17 after a step. BUSINESS_OUTCOME / FAILED stop; RECOVER logs in again once. True =
     retry."""
@@ -101,7 +101,7 @@ async def judge(  # noqa: PLR0913 (constraints allow 6)
         run.recoveries += 1
         drift.append({"step": i, "action": "relogin", "rung": "recover", "outcome": rule["text"]})
         for j, s in enumerate(login_steps(cap)):
-            await run_step(ctx, j, s, cap, crops, drift)
+            await run_step(ctx, j, s, cap, crops, drift=drift)
         run.step, run.action = i, cap.steps[i].action
         return True
     status = "BUSINESS_OUTCOME" if rule["status"] == "BUSINESS_OUTCOME" else "FAILED"
@@ -109,7 +109,7 @@ async def judge(  # noqa: PLR0913 (constraints allow 6)
 
 
 async def run_step(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, i: int, step: Step, cap: Capability, crops: Path | None, drift: Drift
+    ctx: Ctx, i: int, step: Step, cap: Capability, crops: Path | None, *, drift: Drift
 ) -> None:
     run = ctx.run
     run.step, run.action = i, step.action
@@ -137,7 +137,7 @@ async def run_step(  # noqa: PLR0913 (constraints allow 6)
         status = run.verdict.split(":")[0]
         if status in ("STUCK", "DECLINED"):
             raise Stop(status, run.verdict)
-        if await judge(ctx, i, before, cap, crops, drift):
+        if await judge(ctx, i, before, cap, crops, drift=drift):
             attempt -= 1  # the re-login does not use up the step's retry
             continue
         if ok:
@@ -182,7 +182,7 @@ async def _main_steps(ctx: Ctx, cap: Capability, crops: Path | None, drift: Drif
             drift.append({"step": i, "action": step.action, "rung": "skipped"})  # read outputs
             continue
         before = ctx.run.look.text if ctx.run.look else ""
-        await run_step(ctx, i, step, cap, crops, drift)
+        await run_step(ctx, i, step, cap, crops, drift=drift)
         reached = reached or took_over_to_checkpoint(ctx, i, cap, before)
 
 
@@ -210,7 +210,7 @@ async def walk(ctx: Ctx, cap: Capability, crops: Path | None, drift: Drift) -> R
 
 
 async def _cleanup_step(  # noqa: PLR0913 (constraints allow 6)
-    ctx: Ctx, i: int, step: Step, cap: Capability, crops: Path | None, drift: Drift
+    ctx: Ctx, i: int, step: Step, cap: Capability, crops: Path | None, *, drift: Drift
 ) -> str:
     """One cleanup step, one retry. "" = done, else the failure."""
     if refused := action_allowed(ctx, step):
@@ -248,7 +248,7 @@ async def run_cleanup(ctx: Ctx, cap: Capability, crops: Path | None, drift: Drif
     if not todo:
         return ""
     for i, step in todo:
-        if failed := await _cleanup_step(ctx, i, step, cap, crops, drift):
+        if failed := await _cleanup_step(ctx, i, step, cap, crops, drift=drift):
             return failed
     return "done"
 

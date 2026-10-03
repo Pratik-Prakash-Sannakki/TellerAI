@@ -17,7 +17,7 @@ from typing import Protocol
 
 
 class Asker(Protocol):
-    async def ask(  # noqa: PLR0913 - mirrors ControlWindow.ask
+    async def ask(  # noqa: PLR0913, PLR0917 - mirrors ControlWindow.ask
         self,
         title: str,
         details: str,
