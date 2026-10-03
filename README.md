@@ -390,6 +390,17 @@ cp .env.example .env                     # then fill in the keys below
 
 Replay needs no LLM key.
 
+**Models.** Discovery uses two Claude models, both through `ANTHROPIC_API_KEY`, so the key needs
+access to both:
+
+- **Sonnet** (`claude-sonnet-5`): every agent step by default. With no `TYPESAFE_API_KEY`, it is
+  the only model the agent uses.
+- **Haiku** (`claude-haiku-4-5-20251001`): simple agent steps, only when `TYPESAFE_API_KEY` is set
+  and the router is confident. Also NeMo's goal check whenever rails are on (`rails: "on"` in
+  `configs/parabank.yaml`, with `--extra rails` installed).
+- The model names are not in `.env`. They are constants in `src/cua/config.py`
+  (`SONNET_MODEL_NAME`, `HAIKU_MODEL_NAME`); change them there.
+
 > ParaBank's demo database resets now and then, deleting users. If login fails with "could not be
 > verified", re-register the same user in a normal browser first. Fixing it through a take-over
 > makes the run unsavable.
