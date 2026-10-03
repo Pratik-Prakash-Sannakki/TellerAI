@@ -184,3 +184,13 @@ def test_rails_mode_defaults_on_and_is_validated(tmp_path: Path) -> None:
     (tmp_path / "configs" / "c.yaml").write_text(base + "rails: maybe\n")
     with pytest.raises(ValueError, match="rails"):
         load_site("c", tmp_path)
+
+
+def test_rails_unquoted_booleans_map_correctly(tmp_path: Path) -> None:
+    (tmp_path / "configs").mkdir()
+    base = "start_url: https://x.test/\nallowed_hosts: [x.test]\n"
+    # YAML parses unquoted 'on' as True, 'off' as False
+    (tmp_path / "configs" / "on.yaml").write_text(base + "rails: on\n")
+    assert load_site("on", tmp_path).rails == "on"
+    (tmp_path / "configs" / "off.yaml").write_text(base + "rails: off\n")
+    assert load_site("off", tmp_path).rails == "off"

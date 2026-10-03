@@ -146,7 +146,8 @@ RAILS_MODES = ("off", "on", "required")
 
 
 def _rails(value: object, path: Path) -> str:
-    mode = str(value)
+    # YAML parses unquoted 'on'/'off' as booleans True/False; map them back to strings
+    mode = ("on" if value else "off") if isinstance(value, bool) else str(value)
     if mode not in RAILS_MODES:
         raise ValueError(f"{path}: rails must be one of {RAILS_MODES}, got {mode!r}")
     return mode
