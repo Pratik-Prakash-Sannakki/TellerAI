@@ -125,10 +125,41 @@ def test_the_no_global_table_functions_are_byte_identical_to_discoverys_source()
     src_defs = _defs(DISCOVERY, NO_GLOBALS)
     mod_defs = _defs(Path(table_mod.__file__), NO_GLOBALS)
     assert set(src_defs) == NO_GLOBALS
-    assert mod_defs == src_defs
+    # Fixed since the snapshot (menu texts beside the table hid its rows): no longer pinned.
+    fixed = {"table_columns", "read_rows"}
+    assert {k: v for k, v in mod_defs.items() if k not in fixed} == {
+        k: v for k, v in src_defs.items() if k not in fixed
+    }
 
 
 def test_replay_and_discovery_agree_on_what_is_shared_with_cua_vision_table() -> None:
     """tests/replay/test_table_replay.py's own SHARED set is the contract this module ports;
     every name it lists is importable from cua.vision.table."""
     assert REPLAY_SHARED.issubset(NO_GLOBALS)
+
+
+# The live Accounts Overview screen (1280x800 OCR): the left menu's items sit at the same heights
+# as the header and the rows. They must not push the header line's bottom below the first row, nor
+# end the table as an empty row.
+OVERVIEW_LIVE = [
+    ("Open New Account", (288, 305, 422, 328)),
+    ("Account", (485, 318, 550, 342)),
+    ("Balance*", (600, 317, 667, 341)),
+    ("Available Amount", (734, 320, 854, 340)),
+    ("Accounts Overview", (288, 331, 421, 351)),
+    ("13344", (485, 345, 525, 369)),
+    ("$5022.93", (602, 345, 671, 369)),
+    ("$5022.93", (733, 345, 801, 369)),
+    ("Transfer Funds", (286, 352, 397, 375)),
+    ("Bill Pay.", (286, 375, 354, 401)),
+    ("Total $5022.93", (565, 375, 670, 395)),
+    ("Find Transactions", (287, 401, 412, 424)),
+    ("*Balance includes deposits that may be subject to holds", (488, 403, 820, 423)),
+]
+
+
+def test_menu_texts_beside_the_table_neither_hide_nor_end_its_rows() -> None:
+    rows, _ = _read(
+        OVERVIEW_LIVE, header="Account", cols=["Account", "Balance*", "Available Amount"]
+    )
+    assert rows == [{"Account": "13344", "Balance*": "$5022.93", "Available Amount": "$5022.93"}]

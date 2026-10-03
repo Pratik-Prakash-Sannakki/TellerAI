@@ -167,18 +167,28 @@ def test_the_outputs_line_shows_rows() -> None:
     assert "Bill Payment" in ReplayResult("SUCCESS", {"transactions_1": WANT}, []).outputs_line  # type: ignore[dict-item]
 
 
-# The left menu's "Account Services" and "Accounts Overview" start with "Account" and sit above
-# the table's own "Account" header: header 1 is the first "Account" whose line holds the columns.
+# Accounts Overview as live OCR sees it (discovery run 20261003T004411Z: header box
+# [484, 318, 550, 342], columns_x [452.5, 575] [575, 700.5] [700.5, 974]). The left menu's
+# "Account Services" and the title "Accounts Overview" start with "Account" and sit above the
+# header; the menu's own "Accounts Overview" shares the header's line and reaches below its bottom,
+# and "Transfer Funds" sits beside the data row. A "Total" line and a footnote end the table.
 OVERVIEW = [
-    ("Account Services", (0, 40, 120, 60)),
-    ("Accounts Overview", (0, 70, 130, 90)),
-    ("Account", (200, 100, 260, 120)),
-    ("Balance*", (350, 100, 420, 120)),
-    ("Available Amount", (500, 100, 620, 120)),
-    ("13344", (200, 130, 250, 150)),
-    ("$5022.93", (350, 130, 420, 150)),
-    ("$5022.93", (510, 130, 580, 150)),
-    *FOOTER,
+    ("Account Services", (297, 270, 420, 290)),
+    ("Accounts Overview", (484, 270, 640, 295)),
+    ("Open New Account", (297, 300, 420, 320)),
+    ("Account", (484, 318, 550, 342)),
+    ("Balance*", (600, 318, 689, 342)),
+    ("Available Amount", (712, 318, 843, 342)),
+    ("Accounts Overview", (297, 324, 421, 346)),
+    ("13344", (484, 345, 530, 365)),
+    ("$5022.93", (600, 345, 668, 365)),
+    ("$5022.93", (712, 345, 780, 365)),
+    ("Transfer Funds", (297, 349, 400, 369)),
+    ("Bill Pay.", (297, 374, 355, 394)),
+    ("Total $5022.93", (484, 378, 668, 398)),
+    ("Find Transactions", (297, 399, 420, 419)),
+    ("*Balance includes deposits that may be subject to holds", (484, 402, 860, 420)),
+    ("Update Contact Info", (297, 424, 430, 444)),
 ]
 
 
@@ -205,3 +215,28 @@ async def test_label_hits_without_the_columns_are_a_failed_check(
         [menu_only], monkeypatch, header={"label": "Account"}, columns=["Account", "Balance*"]
     )
     assert ok is False and "transactions_1" not in ctx.run.outputs
+
+
+@pytest.mark.asyncio
+async def test_menu_items_at_the_header_and_row_heights_do_not_hide_the_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Live ParaBank: "Accounts Overview" (menu) reaches below the header into the first row, and
+    # "Transfer Funds" (menu) sits on a line of its own between the row and the Total line.
+    beside = [
+        ("Account", (200, 100, 260, 120)),
+        ("Balance*", (350, 100, 420, 120)),
+        ("Available Amount", (500, 100, 620, 120)),
+        ("Accounts Overview", (0, 110, 130, 135)),
+        ("13344", (200, 130, 250, 150)),
+        ("$5022.93", (350, 130, 420, 150)),
+        ("$5022.93", (510, 130, 580, 150)),
+        ("Transfer Funds", (0, 138, 110, 160)),
+        ("Total $5022.93", (330, 160, 430, 180)),
+    ]
+    cols = ["Account", "Balance*", "Available Amount"]
+    ctx, ok = await _run([beside], monkeypatch, header={"label": "Account"}, columns=cols)
+    assert ok is True
+    assert ctx.run.outputs["transactions_1"] == [
+        {"Account": "13344", "Balance*": "$5022.93", "Available Amount": "$5022.93"}
+    ]
