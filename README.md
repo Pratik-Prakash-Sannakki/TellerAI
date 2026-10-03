@@ -374,7 +374,6 @@ runs visibly). Built and tested on macOS.
 ```bash
 uv sync                                  # add --extra typesafe / --extra rails as needed
 uv run playwright install chromium
-uv run python -m ipykernel install --user --name banker-agent --display-name "BankerAgent (.venv)"
 cp .env.example .env                     # then fill in the keys below
 ```
 
@@ -384,7 +383,7 @@ cp .env.example .env                     # then fill in the keys below
 |---|---|---|
 | `PARABANK_USERNAME` / `PARABANK_PASSWORD` | discovery and replay | a ParaBank demo user (fake data). Typed by `type_secret`; the model sees the name only |
 | `ANTHROPIC_API_KEY` | discovery only | every LLM call goes direct to Anthropic (`src/cua/llm.py`) |
-| `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one |
+| `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one (`REQUESTS_CA_BUNDLE` also works) |
 | `TYPESAFE_API_KEY` | optional | TypeSafe tool selection + per-step Haiku/Sonnet routing. Needs `uv sync --extra typesafe` |
 | `LANGSMITH_TRACING` / `LANGSMITH_ENDPOINT` / `LANGSMITH_API_KEY` | optional | LangSmith traces: agent trace, latency, cost per run |
 | (extra) `rails` | optional | NeMo input rails on the discovery goal; `uv sync --extra rails` |
