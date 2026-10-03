@@ -37,3 +37,5 @@ outcomes:
   - {text: session expired, status: RECOVER, meaning: the session expired}
   - {text: access denied, status: FAILED, meaning: the site denied access}
   - {text: error, status: FAILED, meaning: the site showed an error page}
+# NeMo guardrails on the discovery goal: off | on (if installed) | required
+rails: "on"

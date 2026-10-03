@@ -101,6 +101,23 @@ sends the traces, no extra code.
 - **What leaves the machine:** what the model sees (screenshots, the goal, its own messages).
   Secrets never do: the model only ever sees their names. Fake data only.
 
+### Guardrails (NeMo)
+
+Discovery checks the goal with [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails)
+before the browser opens. Rails are written in Colang in `configs/rails/`.
+
+- **Input rails:** off-topic, jailbreak, steering ("give me control", "skip the gates") and
+  sensitive/emotional goals are refused. The goal is checked sentence by sentence and whole.
+- **How it decides:** local embeddings first (no API call); only an unclear goal goes to Haiku.
+- **Refused goal:** prints why, writes a `REFUSED` evidence folder (rail and score only), exits 1.
+  The browser never opens and the agent spends nothing.
+- **Output rail:** the final answer is masked (card numbers, SSNs, account ids); a credential or a
+  secret value withholds it.
+- **Fails closed:** if the rails error or time out, the goal is refused.
+- **Setup:** `uv sync --extra rails`. The first run downloads the embedding model (~90 MB).
+  `rails: off | on | required` in the site config; `on` runs without the extra (prints
+  "guardrails OFF"), `required` refuses every goal until it's installed.
+
 ### Confidence-driven tool selection and model routing (TypeSafe)
 
 Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`), else the agent runs Sonnet
@@ -369,6 +386,7 @@ cp .env.example .env                     # then fill in the keys below
 | `SSL_CERT_FILE` | optional | a corporate CA bundle, if your network needs one |
 | `TYPESAFE_API_KEY` | optional | turns on TypeSafe tool selection + per-step Haiku/Sonnet routing for discovery. Needs `uv sync --extra typesafe` |
 | `LANGSMITH_TRACING` / `LANGSMITH_ENDPOINT` / `LANGSMITH_API_KEY` | optional | LangSmith traces for discovery: agent trace, latency, token usage and cost per run (see "Observability") |
+| (extra) `rails` | optional | NeMo input rails on the discovery goal; `uv sync --extra rails` |
 
 Replay needs no LLM key at all.
 

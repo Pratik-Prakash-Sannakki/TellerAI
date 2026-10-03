@@ -124,6 +124,9 @@ only the screenshot and input layer.
 
 ## Safety
 
+- **Guardrails (NeMo):** the goal is checked before any work (off-topic, jailbreak, steering,
+  sensitive), embeddings first with a Haiku fallback; refused goals exit 1 with REFUSED
+  evidence. The answer is masked on the way out. Both fail closed.
 - **Every send held at the network layer (built).** `SendGuard` (`page.route`) holds any non-GET
   (login exempt). A number the human never gave opens a prefilled form; then Gate 1 (approve/edit)
   and Gate 2 (send?). No means `DECLINED`. Neither agent nor replay ever approves a send.
