@@ -324,13 +324,13 @@ opens. Rails are Colang in `configs/rails/`. Full reference (thresholds, tripwir
 - **Fails closed:** an error or timeout refuses the goal.
 - **Setup:** `uv sync --extra rails` (first run downloads a ~90 MB embedding model). `rails: off | on | required` in the site config: `on` without the extra prints "guardrails OFF"; `required` refuses every goal until it's installed.
 
-### Confidence-driven tool selection and model routing (TypeSafe)
+### TypeSafe Jev: confidence-driven tool selection and model routing using RLCD
 
 Optional: on when `TYPESAFE_API_KEY` is set (`uv sync --extra typesafe`); else Sonnet with every
 tool. Code: `src/cua/discovery/agent/routing.py`.
 
-Before **each** model call, a [TypeSafe](https://typesafe.ai) classifier answers two questions, each
-with a **confidence**. Its models are trained with **RLCD** (Reinforcement Learning for Calibrated
+Before **each** model call, **Jev**, a classifier model from [TypeSafe](https://typesafe.ai), answers two questions, each
+with a **confidence**. Jev is trained with **RLCD** (Reinforcement Learning for Calibrated
 Decisions), so a "0.9" is right about 90% of the time and a fixed threshold means something.
 
 1. **Which job is this step?** `login`, `fill_form`, `read_value`, `navigate`, `need_human` or
