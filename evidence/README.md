@@ -49,7 +49,7 @@ A goal the rails refuse writes a short folder and exits 1; the browser never ope
 | `summary.json` | `{status: REFUSED, rail, score}`; rail is `off_topic`, `jailbreak`, `steering`, `sensitive` or `empty_goal` |
 | `run.json` | prompt version, model name, config hash, git sha |
 
-Live examples: `discovery/20261003T06*` (six runs; list in `docs/GUARDRAILS.md`).
+Live examples: `discovery/20261003T06*` (six runs; list in [`docs/components/guardrails.md`](../docs/components/guardrails.md)).
 
 ## eval/<UTC>-<name>/
 

@@ -1,9 +1,23 @@
-# Teller guardrails: how they decide
+# Guardrails (NeMo input and output rails)
 
-Reference for the NeMo guardrails on `cua discover`. Code: `src/cua/safety/rails.py` (orchestration,
-output rail, refusal texts), `src/cua/safety/nemo.py` (classifier), `configs/rails/` (examples and
-thresholds). Spec: `docs/superpowers/specs/2026-10-03-nemo-guardrails-design.md`.
-Examples below are copied from the tests (`tests/unit/safety/rails_goals.py`, `test_rails_*.py`).
+The goal is checked before the browser opens; the agent's final answer is masked before it is
+printed or stored. Discovery only: replay has no free text to rail. This is an extra layer at the
+two edges, in front of the [send gates and masking](safety.md), not a replacement.
+
+## Where it lives
+
+- [`src/cua/safety/rails.py`](../../src/cua/safety/rails.py): `check_goal` (orchestration),
+  `check_output` / `safe_output` (output rail), `REFUSALS`, `RailVerdict`.
+- [`src/cua/safety/nemo.py`](../../src/cua/safety/nemo.py): `NemoClassifier`, `load_classifier`,
+  `rails_installed`, the tripwire and clause split.
+- [`configs/rails/`](../../configs/rails/): `config.yml`, `input.co` (Colang examples),
+  `thresholds.yml`.
+- Called from `cua.cli.discover` ([CLI and eval](cli-and-eval.md)); refusals are saved by
+  `save_refused` ([evidence](evidence.md)).
+- Design spec: [2026-10-03-nemo-guardrails-design.md](../superpowers/specs/2026-10-03-nemo-guardrails-design.md).
+- Tests: `tests/unit/safety/test_rails_input.py`, `test_rails_nemo.py`, `test_rails_output.py`
+  (labelled goals in `rails_goals.py`); `tests/unit/test_cli.py` (rails modes, fail closed).
+- Examples below are copied from those tests.
 
 ## 1. What the guardrails are
 

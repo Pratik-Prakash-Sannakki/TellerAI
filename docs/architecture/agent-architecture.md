@@ -1,8 +1,10 @@
 # Agent architecture (discovery)
 
-How Teller's discovery agent works, what runs where, and where the guardrails sit. Replay is
-plain code with no LLM (last section). Deeper per-part detail: `notebooks/discovery/discovery_architecture.md`,
-`src/cua/discovery/README.md`, `src/cua/safety/README.md`.
+How Teller's discovery agent works end to end, what runs where, and where the guardrails sit.
+Replay is plain code with no LLM (last section). Per-component detail:
+[discovery agent](../components/discovery-agent.md), [recorder](../components/recorder.md),
+[guardrails](../components/guardrails.md), [safety](../components/safety.md),
+[LLM and routing](../components/llm-and-routing.md). Index: [docs/README.md](../README.md).
 
 ## 1. The whole run, in order
 
@@ -47,12 +49,12 @@ plain code with no LLM (last section). Deeper per-part detail: `notebooks/discov
 |---|---|---|---|
 | Input rail | NeMo Guardrails (Colang, local embeddings) | `safety/rails.py`, `safety/nemo.py`, `configs/rails/` | Haiku only in the unsure band |
 | Browser, host lock | Playwright | `browser/` | no |
-| Perception | screenshot + RapidOCR, numbered boxes | `vision/look.py` | no |
+| Perception | screenshot + RapidOCR, numbered boxes | `vision/screenshot.py`, `vision/ocr.py` | no |
 | Agent loop | deepagents (LangGraph), Sonnet | `discovery/agent/`, `llm.py` | yes |
 | Tools (act/read/nav/human) | our `@tool`s | `discovery/tools/` | no (called by the LLM) |
 | Send gates | Approve/Edit window, mismatch check | `safety/send_guard.py`, `handoff/` | no |
 | Output rail | regex + Luhn + id mask | `safety/rails.py` (`check_output`) | no |
-| Capability save | recorder, one Haiku call to describe the goal | `discovery/recorder/` | one call |
+| Capability save | recorder; one call to the agent's model (Sonnet) for name and descriptions | `discovery/recorder/` | one call |
 | Tracing | LangSmith | env vars | n/a |
 
 ## 3. The guardrail layers

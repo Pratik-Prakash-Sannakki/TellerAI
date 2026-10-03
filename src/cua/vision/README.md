@@ -3,6 +3,8 @@
 Pixels -> text: screenshots, OCR, canvas math, crops, and the shared table reader. Pure
 (no Playwright) except `screenshot.py`.
 
+Design doc: [`docs/components/vision.md`](../../../docs/components/vision.md).
+
 ## Read order
 1. `look.py` - `Box`, `Element`, `Look` (the shapes everything else here reads/writes),
    `decode`/`encode`.

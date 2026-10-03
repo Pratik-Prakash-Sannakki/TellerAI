@@ -2,6 +2,8 @@
 
 Playwright, no decisions: the open browser, the site lock, our own input, native dropdowns.
 
+Design doc: [`docs/components/browser.md`](../../../docs/components/browser.md).
+
 ## Read order
 1. `site_lock.py` - `SiteLock`: CDP `Input.setIgnoreInputEvents`. `open()` is the only unlock
    path and always re-locks, even on an exception.

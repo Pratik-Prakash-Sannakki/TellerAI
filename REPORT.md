@@ -3,8 +3,8 @@
 A computer-use system for ParaBank: a **discovery agent** learns a task from screenshots, writes a
 **capability artifact** (YAML), and a **replay engine** runs it again with plain code, no LLM.
 One package, `src/cua/`, with a `cua` CLI. Setup and commands: `README.md`. Decisions: `Q*` in
-`notebooks/discovery/decisions.md`, `R*`/`P*` in `notebooks/replay/`. **Built** = in code and
-tested; **designed** = decided, not built.
+`docs/decisions/discovery-decisions.md`, `R*`/`P*` in `docs/decisions/replay-decisions.md`. Per-component detail:
+[`docs/README.md`](docs/README.md). **Built** = in code and tested; **designed** = decided, not built.
 
 ## 1. Architecture
 

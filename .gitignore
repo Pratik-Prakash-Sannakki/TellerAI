@@ -39,3 +39,11 @@ brag-output/work/
 # personal Obsidian vault, not part of the submission
 assigment -compuse/
 .cache/
+
+# Local-only (kept on disk, out of the repo: production code only)
+brag-output/
+graphify-out/
+notebooks/
+tests/integration/test_notebooks.py
+CLAUDE.md
+assigment -compuse/

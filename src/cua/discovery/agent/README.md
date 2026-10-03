@@ -1,6 +1,7 @@
 # cua.discovery.agent
 
 The discovery deep agent: what the model is told, what wraps each model call, and how it is built.
+Design doc: [`docs/components/discovery-agent.md`](../../../../docs/components/discovery-agent.md).
 
 ## Read order
 1. `prompt.py` - `VISUAL_SYSTEM_PROMPT` (the notebook's, verbatim, plus one later rule: save the

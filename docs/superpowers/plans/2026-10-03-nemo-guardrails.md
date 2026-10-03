@@ -1,5 +1,8 @@
 # NeMo Guardrails for Teller (discovery) Implementation Plan
 
+> **Historical.** Build plan for the NeMo guardrails, done 2026-10-03. Current reference:
+> [guardrails](../../components/guardrails.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Refuse off-topic / jailbreak / steering / sensitive discovery goals before any browser or agent work, and mask or withhold credentials and PII in the agent's final answer, using NVIDIA NeMo Guardrails.

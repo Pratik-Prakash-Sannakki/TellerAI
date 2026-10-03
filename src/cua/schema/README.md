@@ -2,6 +2,8 @@
 
 The contract: what discovery writes and replay reads. Pure Pydantic / dataclasses, no I/O.
 
+Design doc: [`docs/components/capability-format.md`](../../../docs/components/capability-format.md).
+
 ## Read order
 1. `capability.py` - `Capability` (schema v2, `SCHEMA_VERSION = 2`), its steps and targets
    (rungs: `OcrText`, `Anchor`, template, `TableCell`; `ExtractOptions` reads a dropdown's

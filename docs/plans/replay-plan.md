@@ -1,5 +1,8 @@
 # Replay notebook plan
 
+> **Historical.** Plan for the replay notebook, superseded by the `src/cua/` package; kept for
+> the record only. Current docs: [docs/README.md](../README.md).
+
 Build `replay.py` (jupytext) -> `replay.ipynb`. Spec: `DECISIONS.md` R1-R18, `replay_architecture.md`.
 
 ## Sections

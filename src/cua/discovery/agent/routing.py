@@ -1,4 +1,4 @@
-"""TypeSafe tool selection + model routing, restored (user, 2026-10-01; notebooks/discovery/PLAN.md
+"""TypeSafe tool selection + model routing, restored (user, 2026-10-01; docs/plans/discovery-plan.md
 D50/D52/D76). Ported from the old DOM agent (``git show 4f692a8^:src/cua/agent.py``, the
 ``NEVER_HIDE``..``build_typesafe_middleware`` block) and re-mapped to the visual tools.
 

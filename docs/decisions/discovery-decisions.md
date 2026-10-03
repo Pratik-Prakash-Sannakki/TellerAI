@@ -2,7 +2,7 @@
 
 Questions and decisions for the pure-visual discovery engine (redesign, in design). Nothing here
 is built yet. Source of truth for the wider design: `ARCHITECTURE.md` §4. Diagram and tool list:
-`discovery_architecture.md` in this folder.
+`docs/architecture/discovery-architecture.md`.
 
 Status key: **DECIDED** = user-confirmed. **OPEN** = not answered yet. All questions are now decided.
 

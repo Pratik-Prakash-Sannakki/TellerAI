@@ -2,7 +2,7 @@
 
 https://github.com/user-attachments/assets/5ef8c957-d093-440a-b31c-b6f06ea4ec09
 
-*The 46-second intro, with sound. The file is also at [`brag-output/brag.mp4`](brag-output/brag.mp4).*
+*The 46-second intro, with sound.*
 
 ## The problem
 
@@ -90,8 +90,9 @@ flowchart TB
 
 - **Discovery** uses a model; **replay** never does. The capability file is the only thing between them.
 - **Shared core** (`src/cua/`): `vision`, `browser`, `safety`, `handoff`, `schema`. `discovery` and `replay`
-  never import each other; `replay` has no model import (tested in `tests/unit/test_import_rules.py`).
+  never import each other (tested in `tests/unit/test_import_rules.py`); `replay` imports no model.
 - **A human is in the loop on both sides:** questions, take-over, and the two send gates.
+- **One doc per component** (purpose, code, API, config, guarantees, tests, limits): [`docs/README.md`](docs/README.md).
 
 ### 2. Extended architecture
 
@@ -277,7 +278,8 @@ resumes where it stopped.
 
 ## The agent
 
-Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
+Long form: [`docs/architecture/agent-architecture.md`](docs/architecture/agent-architecture.md) (the run end to end)
+and [`docs/components/discovery-agent.md`](docs/components/discovery-agent.md) (tools, middleware, guards).
 
 **Build.** One deep agent, `create_deep_agent` from LangChain's
 [`deepagents`](https://github.com/langchain-ai/deepagents) on LangGraph, in
@@ -292,6 +294,7 @@ Long form: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md).
 - The TypeSafe tool and model routers (below), when switched on.
 
 **Models.** Claude only, direct to Anthropic via `cua.llm.make_chat_model`. Replay uses none.
+Details: [`docs/components/llm-and-routing.md`](docs/components/llm-and-routing.md).
 
 | Role | Model | When |
 |---|---|---|
@@ -311,14 +314,14 @@ Discovery is traced in [LangSmith](https://smith.langchain.com), switched on by 
 ### Guardrails (NeMo)
 
 [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails) checks the goal before the browser
-opens. Rails are Colang in `configs/rails/`. Full reference: [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md).
+opens. Rails are Colang in `configs/rails/`. Full reference (thresholds, tripwire, examples, limits):
+[`docs/components/guardrails.md`](docs/components/guardrails.md).
 
 - **Input rail:** refuses off-topic, jailbreak, steering ("skip the gates") and sensitive goals. Checked sentence by sentence and whole.
-- **How it decides:** embeddings refuse clear attacks and auto-allow only short goals close to a known banking example. The rest goes to one Haiku call per sentence (plus the whole goal). A tripwire word list and clause scoring stop tacked-on attacks.
+- **How it decides:** embeddings refuse clear attacks and auto-allow only short goals close to a known banking example. The rest goes to Haiku.
 - **Refused:** prints why, writes a `REFUSED` evidence folder (rail + score only), exits 1. No browser, no main agent.
 - **Output rail:** the final answer is masked (cards, SSNs, account ids); a credential or secret withholds it.
 - **Fails closed:** an error or timeout refuses the goal.
-- **Spec deviations:** the output rail is plain Python; no Colang flows or bot messages run (refusal texts live in `REFUSALS`); NeMo provides the Colang examples and the embedding index; the recorded score is NeMo's similarity (on LLM-decided goals, the whole-goal intent score).
 - **Setup:** `uv sync --extra rails` (first run downloads a ~90 MB embedding model). `rails: off | on | required` in the site config: `on` without the extra prints "guardrails OFF"; `required` refuses every goal until it's installed.
 
 ### Confidence-driven tool selection and model routing (TypeSafe)
@@ -357,8 +360,11 @@ Decisions), so a "0.9" is right about 90% of the time and a fixed threshold mean
 Human help shows on the status and, value-free, in `human[]`: `SUCCESS (human input at step N)`
 (a person picked a value) or `SUCCESS (human intervened at step N)` (a person took over, then handed back).
 
-Design and trade-offs: `REPORT.md`. Every decision: `notebooks/discovery/decisions.md` (Q*, routing
-is Q22) and `notebooks/replay/DECISIONS.md` (R*).
+Per component: [replay](docs/components/replay.md), [recorder](docs/components/recorder.md),
+[vision](docs/components/vision.md), [browser](docs/components/browser.md),
+[capability format](docs/components/capability-format.md).
+Design and trade-offs: `REPORT.md`. Every decision: [`docs/decisions/discovery-decisions.md`](docs/decisions/discovery-decisions.md) (Q*, routing
+is Q22) and [`docs/decisions/replay-decisions.md`](docs/decisions/replay-decisions.md) (R*).
 
 ## Setup
 
@@ -393,7 +399,8 @@ Replay needs no LLM key.
 
 Everything bank-specific lives in **one file**, `configs/<site>.yaml`, loaded into a frozen
 `SiteProfile` by `cua.config.load_site("<site>")`. `src/` holds no site values
-(`tests/unit/test_no_site_values.py`). Sample below is abridged.
+(`tests/unit/test_no_site_values.py`). Sample below is abridged; every key and default:
+[`docs/components/config.md`](docs/components/config.md).
 
 ```yaml
 name: parabank
@@ -443,6 +450,7 @@ to be a username + password form.
 - `--site` picks a profile from `configs/` (default: the only one, `parabank`).
 - `cua replay` exits 1 unless the result is `SUCCESS`.
 - `cua eval` replays N times in one session and prints a stability table: status counts, success rate, human-assisted runs, rung histogram per step, fallback steps, and whether outputs matched (yes/no, never values; one value-free line per unstable output). Writes `evidence/eval/<UTC>-<name>/report.json`. Every input via `--input`; exits 1 unless every run is `SUCCESS`.
+- All flags and what each command does: [`docs/components/cli-and-eval.md`](docs/components/cli-and-eval.md).
 
 **What you'll see:** Chromium with the bank tab and an "Agent control" tab. The control tab comes
 forward when you're needed: answer, fill a form, or approve/edit at the two gates. On a take-over the
@@ -456,7 +464,8 @@ Saved capabilities in `artifacts/`: `pay_bill`, `pay_bill_to_payee`, `transfer_f
 
 ## Evidence
 
-Masked run folders in `evidence/` (layout: `evidence/README.md`).
+Masked run folders in `evidence/` (layout: [`evidence/README.md`](evidence/README.md); writer code:
+[`docs/components/evidence.md`](docs/components/evidence.md)).
 
 | Capability | Discovery run (saved it) | Replay / eval runs |
 |---|---|---|
@@ -487,10 +496,13 @@ Other runs:
   - `replay/20260930T033412Z-pay_bill`: STUCK at step 6 after a take-over.
   - `replay/20260930T041553Z-transfer_funds`: FAILED, site error page; retired.
   - Discovery: `discovery/20260930T055623Z-log_in_get_account_balance_for_all_accou`, `discovery/20260930T035011Z-log_in_transfer_funds`.
-- Guardrail refusals (live, 6 `REFUSED` folders: off_topic, jailbreak, steering, sensitive, suffix attack, empty goal): `discovery/20261003T06*`; list in [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md).
+- Guardrail refusals (live, 6 `REFUSED` folders: off_topic, jailbreak, steering, sensitive, suffix attack, empty goal): `discovery/20261003T06*`; list in [`docs/components/guardrails.md`](docs/components/guardrails.md).
 - Discovery take-overs (failed login, re-register, hand back) are in `summary.json`, e.g. `discovery/20261002T074508Z-log_in_pay_bill`.
 
 ## Safety controls
+
+Details: [`docs/components/safety.md`](docs/components/safety.md) (gates, host lock, masking) and
+[`docs/components/handoff.md`](docs/components/handoff.md) (control tab, take-over).
 
 - **Every send is held.** `SendGuard` holds every non-GET at the network layer (login exempt). Mismatch check flags any number the human never gave, then Gate 1 (approve / edit) and Gate 2 (send / decline). The agent never approves; replay never auto-approves.
 - **Allowed actions.** `allowed_actions` in `configs/<site>.yaml`. Discovery refuses others (`REFUSED`, logged); replay fails that step before acting.
@@ -507,7 +519,7 @@ Other runs:
 No key, no browser, no network:
 
 ```bash
-.venv/bin/python -m pytest -q tests     # 1941 passed (2026-10-03)
+.venv/bin/python -m pytest -q tests     # 1928 passed (2026-10-03)
 .venv/bin/mypy --strict src             # no issues (73 files)
 uvx ruff check src tests                # lint
 ```
@@ -534,10 +546,10 @@ src/cua/               the package (src/cua/README.md: read order and import rul
   cli.py               cua discover / replay / eval
 configs/parabank.yaml  the ONLY place ParaBank values live (configs/rails/: the NeMo rails)
 artifacts/             saved capabilities (<name>.yaml) and their crops (crops/<name>/)
-docs/                  AGENT_ARCHITECTURE.md, GUARDRAILS.md
-notebooks/             discovery/ and replay/ demos, decisions, architecture notes
+docs/                  README.md (index), components/ (one doc per part), decisions/, architecture/, plans/
 extensions/handback/   Chrome toolbar extension for handing control back
-tests/                 unit/ mirrors src/cua/; integration/ round trip + notebook parity
+tests/                 unit/ mirrors src/cua/; integration/ round trip + saved artifacts
 evidence/              masked discovery/ and replay/ run folders; cua eval writes eval/ (evidence/README.md)
-brag-output/           the intro video (brag.mp4), its looping preview (brag-preview.gif) and poster (brag.jpg)
 ```
+
+Each package above has a component doc; the index is [`docs/README.md`](docs/README.md).

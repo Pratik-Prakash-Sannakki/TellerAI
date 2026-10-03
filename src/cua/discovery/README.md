@@ -3,6 +3,8 @@
 The LLM side: an agent learns a task once, and the recorder saves what it did as a capability
 that replay runs without an LLM. Built up step by step (`docs/PRODUCTIONIZE_PLAN.md`).
 
+Design doc: [`docs/components/discovery-agent.md`](../../../docs/components/discovery-agent.md), [`docs/components/recorder.md`](../../../docs/components/recorder.md).
+
 ## Read order
 1. `recorder/` - event log -> `Capability` -> YAML (pure; step 3).
 2. `run.py` - `DiscoveryRun` (was `HandoffState`): one run's working state, fresh per goal. Also

@@ -2,6 +2,8 @@
 
 What may leave the tab, and keeping values out of whatever is stored, logged or shown.
 
+Design doc: [`docs/components/safety.md`](../../../docs/components/safety.md), [`docs/components/guardrails.md`](../../../docs/components/guardrails.md).
+
 ## Read order
 1. `hosts.py` - `host_allowed(url, site)` (D15). `cua.config` re-exports it.
 2. `redact.py` - `norm`, `is_sensitive(label, words)`, `hide_secrets(text, secrets)`,

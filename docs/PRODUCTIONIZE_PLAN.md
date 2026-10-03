@@ -1,5 +1,9 @@
 # Productionize Plan: notebooks → `src/cua/` package
 
+> **Historical.** This migration is done (2026-10-01): the notebooks are now the `src/cua/`
+> package. Kept for the record; code and tests still cite its section numbers. Current docs:
+> [docs/README.md](README.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development (one fresh
 > sub-agent per step below, run in order) with superpowers:test-driven-development, and
 > superpowers:verification-before-completion before any "done". Steps use `- [ ]` checkboxes.

@@ -2,6 +2,8 @@
 
 No LLM, deterministic: runs a capability discovery saved, step by step, on the live site.
 
+Design doc: [`docs/components/replay.md`](../../../docs/components/replay.md).
+
 ## Read order
 1. `loader.py` - `load_capability` (YAML -> `Capability`, viewport/host/input/secret/crop checks),
    `load_outcomes` (a capability's own `outcomes:` or the site's defaults), `seen_outcome` (R17),

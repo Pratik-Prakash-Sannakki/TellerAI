@@ -1,7 +1,11 @@
 # Discovery architecture
 
+> **Notebook-era design.** Written while the system was two notebooks (before 2026-10-01). The
+> design still holds; names, file paths and some details (the sitemap step is design only, Q15)
+> differ from the code. Current per-component docs: [docs/README.md](../README.md).
+
 How the DiscoveryAgent finds things on the screen. Discovery only; the recorder and replay are
-not shown. All questions and decisions: `decisions.md` in this folder. Wider design: `ARCHITECTURE.md` §4.
+not shown. All questions and decisions: `docs/decisions/discovery-decisions.md`. Wider design: `ARCHITECTURE.md` §4.
 
 ## 1. Diagram
 

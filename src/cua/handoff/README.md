@@ -3,6 +3,8 @@
 A human in the loop: our own "Agent control" tab, the hand-back toolbar button, and the shared
 pieces of a take-over.
 
+Design doc: [`docs/components/handoff.md`](../../../docs/components/handoff.md).
+
 ## Read order
 1. `control_window.py` - `ControlWindow(win, site_page, *, side=)`: one class, every mode of both
    sides (approve, confirm, text, help, form, status, takeover, rescue). A `Side` holds what

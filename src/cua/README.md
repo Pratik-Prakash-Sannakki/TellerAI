@@ -1,6 +1,7 @@
 # cua
 
-The package behind the discovery and replay notebooks and the `cua` CLI.
+The package behind the `cua` CLI (`cua discover` / `cua replay` / `cua eval`).
+Design docs, one per component: [`docs/README.md`](../../docs/README.md).
 
 ## Read order
 1. `config.py` - site profile (`load_site` -> frozen `SiteProfile` from `configs/<site>.yaml`),

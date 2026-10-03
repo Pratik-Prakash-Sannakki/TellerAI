@@ -1,7 +1,10 @@
 # Replay architecture
 
+> **Notebook-era design.** Written while the system was two notebooks (before 2026-10-01). The
+> design still holds; names and file paths differ from the code. Current per-component docs: [docs/README.md](../README.md).
+
 How replay runs a saved capability with plain code, no LLM. All questions and decisions:
-`DECISIONS.md` in this folder (R1-R18). Discovery side: `../discovery/discovery_architecture.md`.
+`docs/decisions/replay-decisions.md` (R1-R18). Discovery side: `discovery-architecture.md`.
 
 ## 1. Diagram
 

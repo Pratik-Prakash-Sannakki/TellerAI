@@ -1,8 +1,7 @@
 """The ``cua`` command: ``cua discover "<goal>"``, ``cua replay <capability.yaml>`` and
 ``cua eval <capability.yaml> --runs N`` (replay N times in one session, report stability).
 
-Wired exactly like the two notebooks (``notebooks/discovery/discovery.py``,
-``notebooks/replay/replay.py``): one browser session per command, closed at the end.
+One browser session per command, closed at the end.
 :func:`main` is the only place in the package that calls ``asyncio.run``; everything else is async.
 """
 

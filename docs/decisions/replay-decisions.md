@@ -2,7 +2,7 @@
 
 Questions and decisions for the pure-visual replay engine (in design, nothing built yet).
 Replay walks a saved capability with plain code, no LLM. Diagram and step table:
-`replay_architecture.md` in this folder. Discovery side: `../discovery/decisions.md`.
+`docs/architecture/replay-architecture.md`. Discovery side: `discovery-decisions.md`.
 
 Status key: **DECIDED** = settled by an existing doc or a user rule (source given).
 **PROPOSED** = recommended default, waiting for the user's review.
