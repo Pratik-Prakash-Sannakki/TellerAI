@@ -14,7 +14,7 @@ plain code with no LLM (last section). Deeper per-part detail: `notebooks/discov
         |   local embeddings (FastEmbed MiniLM) match the goal to intents, per sentence
         |   clear match to off-topic / jailbreak / steering / sensitive -> REFUSED
         |   unsure band -> one Haiku call decides;  any error -> REFUSED (fails closed)
-        |   REFUSED = no browser, no agent, zero agent tokens; REFUSED evidence folder, exit 1
+        |   REFUSED = no browser, no main agent run; REFUSED evidence folder, exit 1
         v  allowed
  [2] Session  -- Playwright (cua.browser): site tab + separate control window
         |   host lock: only parabank.parasoft.com; every request passes the guard
@@ -27,8 +27,9 @@ plain code with no LLM (last section). Deeper per-part detail: `notebooks/discov
         |   traced in LangSmith (env vars only)
         v
  [4] SEND GUARD  -- cua.safety.send_guard (not an LLM; wraps every non-GET request)
+        |   first: a value the human never gave opens a prefilled form (mismatch check)
         |   Gate 1: human Approve / Edit in the control window
-        |   Gate 2: sent values must match what the goal/human gave (mismatch check)
+        |   Gate 2: human confirms sending
         v
  [5] OUTPUT RAIL -- cua.safety.rails.check_output
         |   masks card numbers, SSN, unmasked account ids; withholds credential-like answers
@@ -59,12 +60,14 @@ plain code with no LLM (last section). Deeper per-part detail: `notebooks/discov
 ```
  goal --> [Input rail: NeMo] --> agent --> [Tool layer: our tools only, site lock,
                                             allowed_actions, one-at-a-time]
-      --> [Send guard: Gate 1 human approve, Gate 2 mismatch]
+      --> [Send guard: mismatch check, Gate 1 approve/edit, Gate 2 confirm send]
       --> [Output rail: mask / withhold] --> evidence + artifact (masked, leak-checked)
 ```
 
 - Input rail (NeMo): refuses before any work. Embeddings decide clear goals with no LLM
-  (threshold 0.45 on NeMo's score); Haiku only when unsure; fails closed. Modes
+  (two thresholds in `configs/rails/thresholds.yml`: upper 0.65 refuses a clear attack or auto-allows
+  a close banking example, lower 0.45 caps the refused score; anything unsure goes to Haiku; a
+  tripwire word list and clause scoring stop tacked-on attacks); fails closed. Modes
   `rails: off | on | required` in the site config; `on` without the extra prints "guardrails OFF".
 - Tool layer: the model can only call our tools; click refuses deny-listed words; secrets are
   typed by name (`type_secret`), values never reach the model.
@@ -79,9 +82,3 @@ plain code with no LLM (last section). Deeper per-part detail: `notebooks/discov
 `cua replay <capability.yaml>`: a plain-code engine runs the saved steps (rungs: table cell,
 OCR text, anchor, template) through the same send guard. No NeMo and no model call; there is no
 free text to rail.
-
-## 5. Status note
-
-The rails modules, config and tests exist; CLI wiring (calling `check_goal` before the browser
-and `check_output` on the answer) is task 5 of the NeMo plan. The diagram shows the intended
-final flow.

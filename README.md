@@ -180,11 +180,16 @@ before the browser opens. Rails are written in Colang in `configs/rails/`.
 
 - **Input rails:** off-topic, jailbreak, steering ("give me control", "skip the gates") and
   sensitive/emotional goals are refused. The goal is checked sentence by sentence and whole.
-- **How it decides:** local embeddings first (no API call); only an unclear goal goes to Haiku.
+- **How it decides:** embeddings refuse clear attacks and auto-allow only short goals very close to a
+  known banking example. Everything else is decided by one Haiku call per sentence (plus the whole
+  goal). A tripwire word list and clause scoring keep tacked-on attacks from being auto-allowed.
 - **Refused goal:** prints why, writes a `REFUSED` evidence folder (rail and score only), exits 1.
-  The browser never opens and the agent spends nothing.
+  The browser never opens and the main agent never runs (at most a quick Haiku check).
 - **Output rail:** the final answer is masked (card numbers, SSNs, account ids); a credential or a
   secret value withholds it.
+- **Spec deviations:** the output rail is plain Python; no Colang flows or bot messages run (refusal
+  texts live in `REFUSALS`); NeMo provides the Colang examples and the embedding index; the recorded
+  score is NeMo's similarity (on LLM-decided goals, the whole-goal intent score).
 - **Fails closed:** if the rails error or time out, the goal is refused.
 - **Setup:** `uv sync --extra rails`. The first run downloads the embedding model (~90 MB).
   `rails: off | on | required` in the site config; `on` runs without the extra (prints
