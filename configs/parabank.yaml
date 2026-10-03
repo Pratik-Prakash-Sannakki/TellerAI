@@ -32,6 +32,7 @@ outcomes:
   - {text: no such, status: BUSINESS_OUTCOME, meaning: the item asked for does not exist}
   - {text: does not exist, status: BUSINESS_OUTCOME, meaning: the item does not exist}
   - {text: insufficient funds, status: BUSINESS_OUTCOME, meaning: not enough funds}
+  - {text: do not have sufficient funds, status: BUSINESS_OUTCOME, meaning: not enough funds for the down payment (loan denied)}
   - {text: could not be verified, status: BUSINESS_OUTCOME, meaning: details not verified}
   - {text: session expired, status: RECOVER, meaning: the session expired}
   - {text: access denied, status: FAILED, meaning: the site denied access}

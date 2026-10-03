@@ -53,6 +53,7 @@ def test_outcomes_in_order(site: SiteProfile) -> None:
         ("no such", "BUSINESS_OUTCOME"),
         ("does not exist", "BUSINESS_OUTCOME"),
         ("insufficient funds", "BUSINESS_OUTCOME"),
+        ("do not have sufficient funds", "BUSINESS_OUTCOME"),
         ("could not be verified", "BUSINESS_OUTCOME"),
         ("session expired", "RECOVER"),
         ("access denied", "FAILED"),
