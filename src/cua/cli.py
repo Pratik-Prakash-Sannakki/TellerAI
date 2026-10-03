@@ -30,7 +30,7 @@ from cua.config import (
     secret_values,
 )
 from cua.discovery.agent.build import build_agent
-from cua.discovery.evidence import artifact_mask
+from cua.discovery.evidence import artifact_mask, save_refused
 from cua.discovery.evidence import save_evidence as save_discovery_evidence
 from cua.discovery.goal import run_goal
 from cua.discovery.recorder import (
@@ -58,10 +58,13 @@ from cua.llm import make_chat_model
 from cua.replay.engine import replay
 from cua.replay.evidence import save_evidence as save_replay_evidence
 from cua.replay.wiring import attach as replay_attach
+from cua.safety.nemo import load_classifier
+from cua.safety.rails import Classifier, check_goal, check_output
 from cua.safety.redact import IdMask
 from cua.schema import Capability, Event, ReplayResult
 
 EVIDENCE = Path("evidence")
+RAILS = _repo_root() / "configs" / "rails"
 SITE_HELP = "site profile name in configs/ (default: the only one there)"
 
 
@@ -118,6 +121,15 @@ def parse_inputs(pairs: Sequence[str]) -> dict[str, str]:
     return out
 
 
+class GoalRefused(Exception):  # noqa: N818
+    """The guardrails refused the goal; evidence is written, the browser never opened."""
+
+
+class _Broken:
+    async def classify(self, text: str) -> tuple[str | None, float]:
+        raise RuntimeError("guardrails failed to load")
+
+
 async def _close(session: Session) -> None:
     await close_session(session)
 
@@ -125,6 +137,22 @@ async def _close(session: Session) -> None:
 async def discover(goal: str, site_name: str, out: Path) -> Path | None:
     """The discovery notebook's cells: setup, run, save artifact, evidence."""
     site = load_site(site_name)
+    clf: Classifier | None = None
+    if site.rails != "off":
+        try:
+            clf = load_classifier(RAILS, make_chat_model("haiku"))
+        except Exception:  # noqa: BLE001  bad config / model: fail closed below
+            clf = _Broken()
+    if clf is None and site.rails == "on":
+        print("guardrails OFF (install with --extra rails)")
+    verdict = await check_goal(goal, site.rails, clf)
+    if not verdict.allowed:
+        print(verdict.message)
+        folder = save_refused(
+            EVIDENCE / "discovery", goal, verdict, site, secrets=secret_values(site)
+        )
+        print("evidence:", folder)
+        raise GoalRefused(verdict.rail or "")
     session = await open_session(site, BrowserConfig(), profile_prefix="cua-discovery-")
     path: Path | None = None
     try:
@@ -135,7 +163,9 @@ async def discover(goal: str, site_name: str, out: Path) -> Path | None:
         try:
             agent = build_agent(ctx, model)  # a CompiledStateGraph; run_goal types it as Agent
             answer = await run_goal(ctx, agent, goal)  # type: ignore[arg-type]
-            print(IdMask.for_site(site)(answer))
+            checked = check_output(answer, IdMask.for_site(site), secret_values(site))
+            ctx.run.answer = checked.answer  # evidence's answer.txt gets the checked answer too
+            print(checked.answer)
             path = await _save(
                 ctx.run.log, ctx.run.goal, model, out, artifact_mask(ctx),
                 values=run_values(ctx.run, ctx.secrets),
@@ -258,7 +288,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     site = args.site or default_site()
     if args.command == "discover":
-        asyncio.run(discover(args.goal, site, args.out))
+        try:
+            asyncio.run(discover(args.goal, site, args.out))
+        except GoalRefused:
+            return 1
         return 0
     try:
         inputs = parse_inputs(args.inputs)

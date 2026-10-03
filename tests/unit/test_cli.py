@@ -171,7 +171,9 @@ def test_only_main_calls_asyncio_run() -> None:
 
 
 def SITE_NS(name: str) -> SimpleNamespace:  # noqa: N802
-    return SimpleNamespace(name=name, start_url="U", id_min_digits=5, id_visible_digits=3)
+    return SimpleNamespace(
+        name=name, start_url="U", id_min_digits=5, id_visible_digits=3, rails="on"
+    )
 
 
 class _Session(SimpleNamespace):
@@ -207,13 +209,65 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, calls: list[tuple[object, ..
     monkeypatch.setattr(cli, "open_session", open_session)
     monkeypatch.setattr(cli, "check_viewport", check_viewport)
     monkeypatch.setattr(cli, "secret_values", lambda site: {"username": ""})
+    monkeypatch.setattr(cli, "load_classifier", lambda *a, **k: _Clf((None, 1.0)))
     return session
+
+
+class _Clf:
+    def __init__(
+        self, result: tuple[str | None, float] = (None, 1.0), exc: Exception | None = None
+    ) -> None:
+        self.result, self.exc = result, exc
+
+    async def classify(self, text: str) -> tuple[str | None, float]:
+        if self.exc:
+            raise self.exc
+        return self.result
+
+
+def test_a_refused_goal_never_opens_the_browser_and_exits_1(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[object, ...]] = []
+    _patch_session(monkeypatch, calls)
+    monkeypatch.setattr(cli, "load_classifier", lambda *a, **k: _Clf(("off_topic", 0.95)))
+    monkeypatch.setattr(cli, "make_chat_model", lambda kind: object())
+    monkeypatch.setattr(cli, "EVIDENCE", tmp_path)
+    monkeypatch.setattr(cli, "save_refused", lambda out, goal, v, site, **k: out / "R")
+    assert cli.main(["discover", "tell me a joke"]) == 1
+    assert calls == []  # open_session never ran
+
+
+def test_rails_unavailable_refuses(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[tuple[object, ...]] = []
+    _patch_session(monkeypatch, calls)
+    monkeypatch.setattr(cli, "load_classifier", lambda *a, **k: _Clf(exc=RuntimeError()))
+    monkeypatch.setattr(cli, "make_chat_model", lambda kind: object())
+    monkeypatch.setattr(cli, "save_refused", lambda out, goal, v, site, **k: out / "R")
+    assert cli.main(["discover", "Log in"]) == 1
+    assert calls == []
+
+
+def test_a_broken_rails_config_refuses(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[tuple[object, ...]] = []
+    _patch_session(monkeypatch, calls)
+
+    def broken(*a: object, **k: object) -> object:
+        raise ValueError("bad config")
+
+    monkeypatch.setattr(cli, "load_classifier", broken)
+    monkeypatch.setattr(cli, "make_chat_model", lambda kind: object())
+    monkeypatch.setattr(cli, "save_refused", lambda out, goal, v, site, **k: out / "R")
+    assert cli.main(["discover", "Log in"]) == 1
+    assert calls == []
 
 
 MASK = ArtifactMask(IdMask(5, 3), str)
 
 
-def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_discover_wires_like_the_notebook(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     calls: list[tuple[object, ...]] = []
     _patch_session(monkeypatch, calls)
     run = SimpleNamespace(
@@ -229,7 +283,7 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     async def run_goal(c: object, agent: object, goal: str) -> str:
         calls.append(("run_goal", agent, goal))
-        return "done"
+        return "Paid with card 4111111111111111."
 
     async def describe(goal: str, log: object, m: object, ids: object) -> str:
         calls.append(("describe", goal, m, ids))
@@ -276,6 +330,9 @@ def test_discover_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert calls[6][1:] == (MASK,)  # the artifact is masked (and leak-checked) before writing
     assert calls[7][1:] == (tmp_path / "c.yaml", "M")
     assert built == [{"acme water"}]  # the run's values: never the checkpoint
+    out = capsys.readouterr().out
+    assert "4111111111111111" not in out
+    assert "***1111" in out
 
 
 def test_replay_wires_like_the_notebook(monkeypatch: pytest.MonkeyPatch) -> None:
